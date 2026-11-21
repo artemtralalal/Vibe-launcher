@@ -100,6 +100,14 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getInt("current_page", 0)
         set(v) = prefs.edit().putInt("current_page", v).apply()
 
+    var devMode: Boolean
+        get() = prefs.getBoolean("dev_mode", false)
+        set(v) = prefs.edit().putBoolean("dev_mode", v).apply()
+
+    var iconPressAnim: Boolean
+        get() = prefs.getBoolean("icon_press_anim", true)
+        set(v) = prefs.edit().putBoolean("icon_press_anim", v).apply()
+
     fun savePages(pages: List<List<String>>) {
         val arr = JSONArray()
         pages.forEach { page ->
