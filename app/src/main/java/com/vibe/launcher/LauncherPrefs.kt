@@ -2,7 +2,6 @@ package com.vibe.launcher
 
 import android.content.Context
 import org.json.JSONArray
-import org.json.JSONObject
 
 class LauncherPrefs(context: Context) {
     private val prefs = context.getSharedPreferences("launcher_prefs", Context.MODE_PRIVATE)
@@ -10,6 +9,47 @@ class LauncherPrefs(context: Context) {
     var flagshipAnimations: Boolean
         get() = prefs.getBoolean(KEY_FLAGSHIP, true)
         set(value) = prefs.edit().putBoolean(KEY_FLAGSHIP, value).apply()
+
+    // Animation tuning (percent/scale factors kept simple)
+    var openDuration: Int
+        get() = prefs.getInt("open_duration", 320)
+        set(v) = prefs.edit().putInt("open_duration", v).apply()
+    var closeDuration: Int
+        get() = prefs.getInt("close_duration", 280)
+        set(v) = prefs.edit().putInt("close_duration", v).apply()
+    var openScale: Float
+        get() = prefs.getFloat("open_scale", 0.85f)
+        set(v) = prefs.edit().putFloat("open_scale", v).apply()
+    var closeScale: Float
+        get() = prefs.getFloat("close_scale", 0.88f)
+        set(v) = prefs.edit().putFloat("close_scale", v).apply()
+    var openTranslateX: Float
+        get() = prefs.getFloat("open_tx", 0f)
+        set(v) = prefs.edit().putFloat("open_tx", v).apply()
+    var openTranslateY: Float
+        get() = prefs.getFloat("open_ty", 0f)
+        set(v) = prefs.edit().putFloat("open_ty", v).apply()
+    var closeTranslateX: Float
+        get() = prefs.getFloat("close_tx", 0f)
+        set(v) = prefs.edit().putFloat("close_tx", v).apply()
+    var closeTranslateY: Float
+        get() = prefs.getFloat("close_ty", -40f)
+        set(v) = prefs.edit().putFloat("close_ty", v).apply()
+    var openOvershoot: Float
+        get() = prefs.getFloat("open_overshoot", 0.6f)
+        set(v) = prefs.edit().putFloat("open_overshoot", v).apply()
+    var closeOvershoot: Float
+        get() = prefs.getFloat("close_overshoot", 0.4f)
+        set(v) = prefs.edit().putFloat("close_overshoot", v).apply()
+    var blurEnabled: Boolean
+        get() = prefs.getBoolean("blur_enabled", true)
+        set(v) = prefs.edit().putBoolean("blur_enabled", v).apply()
+    var blurRadius: Float
+        get() = prefs.getFloat("blur_radius", 24f)
+        set(v) = prefs.edit().putFloat("blur_radius", v).apply()
+    var iconPackPackage: String
+        get() = prefs.getString("icon_pack", "") ?: ""
+        set(v) = prefs.edit().putString("icon_pack", v).apply()
 
     fun saveGridOrder(keys: List<String>) {
         prefs.edit().putString(KEY_GRID, JSONArray(keys).toString()).apply()
