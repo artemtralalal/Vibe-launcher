@@ -83,6 +83,11 @@ class MainActivity : AppCompatActivity() {
     private var pendingDropDockSlot: Int? = null
     private var pendingDropGridIndex: Int = -1
     private var pageSwitchRunnable: Runnable? = null
+    private var pageDragActive = false
+    private var pageDragDidSnap = false
+    private var pageDragStartX = 0f
+    private var pageDragStartY = 0f
+    private var pageDragDx = 0f
 
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -597,7 +602,7 @@ class MainActivity : AppCompatActivity() {
                     if (appDrawer.isVisible) { closeDrawer(); return true }
                 }
                 if (abs(dx) > abs(dy) && abs(dx) > 120 && abs(velocityX) > 200) {
-                    if (!appDrawer.isVisible && !settingsOverlay.isVisible && draggedKey == null) {
+                    if (!appDrawer.isVisible && !settingsOverlay.isVisible && draggedKey == null && !pageDragDidSnap) {
                         if (dx < 0) switchPageAnimated(1) else switchPageAnimated(-1)
                         return true
                     }
@@ -608,8 +613,66 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        handlePageDrag(ev)
         if (::globalDetector.isInitialized) globalDetector.onTouchEvent(ev)
         return super.dispatchTouchEvent(ev)
+    }
+
+    private fun handlePageDrag(ev: MotionEvent) {
+        if (appDrawer.isVisible || settingsOverlay.isVisible || draggedKey != null) {
+            if (pageDragActive) snapPageDrag(0f)
+            return
+        }
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                pageDragActive = false
+                pageDragDidSnap = false
+                pageDragStartX = ev.x
+                pageDragStartY = ev.y
+                pageDragDx = 0f
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = ev.x - pageDragStartX
+                val dy = ev.y - pageDragStartY
+                if (!pageDragActive) {
+                    if (abs(dx) > 24 * resources.displayMetrics.density && abs(dx) > abs(dy) * 1.2f) {
+                        // don't start page drag if touch started on icon
+                        if (!isPointOnAppIcon(ev.rawX - dx, ev.rawY - dy)) pageDragActive = true
+                    }
+                }
+                if (pageDragActive) {
+                    pageDragDx = dx
+                    val canLeft = currentPageIndex > 0
+                    val canRight = currentPageIndex < pages.lastIndex
+                    val resisted = when {
+                        dx > 0 && !canLeft -> dx * 0.2f
+                        dx < 0 && !canRight -> dx * 0.2f
+                        else -> dx
+                    }
+                    gridRecycler.translationX = resisted
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (pageDragActive) {
+                    val dx = ev.x - pageDragStartX
+                    pageDragDidSnap = true
+                    snapPageDrag(dx)
+                }
+                pageDragActive = false
+            }
+        }
+    }
+
+    private fun snapPageDrag(dx: Float) {
+        val threshold = gridRecycler.width * 0.2f
+        val goNext = dx < -threshold && currentPageIndex < pages.lastIndex
+        val goPrev = dx > threshold && currentPageIndex > 0
+        when {
+            goNext -> switchPageAnimated(1)
+            goPrev -> switchPageAnimated(-1)
+            else -> gridRecycler.animate().translationX(0f).alpha(1f).setDuration(150).start()
+        }
+        pageDragDx = 0f
     }
 
     private fun isPointOnAppIcon(rawX: Float, rawY: Float): Boolean {
@@ -899,12 +962,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSettingsButton() {
         if (settingsOverlay.isVisible || appDrawer.isVisible) return
+        quickPanel.bringToFront()
         quickPanel.alpha = 0f
         quickPanel.scaleX = 0.92f
         quickPanel.scaleY = 0.92f
         quickPanel.isVisible = true
         quickPanel.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(180).start()
-        quickPanel.isVisible = false; settingsButton.isVisible = false
+        settingsButton.isVisible = false
     }
 
     private fun loadApps() {
