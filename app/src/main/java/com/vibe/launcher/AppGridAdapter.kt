@@ -12,7 +12,8 @@ class AppGridAdapter(
     private val onClick: (AppEntry, View) -> Unit,
     private val onLongPressDrag: (AppEntry, View) -> Boolean,
     private val onEmptyLongPress: () -> Unit,
-    private val shape: () -> String = { "circle" }
+    private val shape: () -> String = { "circle" },
+    private val showLabels: () -> Boolean = { true }
 ) : RecyclerView.Adapter<AppGridAdapter.VH>() {
 
     private val items = mutableListOf<AppEntry>()
@@ -82,6 +83,7 @@ class AppGridAdapter(
         val item = items[position]
         holder.icon.setImageDrawable(item.icon)
         holder.label.text = item.label
+        holder.label.visibility = if (showLabels()) View.VISIBLE else View.GONE
         applyShape(holder.icon, shape())
         holder.itemView.setOnClickListener { onClick(item, holder.icon) }
         holder.itemView.setOnLongClickListener { onLongPressDrag(item, holder.itemView) }
