@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Vibe Launcher</string>
+    <string name="search_apps">Поиск приложений</string>
+    <string name="settings_title">Настройки рабочего стола</string>
+    <string name="flagship_animations">Флагманские анимации</string>
+    <string name="flagship_animations_desc">Масштабирование в иконку при открытии/закрытии. Выключите для более лёгкой анимации.</string>
+</resources>
