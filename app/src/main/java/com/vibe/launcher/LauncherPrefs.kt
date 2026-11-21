@@ -12,10 +12,10 @@ class LauncherPrefs(context: Context) {
 
     // Animation tuning (percent/scale factors kept simple)
     var openDuration: Int
-        get() = prefs.getInt("open_duration", 320)
+        get() = prefs.getInt("open_duration", 380)
         set(v) = prefs.edit().putInt("open_duration", v).apply()
     var closeDuration: Int
-        get() = prefs.getInt("close_duration", 280)
+        get() = prefs.getInt("close_duration", 340)
         set(v) = prefs.edit().putInt("close_duration", v).apply()
     var openScale: Float
         get() = prefs.getFloat("open_scale", 0.85f)
