@@ -854,7 +854,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun animateShatter(target: View, onEnd: () -> Unit) {
         try {
-            val bmp = target.toBitmap()
+            val bmp = target.drawToBitmap()
             val loc = IntArray(2)
             target.getLocationOnScreen(loc)
             val rootLoc = IntArray(2)
