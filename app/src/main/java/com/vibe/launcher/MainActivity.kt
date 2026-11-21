@@ -207,8 +207,15 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private lateinit var globalDetector: GestureDetector
+
     private fun setupGestures() {
-        val swipeDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+        globalDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onLongPress(e: MotionEvent) {
+                if (settingsOverlay.isVisible || appDrawer.isVisible) return
+                if (!isPointOnAppIcon(e.rawX, e.rawY)) showSettingsButton()
+            }
+
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
                 if (e1 == null) return false
                 val dy = e2.y - e1.y
@@ -222,8 +229,26 @@ class MainActivity : AppCompatActivity() {
                 return false
             }
         })
-        root.setOnTouchListener { _, event -> swipeDetector.onTouchEvent(event); false }
-        findViewById<View>(R.id.homeContent).setOnTouchListener { _, event -> swipeDetector.onTouchEvent(event); false }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (::globalDetector.isInitialized) globalDetector.onTouchEvent(ev)
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun isPointOnAppIcon(rawX: Float, rawY: Float): Boolean {
+        val loc = IntArray(2)
+        for (i in 0 until gridRecycler.childCount) {
+            val child = gridRecycler.getChildAt(i) ?: continue
+            child.getLocationOnScreen(loc)
+            if (rawX >= loc[0] && rawX <= loc[0] + child.width && rawY >= loc[1] && rawY <= loc[1] + child.height) return true
+        }
+        for (i in 0 until dockBar.childCount) {
+            val child = dockBar.getChildAt(i) ?: continue
+            child.getLocationOnScreen(loc)
+            if (rawX >= loc[0] && rawX <= loc[0] + child.width && rawY >= loc[1] && rawY <= loc[1] + child.height) return true
+        }
+        return false
     }
 
     private fun setupBack() {
@@ -305,6 +330,7 @@ class MainActivity : AppCompatActivity() {
             val item = layoutInflater.inflate(R.layout.item_app, dockBar, false)
             val icon = item.findViewById<ImageView>(R.id.appIcon)
             val label = item.findViewById<TextView>(R.id.appLabel)
+            label.visibility = View.GONE
             item.layoutParams = LinearLayout.LayoutParams(itemWidth, LinearLayout.LayoutParams.MATCH_PARENT)
             if (app != null) {
                 icon.setImageDrawable(app.icon)
@@ -344,7 +370,7 @@ class MainActivity : AppCompatActivity() {
     private fun handleGridDrag(event: android.view.DragEvent): Boolean {
         when (event.action) {
             android.view.DragEvent.ACTION_DRAG_ENDED -> resetDragState()
-            android.view.DragEvent.ACTION_DROP -> {
+            android.view.DragEvent.ACTION_DROP -> try {
                 val key = event.clipData?.getItemAt(0)?.text?.toString() ?: return true
                 val app = findApp(key) ?: return true
                 val fromDock = draggedFromDock
@@ -362,7 +388,7 @@ class MainActivity : AppCompatActivity() {
                 gridAdapter.insertAt(insertAt.coerceAtLeast(0), app)
                 renderDock()
                 persistLayout()
-            }
+            } catch (_: Exception) { resetDragState() }
         }
         return true
     }
@@ -374,7 +400,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleDockSlotDrag(slot: Int, event: android.view.DragEvent): Boolean {
         when (event.action) {
-            android.view.DragEvent.ACTION_DROP -> {
+            android.view.DragEvent.ACTION_DROP -> try {
                 val key = event.clipData?.getItemAt(0)?.text?.toString() ?: return true
                 val app = findApp(key) ?: return true
                 val fromDock = draggedFromDock
@@ -390,7 +416,7 @@ class MainActivity : AppCompatActivity() {
                 dockApps[slot] = app
                 renderDock()
                 persistLayout()
-            }
+            } catch (_: Exception) { resetDragState() }
             android.view.DragEvent.ACTION_DRAG_ENDED -> resetDragState()
         }
         return true
@@ -404,21 +430,28 @@ class MainActivity : AppCompatActivity() {
     private fun findApp(key: String): AppEntry? = allApps.firstOrNull { it.key == key }
 
     private fun resetDragState() {
-        for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.alpha = 1f
-        for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.alpha = 1f
-        if (draggedFromDrawer && draggedKey != null) {
-            val key = draggedKey
-            val onHome = gridAdapter.all().any { it.key == key } || dockApps.filterNotNull().any { it.key == key }
-            if (!onHome) {
-                appDrawer.isVisible = true
-                appDrawer.translationY = 0f
-            } else {
-                appDrawer.isVisible = false
-                appDrawer.translationY = 0f
-            }
+        if (draggedKey == null && !draggedFromDrawer) {
+            for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.alpha = 1f
+            for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.alpha = 1f
+            return
         }
+        try {
+            for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.alpha = 1f
+            for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.alpha = 1f
+            if (draggedFromDrawer && draggedKey != null) {
+                val key = draggedKey
+                val onHome = gridAdapter.all().any { it.key == key } || dockApps.filterNotNull().any { it.key == key }
+                if (!onHome) {
+                    appDrawer.isVisible = true
+                    appDrawer.translationY = 0f
+                } else {
+                    appDrawer.isVisible = false
+                    appDrawer.translationY = 0f
+                }
+            }
+        } catch (_: Exception) { }
         draggedKey = null; draggedFromDock = null; draggedFromDrawer = false
-        renderDock()
+        try { renderDock() } catch (_: Exception) { }
     }
 
     private fun persistLayout() {
