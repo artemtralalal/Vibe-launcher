@@ -63,6 +63,7 @@ class MainActivity : AppCompatActivity() {
     private var draggedKey: String? = null
     private var draggedFromDock: Int? = null
     private var draggedFromDrawer = false
+    private var dragDropped = false
 
     private var lastLaunchKey: String? = null
     private var lastLaunchBounds: IntArray? = null
@@ -284,6 +285,9 @@ class MainActivity : AppCompatActivity() {
     private fun setupWelcome() {
         val overlay = findViewById<View>(R.id.welcomeOverlay)
         val start = findViewById<View>(R.id.welcomeStartBtn)
+        val choices = findViewById<View>(R.id.welcomeChoices)
+        val autoBtn = findViewById<View>(R.id.welcomeAutoBtn)
+        val emptyBtn = findViewById<View>(R.id.welcomeEmptyBtn)
         val s1 = findViewById<View>(R.id.welcomeShape1)
         val s2 = findViewById<View>(R.id.welcomeShape2)
         val s3 = findViewById<View>(R.id.welcomeShape3)
@@ -301,10 +305,57 @@ class MainActivity : AppCompatActivity() {
         title.animate().alpha(1f).translationY(0f).setDuration(450).setStartDelay(450).start()
         subtitle.animate().alpha(1f).translationY(0f).setDuration(450).setStartDelay(550).start()
         start.animate().alpha(1f).translationY(0f).setDuration(450).setStartDelay(700).start()
-        start.setOnClickListener {
+
+        fun finishWelcome() {
             prefs.welcomeDone = true
-            overlay.animate().alpha(0f).setDuration(250).withEndAction { overlay.isVisible = false; overlay.alpha = 1f }.start()
+            overlay.animate().alpha(0f).setDuration(250).withEndAction {
+                overlay.isVisible = false
+                overlay.alpha = 1f
+            }.start()
         }
+
+        start.setOnClickListener {
+            start.isVisible = false
+            choices.alpha = 0f
+            choices.isVisible = true
+            choices.animate().alpha(1f).setDuration(250).start()
+        }
+        autoBtn.setOnClickListener { applyAutoLayout(); finishWelcome() }
+        emptyBtn.setOnClickListener { applyEmptyLayout(); finishWelcome() }
+    }
+
+    private fun applyAutoLayout() {
+        try {
+            val dockCandidates = listOf(
+                listOf("dialer", "phone", "телефон"),
+                listOf("contacts", "people", "контакт"),
+                listOf("camera", "камера"),
+                listOf("browser", "chrome", "yandex", "firefox", "браузер")
+            )
+            val used = mutableSetOf<String>()
+            for (i in 0 until 4) {
+                val match = allApps.firstOrNull { app ->
+                    app.key !in used && dockCandidates[i].any { c ->
+                        app.label.lowercase().contains(c) || app.packageName.lowercase().contains(c)
+                    }
+                }
+                dockApps[i] = match
+                if (match != null) used.add(match.key)
+            }
+            val grid = allApps.filter { it.key !in used }.take(8)
+            gridAdapter.submitApps(grid)
+            renderDock()
+            persistLayout()
+        } catch (_: Exception) { }
+    }
+
+    private fun applyEmptyLayout() {
+        try {
+            for (i in 0 until 4) dockApps[i] = null
+            gridAdapter.submitApps(emptyList())
+            renderDock()
+            persistLayout()
+        } catch (_: Exception) { }
     }
 
     private fun showSettingsButton() {
@@ -382,6 +433,7 @@ class MainActivity : AppCompatActivity() {
         draggedKey = app.key
         draggedFromDock = fromDock
         draggedFromDrawer = fromDrawer
+        dragDropped = false
         settingsButton.isVisible = false
         val data = ClipData.newPlainText("app", app.key)
         val shadow = View.DragShadowBuilder(view)
@@ -419,9 +471,8 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 gridAdapter.insertAt(insertAt.coerceAtLeast(0), app)
-                renderDock()
-                persistLayout()
-            } catch (_: Exception) { resetDragState() }
+                dragDropped = true
+            } catch (_: Exception) { }
         }
         return true
     }
@@ -447,9 +498,8 @@ class MainActivity : AppCompatActivity() {
                     gridAdapter.insertAt(gridAdapter.itemCount, replaced)
                 }
                 dockApps[slot] = app
-                renderDock()
-                persistLayout()
-            } catch (_: Exception) { resetDragState() }
+                dragDropped = true
+            } catch (_: Exception) { }
             android.view.DragEvent.ACTION_DRAG_ENDED -> resetDragState()
         }
         return true
@@ -468,11 +518,13 @@ class MainActivity : AppCompatActivity() {
             for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.alpha = 1f
             return
         }
+        val dropped = dragDropped
+        val fromDrawer = draggedFromDrawer
+        val key = draggedKey
         try {
             for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.alpha = 1f
             for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.alpha = 1f
-            if (draggedFromDrawer && draggedKey != null) {
-                val key = draggedKey
+            if (fromDrawer && key != null) {
                 val onHome = gridAdapter.all().any { it.key == key } || dockApps.filterNotNull().any { it.key == key }
                 if (!onHome) {
                     appDrawer.isVisible = true
@@ -485,8 +537,11 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (_: Exception) { }
-        draggedKey = null; draggedFromDock = null; draggedFromDrawer = false
-        try { renderDock() } catch (_: Exception) { }
+        draggedKey = null; draggedFromDock = null; draggedFromDrawer = false; dragDropped = false
+        try {
+            renderDock()
+            if (dropped) persistLayout()
+        } catch (_: Exception) { }
     }
 
     private fun persistLayout() {
@@ -596,9 +651,9 @@ class MainActivity : AppCompatActivity() {
         overlay.animate()
             .scaleX(sX).scaleY(sY)
             .translationX(tX).translationY(tY)
-            .alpha(0.95f)
+            .alpha(0.96f)
             .setDuration(prefs.closeDuration.toLong())
-            .setInterpolator(DecelerateInterpolator())
+            .setInterpolator(DecelerateInterpolator(1.6f))
             .withEndAction {
                 overlay.isVisible = false
                 overlay.alpha = 1f
