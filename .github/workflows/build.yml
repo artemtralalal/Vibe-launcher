@@ -4,6 +4,9 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -31,3 +34,13 @@ jobs:
         with:
           name: vibe-launcher-debug
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: latest
+          name: "Vibe Launcher Latest"
+          prerelease: false
+          make_latest: true
+          files: app/build/outputs/apk/debug/*.apk
