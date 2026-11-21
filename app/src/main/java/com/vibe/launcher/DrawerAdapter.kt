@@ -22,7 +22,7 @@ class DrawerAdapter(
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-        val v = LayoutInflater.from(parent.context).inflate(R.layout.item_drawer_app, parent, false)
+        val v = LayoutInflater.from(parent.context).inflate(R.layout.item_app, parent, false)
         return VH(v)
     }
 
