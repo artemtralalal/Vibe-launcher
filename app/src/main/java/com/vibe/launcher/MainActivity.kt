@@ -30,9 +30,11 @@ import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.view.drawToBitmap
 import androidx.core.view.isVisible
 import androidx.palette.graphics.Palette
 import androidx.recyclerview.widget.GridLayoutManager
@@ -57,6 +59,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var drawerRecycler: RecyclerView
     private lateinit var animationOverlay: View
     private lateinit var iconPackLabel: TextView
+    private lateinit var pageIndicator: LinearLayout
+    private lateinit var pageEdgeLeft: View
+    private lateinit var pageEdgeRight: View
 
     private lateinit var gridAdapter: AppGridAdapter
     private lateinit var drawerAdapter: DrawerAdapter
@@ -64,17 +69,36 @@ class MainActivity : AppCompatActivity() {
 
     private val allApps = mutableListOf<AppEntry>()
     private val dockApps = arrayListOf<AppEntry?>(null, null, null, null)
+    private val pages = mutableListOf<MutableList<AppEntry>>()
+    private var currentPageIndex = 0
+    private val pageSize = 24
+
     private var draggedKey: String? = null
     private var draggedFromDock: Int? = null
     private var draggedFromDrawer = false
+    private var draggedFromPage: Int = -1
     private var dragDropped = false
     private var pendingDropKey: String? = null
     private var pendingDropDockSlot: Int? = null
     private var pendingDropGridIndex: Int = -1
+    private var pageSwitchRunnable: Runnable? = null
 
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == Intent.ACTION_USER_PRESENT) playUnlockAnimation()
+        }
+    }
+
+    private val wallpaperPickLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) showWallpaperTargetDialog(uri)
+    }
+
+    private lateinit var volumePanel: View
+    private lateinit var audioManager: android.media.AudioManager
+    private var volumeHideRunnable: Runnable? = null
+    private val volumeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "android.media.VOLUME_CHANGED_ACTION") showVolumePanel()
         }
     }
 
@@ -101,6 +125,9 @@ class MainActivity : AppCompatActivity() {
         drawerRecycler = findViewById(R.id.drawerRecycler)
         animationOverlay = findViewById(R.id.animationOverlay)
         iconPackLabel = findViewById(R.id.iconPackLabel)
+        pageIndicator = findViewById(R.id.pageIndicator)
+        pageEdgeLeft = findViewById(R.id.pageEdgeLeft)
+        pageEdgeRight = findViewById(R.id.pageEdgeRight)
 
         setupGrid()
         setupDrawer()
@@ -108,13 +135,17 @@ class MainActivity : AppCompatActivity() {
         setupSettings()
         setupGestures()
         setupBack()
+        setupPageEdges()
+        setupVolumePanel()
         loadApps()
         setupWelcome()
         try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
+        try { registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) } catch (_: Exception) {}
     }
 
     override fun onDestroy() {
         try { unregisterReceiver(unlockReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(volumeReceiver) } catch (_: Exception) {}
         super.onDestroy()
     }
 
@@ -137,7 +168,8 @@ class MainActivity : AppCompatActivity() {
             onLongPressDrag = { app, view -> showIconMenu(app, view, fromDock = null, fromDrawer = false) },
             onEmptyLongPress = { showSettingsButton() },
             shape = { prefs.iconShape },
-            showLabels = { prefs.showLabels }
+            showLabels = { prefs.showLabels },
+            cornerRadii = { currentCornerRadii() }
         )
         gridRecycler.layoutManager = GridLayoutManager(this, 4)
         gridRecycler.adapter = gridAdapter
@@ -161,7 +193,8 @@ class MainActivity : AppCompatActivity() {
         drawerAdapter = DrawerAdapter(
             onClick = { app, icon -> launchApp(app, icon, fromDrawer = true) },
             onLongPress = { app, view -> showIconMenu(app, view, fromDock = null, fromDrawer = true) },
-            shape = { prefs.iconShape }
+            shape = { prefs.iconShape },
+            cornerRadii = { currentCornerRadii() }
         )
         drawerRecycler.layoutManager = GridLayoutManager(this, 4)
         drawerRecycler.adapter = drawerAdapter
@@ -171,6 +204,150 @@ class MainActivity : AppCompatActivity() {
     private fun setupDock() {
         dockBar.setOnDragListener { _, event -> handleDockDrag(event) }
         renderDock()
+    }
+
+    private fun ensurePages() {
+        if (pages.isEmpty()) pages.add(mutableListOf())
+    }
+
+    private fun currentPageItems(): MutableList<AppEntry> {
+        ensurePages()
+        currentPageIndex = currentPageIndex.coerceIn(0, pages.lastIndex)
+        return pages[currentPageIndex]
+    }
+
+    private fun renderCurrentPage() {
+        ensurePages()
+        currentPageIndex = currentPageIndex.coerceIn(0, pages.lastIndex)
+        gridAdapter.submitApps(pages[currentPageIndex].toList())
+        updatePageIndicator()
+        prefs.currentPage = currentPageIndex
+    }
+
+    private fun updatePageIndicator() {
+        pageIndicator.removeAllViews()
+        val count = pages.size.coerceAtLeast(1)
+        val d = resources.displayMetrics.density
+        for (i in 0 until count) {
+            val dot = View(this)
+            val size = (if (i == currentPageIndex) 8 else 6) * d
+            val lp = LinearLayout.LayoutParams(size.toInt(), size.toInt())
+            lp.marginStart = (3 * d).toInt(); lp.marginEnd = (3 * d).toInt()
+            dot.layoutParams = lp
+            val bg = android.graphics.drawable.GradientDrawable()
+            bg.shape = android.graphics.drawable.GradientDrawable.OVAL
+            bg.setColor(if (i == currentPageIndex) prefs.accentColor else 0x66FFFFFF)
+            dot.background = bg
+            pageIndicator.addView(dot)
+        }
+        pageIndicator.isVisible = count > 1
+    }
+
+    private fun switchPage(delta: Int, fromDrag: Boolean = false) {
+        ensurePages()
+        val next = currentPageIndex + delta
+        if (next < 0) return
+        if (next > pages.lastIndex) {
+            if (fromDrag) pages.add(mutableListOf()) else return
+        }
+        if (next == currentPageIndex) return
+        pages[currentPageIndex] = gridAdapter.all().toMutableList()
+        currentPageIndex = next
+        renderCurrentPage()
+    }
+
+    private fun switchPageAnimated(delta: Int) {
+        ensurePages()
+        val next = currentPageIndex + delta
+        if (next < 0 || next > pages.lastIndex) return
+        val w = gridRecycler.width.toFloat().coerceAtLeast(1f)
+        val outX = if (delta > 0) -w else w
+        val inX = -outX
+        gridRecycler.animate().cancel()
+        gridRecycler.animate().translationX(outX).alpha(0f).setDuration(150).withEndAction {
+            switchPage(delta, fromDrag = false)
+            gridRecycler.translationX = inX
+            gridRecycler.alpha = 0f
+            gridRecycler.animate().translationX(0f).alpha(1f).setDuration(180).start()
+        }.start()
+    }
+
+    private fun setupPageEdges() {
+        val listener = View.OnDragListener { v, event ->
+            when (event.action) {
+                android.view.DragEvent.ACTION_DRAG_ENTERED, android.view.DragEvent.ACTION_DRAG_LOCATION -> {
+                    val dir = if (v.id == R.id.pageEdgeRight) 1 else -1
+                    schedulePageSwitch(dir)
+                    true
+                }
+                android.view.DragEvent.ACTION_DRAG_EXITED -> { cancelPageSwitch(); true }
+                android.view.DragEvent.ACTION_DROP -> {
+                    cancelPageSwitch()
+                    try {
+                        val key = event.clipData?.getItemAt(0)?.text?.toString() ?: return@OnDragListener true
+                        val insertAt = if (v.id == R.id.pageEdgeRight) gridAdapter.itemCount else 0
+                        pendingDropKey = key
+                        pendingDropDockSlot = null
+                        pendingDropGridIndex = insertAt
+                        dragDropped = true
+                    } catch (_: Exception) { }
+                    true
+                }
+                android.view.DragEvent.ACTION_DRAG_ENDED -> { cancelPageSwitch(); resetDragState(); true }
+                else -> true
+            }
+        }
+        pageEdgeLeft.setOnDragListener(listener)
+        pageEdgeRight.setOnDragListener(listener)
+    }
+
+    private fun setupVolumePanel() {
+        volumePanel = findViewById(R.id.volumePanel)
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        fun bindVol(seekId: Int, stream: Int) {
+            val sb = findViewById<SeekBar>(seekId)
+            sb.max = audioManager.getStreamMaxVolume(stream)
+            sb.progress = audioManager.getStreamVolume(stream)
+            sb.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (fromUser) try { audioManager.setStreamVolume(stream, progress, 0) } catch (_: Exception) {}
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) { volumeHideRunnable?.let { root.removeCallbacks(it) } }
+                override fun onStopTrackingTouch(seekBar: SeekBar?) { scheduleVolumeHide() }
+            })
+        }
+        bindVol(R.id.volMedia, android.media.AudioManager.STREAM_MUSIC)
+        bindVol(R.id.volRing, android.media.AudioManager.STREAM_RING)
+        bindVol(R.id.volNotif, android.media.AudioManager.STREAM_NOTIFICATION)
+    }
+
+    private fun showVolumePanel() {
+        try {
+            if (!::volumePanel.isInitialized) return
+            val streams = listOf(
+                R.id.volMedia to android.media.AudioManager.STREAM_MUSIC,
+                R.id.volRing to android.media.AudioManager.STREAM_RING,
+                R.id.volNotif to android.media.AudioManager.STREAM_NOTIFICATION
+            )
+            streams.forEach { (id, stream) ->
+                val sb = findViewById<SeekBar>(id)
+                sb.max = audioManager.getStreamMaxVolume(stream)
+                sb.progress = audioManager.getStreamVolume(stream)
+            }
+            volumePanel.alpha = 0f
+            volumePanel.isVisible = true
+            volumePanel.animate().cancel()
+            volumePanel.animate().alpha(1f).setDuration(150).start()
+            scheduleVolumeHide()
+        } catch (_: Exception) { }
+    }
+
+    private fun scheduleVolumeHide() {
+        volumeHideRunnable?.let { root.removeCallbacks(it) }
+        volumeHideRunnable = Runnable {
+            if (::volumePanel.isInitialized) volumePanel.animate().alpha(0f).setDuration(200).withEndAction { volumePanel.isVisible = false }.start()
+        }
+        root.postDelayed(volumeHideRunnable!!, 2000)
     }
 
     private fun setupSettings() {
@@ -195,8 +372,21 @@ class MainActivity : AppCompatActivity() {
         updateIconPackLabel()
         findViewById<Button>(R.id.pickIconPackBtn).setOnClickListener { showIconPackPicker() }
         findViewById<Button>(R.id.wallpaperBtn).setOnClickListener { openWallpaperPicker() }
+        val accentMap = mapOf(
+            R.id.accentPurple to 0xFF7C4DFF.toInt(), R.id.accentBlue to 0xFF448AFF.toInt(),
+            R.id.accentGreen to 0xFF00C853.toInt(), R.id.accentOrange to 0xFFFF6D00.toInt(),
+            R.id.accentPink to 0xFFFF4081.toInt(), R.id.accentRed to 0xFFFF5252.toInt()
+        )
+        accentMap.forEach { (id, color) ->
+            findViewById<View>(id).setOnClickListener {
+                prefs.accentColor = color
+                applyAccent()
+            }
+        }
+        applyAccent()
         updateIconShapeLabel()
         findViewById<Button>(R.id.iconShapeBtn).setOnClickListener { showIconShapePicker() }
+        setupCornerSeekbars()
         updateUnlockLabel()
         findViewById<Button>(R.id.unlockAnimBtn).setOnClickListener { showUnlockAnimPicker() }
         updateDrawerStyleLabel()
@@ -242,17 +432,58 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openWallpaperPicker() {
-        try {
-            val intent = Intent(Intent.ACTION_SET_WALLPAPER)
-            startActivity(Intent.createChooser(intent, "Обои"))
-        } catch (_: Exception) {
-            try { startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)) } catch (_: Exception) { }
-        }
+        val opts = arrayOf("Выбрать из галереи", "Системный выбор обоев", "Живые обои")
+        AlertDialog.Builder(this).setTitle("Обои")
+            .setItems(opts) { _, which ->
+                when (which) {
+                    0 -> try { wallpaperPickLauncher.launch("image/*") } catch (_: Exception) {}
+                    1 -> try { startActivity(Intent.createChooser(Intent(Intent.ACTION_SET_WALLPAPER), "Обои")) } catch (_: Exception) {}
+                    2 -> try { startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)) } catch (_: Exception) {}
+                }
+            }.show()
+    }
+
+    private fun showWallpaperTargetDialog(uri: android.net.Uri) {
+        val targets = arrayOf("Домашний экран", "Экран блокировки", "Оба экрана")
+        AlertDialog.Builder(this).setTitle("Установить обои")
+            .setItems(targets) { _, which ->
+                try {
+                    val wm = WallpaperManager.getInstance(this)
+                    val input = contentResolver.openInputStream(uri) ?: return@setItems
+                    val bmp = android.graphics.BitmapFactory.decodeStream(input)
+                    input.close()
+                    if (bmp == null) return@setItems
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        val flag = when (which) {
+                            0 -> WallpaperManager.FLAG_SYSTEM
+                            1 -> WallpaperManager.FLAG_LOCK
+                            else -> WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK
+                        }
+                        wm.setBitmap(bmp, null, true, flag)
+                    } else {
+                        wm.setBitmap(bmp)
+                    }
+                    android.widget.Toast.makeText(this, "Обои установлены", android.widget.Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    android.widget.Toast.makeText(this, "Не удалось установить обои", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }.show()
     }
 
     private fun updateIconShapeLabel() {
-        val label = when (prefs.iconShape) { "circle" -> "Круг"; "rounded" -> "Скруглённый"; "squircle" -> "Squircle"; "square" -> "Квадрат"; else -> prefs.iconShape }
+        val label = when (prefs.iconShape) { "circle" -> "Круг"; "rounded" -> "Скруглённый"; "squircle" -> "Squircle"; "square" -> "Квадрат"; "custom" -> "Своя"; else -> prefs.iconShape }
         findViewById<TextView>(R.id.iconShapeLabel).text = "Форма иконок: $label"
+    }
+
+    private fun currentCornerRadii(): FloatArray? {
+        val tl = prefs.iconRadiusTL; val tr = prefs.iconRadiusTR
+        val bl = prefs.iconRadiusBL; val br = prefs.iconRadiusBR
+        if (tl < 0 && tr < 0 && bl < 0 && br < 0) return null
+        val d = resources.displayMetrics.density
+        val maxR = 28f * d // half of 56dp
+        fun r(v: Int): Float = if (v < 0) (prefs.iconRadius / 100f * maxR) else (v / 100f * maxR)
+        val rtl = r(tl); val rtr = r(tr); val rbr = r(br); val rbl = r(bl)
+        return floatArrayOf(rtl, rtl, rtr, rtr, rbr, rbr, rbl, rbl)
     }
 
     private fun showIconShapePicker() {
@@ -266,12 +497,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateUnlockLabel() {
-        val label = when (prefs.unlockAnim) { "pixel" -> "Pixel"; "poco" -> "POCO/Xiaomi"; "ios" -> "iPhone"; "none" -> "Нет"; else -> prefs.unlockAnim }
+        val label = when (prefs.unlockAnim) {
+            "pixel" -> "Pixel"; "poco" -> "POCO/Xiaomi"; "ios" -> "iPhone"
+            "ripple" -> "Ripple (отпечаток)"; "wave" -> "Волна"; "fire" -> "Огонь"; "ice" -> "Лёд"; "none" -> "Нет"; else -> prefs.unlockAnim
+        }
         findViewById<TextView>(R.id.unlockAnimLabel).text = "Анимация разблокировки: $label"
     }
 
     private fun showUnlockAnimPicker() {
-        val opts = listOf("pixel" to "Pixel", "poco" to "POCO/Xiaomi", "ios" to "iPhone", "none" to "Нет")
+        val opts = listOf(
+            "pixel" to "Pixel", "poco" to "POCO/Xiaomi", "ios" to "iPhone",
+            "ripple" to "Ripple (отпечаток)", "wave" to "Волна", "fire" to "Огонь", "ice" to "Лёд", "none" to "Нет"
+        )
         AlertDialog.Builder(this).setTitle("Анимация разблокировки")
             .setItems(opts.map { it.second }.toTypedArray()) { _, which ->
                 prefs.unlockAnim = opts[which].first
@@ -294,6 +531,44 @@ class MainActivity : AppCompatActivity() {
             }.show()
     }
 
+    private fun applyAccent() {
+        try {
+            val c = prefs.accentColor
+            findViewById<ImageButton>(R.id.drawerBtn).setColorFilter(c)
+            settingsButton.background?.setTintList(android.content.res.ColorStateList.valueOf(0x66000000 or (c and 0x00FFFFFF)))
+            updatePageIndicator()
+        } catch (_: Exception) { }
+    }
+
+    private fun setupCornerSeekbars() {
+        fun refreshIcons() {
+            gridAdapter.notifyDataSetChanged()
+            drawerAdapter.notifyDataSetChanged()
+            renderDock()
+        }
+        fun bind(id: Int, value: () -> Int, onVal: (Int) -> Unit) {
+            val sb = findViewById<SeekBar>(id)
+            sb.max = 100
+            sb.progress = value().coerceIn(0, 100)
+            sb.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (fromUser) { onVal(progress); refreshIcons() }
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        bind(R.id.radiusAllSeek, { prefs.iconRadius }) { prefs.iconRadius = it; prefs.iconRadiusTL = -1; prefs.iconRadiusTR = -1; prefs.iconRadiusBL = -1; prefs.iconRadiusBR = -1 }
+        bind(R.id.radiusTLSeek, { if (prefs.iconRadiusTL >= 0) prefs.iconRadiusTL else prefs.iconRadius }) { prefs.iconRadiusTL = it }
+        bind(R.id.radiusTRSeek, { if (prefs.iconRadiusTR >= 0) prefs.iconRadiusTR else prefs.iconRadius }) { prefs.iconRadiusTR = it }
+        bind(R.id.radiusBLSeek, { if (prefs.iconRadiusBL >= 0) prefs.iconRadiusBL else prefs.iconRadius }) { prefs.iconRadiusBL = it }
+        bind(R.id.radiusBRSeek, { if (prefs.iconRadiusBR >= 0) prefs.iconRadiusBR else prefs.iconRadius }) { prefs.iconRadiusBR = it }
+        findViewById<Button>(R.id.resetCornersBtn).setOnClickListener {
+            prefs.iconRadius = 50; prefs.iconRadiusTL = -1; prefs.iconRadiusTR = -1; prefs.iconRadiusBL = -1; prefs.iconRadiusBR = -1
+            setupCornerSeekbars(); refreshIcons()
+        }
+    }
+
     private lateinit var globalDetector: GestureDetector
 
     private fun setupGestures() {
@@ -312,6 +587,12 @@ class MainActivity : AppCompatActivity() {
                 }
                 if (abs(dy) > abs(dx) && dy > 120 && abs(velocityY) > 200) {
                     if (appDrawer.isVisible) { closeDrawer(); return true }
+                }
+                if (abs(dx) > abs(dy) && abs(dx) > 120 && abs(velocityX) > 200) {
+                    if (!appDrawer.isVisible && !settingsOverlay.isVisible && draggedKey == null) {
+                        if (dx < 0) switchPageAnimated(1) else switchPageAnimated(-1)
+                        return true
+                    }
                 }
                 return false
             }
@@ -428,8 +709,15 @@ class MainActivity : AppCompatActivity() {
                 dockApps[i] = match
                 if (match != null) used.add(match.key)
             }
-            val grid = allApps.filter { it.key !in used }.take(8)
-            gridAdapter.submitApps(grid)
+            val rest = allApps.filter { it.key !in used }
+            pages.clear()
+            if (rest.isEmpty()) {
+                pages.add(mutableListOf())
+            } else {
+                rest.chunked(pageSize).forEach { chunk -> pages.add(chunk.toMutableList()) }
+            }
+            currentPageIndex = 0
+            renderCurrentPage()
             renderDock()
             persistLayout()
         } catch (_: Exception) { }
@@ -439,7 +727,10 @@ class MainActivity : AppCompatActivity() {
         try {
             prefs.layoutInitialized = true
             for (i in 0 until 4) dockApps[i] = null
-            gridAdapter.submitApps(emptyList())
+            pages.clear()
+            pages.add(mutableListOf())
+            currentPageIndex = 0
+            renderCurrentPage()
             renderDock()
             persistLayout()
         } catch (_: Exception) { }
@@ -453,9 +744,47 @@ class MainActivity : AppCompatActivity() {
             for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.let { views.add(it) }
             val centerX = root.width / 2f
             val bottomY = root.height.toFloat()
+            val anim = prefs.unlockAnim
+
+            if (anim == "ripple") {
+                val ripple = View(this)
+                val size = (max(root.width, root.height) * 1.2f).toInt()
+                val lp = FrameLayout.LayoutParams(size, size)
+                lp.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
+                lp.bottomMargin = -(size / 3)
+                ripple.layoutParams = lp
+                val bg = android.graphics.drawable.GradientDrawable()
+                bg.shape = android.graphics.drawable.GradientDrawable.OVAL
+                bg.setColor(0x55FFFFFF)
+                bg.setStroke((3 * resources.displayMetrics.density).toInt(), prefs.accentColor)
+                ripple.background = bg
+                ripple.scaleX = 0f; ripple.scaleY = 0f; ripple.alpha = 0.9f
+                root.addView(ripple)
+                ripple.animate().scaleX(1f).scaleY(1f).alpha(0f).setDuration(650)
+                    .setInterpolator(DecelerateInterpolator(1.2f))
+                    .withEndAction { try { root.removeView(ripple) } catch (_: Exception) {} }.start()
+            }
+            if (anim == "fire" || anim == "ice") {
+                val overlay = View(this)
+                overlay.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+                val top = if (anim == "fire") 0x66FF6D00 else 0x66448AFF
+                val bottom = if (anim == "fire") 0x00FF1744 else 0x0000E5FF
+                overlay.background = android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.BOTTOM_TOP,
+                    intArrayOf(bottom, top, 0x00000000)
+                )
+                overlay.alpha = 0f
+                root.addView(overlay)
+                overlay.animate().alpha(1f).setDuration(180).withEndAction {
+                    overlay.animate().alpha(0f).setDuration(500).setStartDelay(120)
+                        .withEndAction { try { root.removeView(overlay) } catch (_: Exception) {} }.start()
+                }.start()
+            }
+
             views.forEachIndexed { idx, v ->
                 v.animate().cancel()
-                when (prefs.unlockAnim) {
+                v.translationX = 0f
+                when (anim) {
                     "ios" -> {
                         v.alpha = 0f; v.scaleX = 1.15f; v.scaleY = 1.15f; v.translationY = 0f
                         v.animate().alpha(1f).scaleX(1f).scaleY(1f)
@@ -473,6 +802,36 @@ class MainActivity : AppCompatActivity() {
                             .setStartDelay((dist / 4f).toLong().coerceAtMost(320L))
                             .setDuration(420).setInterpolator(OvershootInterpolator(0.9f)).start()
                     }
+                    "ripple" -> {
+                        val loc = IntArray(2); v.getLocationOnScreen(loc)
+                        val vx = loc[0] + v.width / 2f - centerX
+                        val vy = loc[1] + v.height / 2f - bottomY
+                        val dist = kotlin.math.sqrt(vx * vx + vy * vy).coerceAtLeast(1f)
+                        v.alpha = 0f; v.scaleX = 0.85f; v.scaleY = 0.85f; v.translationY = 40f
+                        v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+                            .setStartDelay((dist / 3f).toLong().coerceAtMost(360L))
+                            .setDuration(360).setInterpolator(DecelerateInterpolator(1.8f)).start()
+                    }
+                    "wave" -> {
+                        v.alpha = 0f; v.translationY = 80f; v.scaleX = 0.95f; v.scaleY = 0.95f
+                        val col = idx % 4
+                        val row = idx / 4
+                        v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
+                            .setStartDelay(((col + row) * 45L).coerceAtMost(360L))
+                            .setDuration(400).setInterpolator(OvershootInterpolator(0.8f)).start()
+                    }
+                    "fire" -> {
+                        v.alpha = 0f; v.translationY = 160f; v.scaleX = 0.9f; v.scaleY = 0.9f
+                        v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
+                            .setStartDelay((idx * 22L).coerceAtMost(280L))
+                            .setDuration(420).setInterpolator(DecelerateInterpolator(1.4f)).start()
+                    }
+                    "ice" -> {
+                        v.alpha = 0f; v.translationY = -60f; v.scaleX = 1.05f; v.scaleY = 1.05f
+                        v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
+                            .setStartDelay((idx * 25L).coerceAtMost(300L))
+                            .setDuration(450).setInterpolator(DecelerateInterpolator(2f)).start()
+                    }
                     else -> { // pixel
                         v.alpha = 0f; v.translationY = 120f; v.scaleX = 0.92f; v.scaleY = 0.92f
                         v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
@@ -482,6 +841,45 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (_: Exception) { }
+    }
+
+    private fun animateShatter(target: View, onEnd: () -> Unit) {
+        try {
+            val bmp = target.toBitmap()
+            val loc = IntArray(2)
+            target.getLocationOnScreen(loc)
+            val rootLoc = IntArray(2)
+            root.getLocationOnScreen(rootLoc)
+            val left = loc[0] - rootLoc[0]
+            val top = loc[1] - rootLoc[1]
+            val cols = 3; val rows = 3
+            val pw = bmp.width / cols; val ph = bmp.height / rows
+            val pieces = mutableListOf<View>()
+            for (r in 0 until rows) for (c in 0 until cols) {
+                val pieceBmp = android.graphics.Bitmap.createBitmap(bmp, c * pw, r * ph, pw, ph)
+                val iv = ImageView(this)
+                iv.setImageBitmap(pieceBmp)
+                iv.x = (left + c * pw).toFloat()
+                iv.y = (top + r * ph).toFloat()
+                iv.layoutParams = FrameLayout.LayoutParams(pw, ph)
+                root.addView(iv)
+                pieces.add(iv)
+            }
+            target.alpha = 0f
+            val rnd = java.util.Random()
+            pieces.forEach { p ->
+                val dx = (rnd.nextFloat() - 0.5f) * 280f
+                val dy = (rnd.nextFloat() - 0.2f) * 320f
+                val rot = (rnd.nextFloat() - 0.5f) * 180f
+                p.animate().translationXBy(dx).translationYBy(dy).rotationBy(rot)
+                    .alpha(0f).scaleX(0.3f).scaleY(0.3f).setDuration(320)
+                    .setInterpolator(DecelerateInterpolator(1.5f)).start()
+            }
+            root.postDelayed({
+                pieces.forEach { try { root.removeView(it) } catch (_: Exception) {} }
+                onEnd()
+            }, 340)
+        } catch (_: Exception) { onEnd() }
     }
 
     private fun showSettingsButton() {
@@ -519,12 +917,26 @@ class MainActivity : AppCompatActivity() {
                 val savedDock = prefs.loadDockOrder().mapNotNull { byKey[it] }.distinctBy { it.key }.take(4)
                 for (i in 0 until 4) dockApps[i] = savedDock.getOrNull(i)
                 val used = dockApps.filterNotNull().map { it.key }.toMutableSet()
-                val savedGrid = prefs.loadGridOrder().mapNotNull { byKey[it] }.filter { it.key !in used }
-                val grid = savedGrid.distinctBy { it.key }.take(24)
-                gridAdapter.submitApps(grid)
+                val savedPages = prefs.loadPages()
+                pages.clear()
+                if (savedPages.isNotEmpty()) {
+                    savedPages.forEach { pageKeys ->
+                        val page = pageKeys.mapNotNull { byKey[it] }.filter { it.key !in used }.distinctBy { it.key }.toMutableList()
+                        used.addAll(page.map { it.key })
+                        pages.add(page)
+                    }
+                }
+                if (pages.isEmpty()) pages.add(mutableListOf())
+                // drop empty trailing pages but keep at least one
+                while (pages.size > 1 && pages.last().isEmpty()) pages.removeAt(pages.lastIndex)
+                currentPageIndex = prefs.currentPage.coerceIn(0, pages.lastIndex)
+                renderCurrentPage()
             } else {
                 for (i in 0 until 4) dockApps[i] = null
-                gridAdapter.submitApps(emptyList())
+                pages.clear()
+                pages.add(mutableListOf())
+                currentPageIndex = 0
+                renderCurrentPage()
             }
             drawerAdapter.submit(allApps)
             renderDock()
@@ -546,18 +958,7 @@ class MainActivity : AppCompatActivity() {
             if (app != null) {
                 icon.setImageDrawable(app.icon)
                 label.text = app.label
-                icon.clipToOutline = prefs.iconShape != "square"
-                icon.outlineProvider = object : android.view.ViewOutlineProvider() {
-                    override fun getOutline(view: View, outline: android.graphics.Outline) {
-                        val r = when (prefs.iconShape) {
-                            "circle" -> view.width / 2f
-                            "rounded" -> view.width * 0.22f
-                            "squircle" -> view.width * 0.32f
-                            else -> 0f
-                        }
-                        outline.setRoundRect(0, 0, view.width, view.height, r)
-                    }
-                }
+                AppGridAdapter.applyShape(icon, prefs.iconShape, currentCornerRadii())
                 item.setOnClickListener { launchApp(app, icon, fromDrawer = false) }
                 item.setOnLongClickListener { showIconMenu(app, item, fromDock = i, fromDrawer = false) }
                 item.alpha = 1f
@@ -588,8 +989,10 @@ class MainActivity : AppCompatActivity() {
         }
         if (!fromDrawer) {
             options.add("Убрать с рабочего стола"); actions.add {
-                if (fromDock != null) dockApps[fromDock] = null else gridAdapter.removeByKey(app.key)
-                renderDock(); persistLayout()
+                animateShatter(view) {
+                    if (fromDock != null) dockApps[fromDock] = null else gridAdapter.removeByKey(app.key)
+                    renderDock(); persistLayout(); updatePageIndicator()
+                }
             }
         }
         options.add("Удалить с телефона"); actions.add {
@@ -606,6 +1009,7 @@ class MainActivity : AppCompatActivity() {
         draggedKey = app.key
         draggedFromDock = fromDock
         draggedFromDrawer = fromDrawer
+        draggedFromPage = if (fromDock == null && !fromDrawer) currentPageIndex else -1
         dragDropped = false
         settingsButton.isVisible = false
         val data = ClipData.newPlainText("app", app.key)
@@ -620,15 +1024,26 @@ class MainActivity : AppCompatActivity() {
             }
             true
         } catch (_: Exception) {
-            draggedKey = null; draggedFromDock = null; draggedFromDrawer = false
+            draggedKey = null; draggedFromDock = null; draggedFromDrawer = false; draggedFromPage = -1
             false
         }
     }
 
     private fun handleGridDrag(event: android.view.DragEvent): Boolean {
         when (event.action) {
-            android.view.DragEvent.ACTION_DRAG_ENDED -> resetDragState()
+            android.view.DragEvent.ACTION_DRAG_LOCATION -> {
+                val edge = 56f * resources.displayMetrics.density
+                val w = gridRecycler.width.toFloat()
+                when {
+                    event.x < edge -> schedulePageSwitch(-1)
+                    event.x > w - edge -> schedulePageSwitch(1)
+                    else -> cancelPageSwitch()
+                }
+            }
+            android.view.DragEvent.ACTION_DRAG_EXITED -> cancelPageSwitch()
+            android.view.DragEvent.ACTION_DRAG_ENDED -> { cancelPageSwitch(); resetDragState() }
             android.view.DragEvent.ACTION_DROP -> try {
+                cancelPageSwitch()
                 val key = event.clipData?.getItemAt(0)?.text?.toString() ?: return true
                 val child = gridRecycler.findChildViewUnder(event.x, event.y)
                 val insertAt = if (child != null) gridRecycler.getChildAdapterPosition(child) else gridAdapter.itemCount
@@ -641,6 +1056,20 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
+    private fun schedulePageSwitch(dir: Int) {
+        if (pageSwitchRunnable != null) return
+        pageSwitchRunnable = Runnable {
+            pageSwitchRunnable = null
+            switchPage(dir, fromDrag = true)
+        }
+        root.postDelayed(pageSwitchRunnable!!, 650)
+    }
+
+    private fun cancelPageSwitch() {
+        pageSwitchRunnable?.let { root.removeCallbacks(it) }
+        pageSwitchRunnable = null
+    }
+
     private fun handleDockDrag(event: android.view.DragEvent): Boolean {
         when (event.action) {
             android.view.DragEvent.ACTION_DRAG_ENTERED -> dockBar.setBackgroundResource(R.drawable.bg_dock_highlight)
@@ -651,9 +1080,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleDockSlotDrag(slot: Int, event: android.view.DragEvent): Boolean {
+        val slotView = dockBar.getChildAt(slot)
         when (event.action) {
-            android.view.DragEvent.ACTION_DRAG_ENTERED -> dockBar.setBackgroundResource(R.drawable.bg_dock_highlight)
-            android.view.DragEvent.ACTION_DRAG_EXITED -> dockBar.setBackgroundResource(R.drawable.bg_dock)
+            android.view.DragEvent.ACTION_DRAG_STARTED -> {
+                slotView?.foreground = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = 18f * resources.displayMetrics.density
+                    setStroke((2 * resources.displayMetrics.density).toInt(), 0x55FFFFFF)
+                }
+            }
+            android.view.DragEvent.ACTION_DRAG_ENTERED -> {
+                dockBar.setBackgroundResource(R.drawable.bg_dock_highlight)
+                slotView?.foreground = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = 18f * resources.displayMetrics.density
+                    setStroke((2 * resources.displayMetrics.density).toInt(), prefs.accentColor)
+                    setColor(0x33FFFFFF)
+                }
+            }
+            android.view.DragEvent.ACTION_DRAG_EXITED -> {
+                dockBar.setBackgroundResource(R.drawable.bg_dock)
+                slotView?.foreground = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = 18f * resources.displayMetrics.density
+                    setStroke((2 * resources.displayMetrics.density).toInt(), 0x55FFFFFF)
+                }
+            }
             android.view.DragEvent.ACTION_DROP -> try {
                 val key = event.clipData?.getItemAt(0)?.text?.toString() ?: return true
                 pendingDropKey = key
@@ -661,7 +1110,10 @@ class MainActivity : AppCompatActivity() {
                 pendingDropGridIndex = -1
                 dragDropped = true
             } catch (_: Exception) { }
-            android.view.DragEvent.ACTION_DRAG_ENDED -> resetDragState()
+            android.view.DragEvent.ACTION_DRAG_ENDED -> {
+                slotView?.foreground = null
+                resetDragState()
+            }
         }
         return true
     }
@@ -673,8 +1125,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun findApp(key: String): AppEntry? = allApps.firstOrNull { it.key == key }
 
-    private fun applyPendingDropNow(key: String, toDock: Int?, toGrid: Int, fromDock: Int?, fromDrawer: Boolean) {
+    private fun removeAppFromPages(key: String, exceptPage: Int = -1) {
+        pages.forEachIndexed { i, p ->
+            if (i != exceptPage) {
+                val idx = p.indexOfFirst { it.key == key }
+                if (idx >= 0) p.removeAt(idx)
+            }
+        }
+    }
+
+    private fun applyPendingDropNow(key: String, toDock: Int?, toGrid: Int, fromDock: Int?, fromDrawer: Boolean, fromPage: Int) {
         val app = findApp(key) ?: return
+        ensurePages()
 
         if (toDock != null) {
             if (fromDock == toDock) return
@@ -682,33 +1144,70 @@ class MainActivity : AppCompatActivity() {
             if (fromDock != null) {
                 dockApps[fromDock] = replaced
             } else if (!fromDrawer) {
-                gridAdapter.removeByKey(key)
-                if (replaced != null && gridAdapter.itemCount < 24) gridAdapter.insertAt(gridAdapter.itemCount, replaced)
+                // remove from source page
+                if (fromPage >= 0 && fromPage < pages.size && fromPage != currentPageIndex) {
+                    pages[fromPage].removeAll { it.key == key }
+                } else {
+                    gridAdapter.removeByKey(key)
+                }
+                if (replaced != null) addToCurrentPage(replaced, gridAdapter.itemCount)
             } else {
-                if (replaced != null && gridAdapter.itemCount < 24) gridAdapter.insertAt(gridAdapter.itemCount, replaced)
+                if (replaced != null) addToCurrentPage(replaced, gridAdapter.itemCount)
             }
             dockApps[toDock] = app
         } else {
             if (fromDock != null) {
                 dockApps[fromDock] = null
             } else if (!fromDrawer) {
-                gridAdapter.removeByKey(key)
-            }
-            if (gridAdapter.itemCount >= 24 && gridAdapter.all().none { it.key == app.key }) {
-                val overflow = gridAdapter.all().lastOrNull()
-                if (overflow != null) {
-                    gridAdapter.removeByKey(overflow.key)
-                    placeInDockOrDrop(overflow)
+                if (fromPage >= 0 && fromPage < pages.size && fromPage != currentPageIndex) {
+                    pages[fromPage].removeAll { it.key == key }
+                } else {
+                    gridAdapter.removeByKey(key)
                 }
             }
-            gridAdapter.insertAt(toGrid.coerceIn(0, gridAdapter.itemCount), app)
+            // if app exists elsewhere on other pages, remove duplicates
+            removeAppFromPages(key, exceptPage = currentPageIndex)
+            addToCurrentPage(app, toGrid)
+        }
+    }
+
+    private fun addToCurrentPage(app: AppEntry, index: Int) {
+        ensurePages()
+        // remove if already on current page (gridAdapter handles this but be safe)
+        val cur = gridAdapter.all().toMutableList().apply { removeAll { it.key == app.key } }
+        val insertAt = index.coerceIn(0, cur.size)
+        cur.add(insertAt, app)
+        // overflow to next page
+        if (cur.size > pageSize) {
+            val overflow = cur.removeAt(cur.lastIndex)
+            pages[currentPageIndex] = cur
+            gridAdapter.submitApps(cur.toList())
+            placeOverflowOnNextPage(overflow)
+        } else {
+            pages[currentPageIndex] = cur
+            gridAdapter.submitApps(cur.toList())
+        }
+    }
+
+    private fun placeOverflowOnNextPage(app: AppEntry) {
+        var target = currentPageIndex + 1
+        if (target >= pages.size) pages.add(mutableListOf())
+        // avoid duplicates
+        pages.forEach { p -> p.removeAll { it.key == app.key } }
+        if (pages[target].size >= pageSize) {
+            val ov = pages[target].removeAt(pages[target].lastIndex)
+            pages[target].add(0, app)
+            if (target + 1 >= pages.size) pages.add(mutableListOf())
+            pages[target + 1].add(0, ov)
+        } else {
+            pages[target].add(0, app)
         }
     }
 
     private fun resetDragState() {
         if (draggedKey == null && !draggedFromDrawer) {
             for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.alpha = 1f
-            for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.alpha = 1f
+            for (i in 0 until dockBar.childCount) { dockBar.getChildAt(i)?.alpha = 1f; dockBar.getChildAt(i)?.foreground = null }
             return
         }
         val dropped = dragDropped
@@ -718,18 +1217,19 @@ class MainActivity : AppCompatActivity() {
         val pDock = pendingDropDockSlot
         val pGrid = pendingDropGridIndex
         val fromDock = draggedFromDock
+        val fromPage = draggedFromPage
 
-        draggedKey = null; draggedFromDock = null; draggedFromDrawer = false; dragDropped = false
+        draggedKey = null; draggedFromDock = null; draggedFromDrawer = false; draggedFromPage = -1; dragDropped = false
         pendingDropKey = null; pendingDropDockSlot = null; pendingDropGridIndex = -1
 
         root.post {
             try {
                 if (dropped && pKey != null) {
-                    applyPendingDropNow(pKey, pDock, pGrid, fromDock, fromDrawer)
+                    applyPendingDropNow(pKey, pDock, pGrid, fromDock, fromDrawer, fromPage)
                 }
                 dockBar.setBackgroundResource(R.drawable.bg_dock)
                 for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.alpha = 1f
-                for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.alpha = 1f
+                for (i in 0 until dockBar.childCount) { dockBar.getChildAt(i)?.alpha = 1f; dockBar.getChildAt(i)?.foreground = null }
                 if (fromDrawer && key != null) {
                     val onHome = gridAdapter.all().any { it.key == key } || dockApps.filterNotNull().any { it.key == key }
                     if (!onHome) {
@@ -749,8 +1249,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun persistLayout() {
-        prefs.saveGridOrder(gridAdapter.all().map { it.key })
+        ensurePages()
+        pages[currentPageIndex] = gridAdapter.all().toMutableList()
+        while (pages.size > 1 && pages.last().isEmpty()) pages.removeAt(pages.lastIndex)
+        val clamped = currentPageIndex.coerceIn(0, pages.lastIndex)
+        val changed = clamped != currentPageIndex
+        currentPageIndex = clamped
+        prefs.savePages(pages.map { p -> p.map { it.key } })
+        prefs.currentPage = currentPageIndex
         prefs.saveDockOrder(dockApps.mapNotNull { it?.key })
+        if (changed) renderCurrentPage() else updatePageIndicator()
     }
 
     private fun launchApp(app: AppEntry, iconView: View, fromDrawer: Boolean) {
