@@ -170,6 +170,39 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Выбрать пакет иконок" />
+
+                <Button
+                    android:id="@+id/wallpaperBtn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Обои" />
+
+                <TextView
+                    android:id="@+id/iconShapeLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Форма иконок: круглая"
+                    android:textColor="@color/white" />
+                <Button
+                    android:id="@+id/iconShapeBtn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Форма иконок" />
+
+                <TextView
+                    android:id="@+id/unlockAnimLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Анимация разблокировки: Pixel"
+                    android:textColor="@color/white" />
+                <Button
+                    android:id="@+id/unlockAnimBtn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Анимация разблокировки" />
             </LinearLayout>
         </ScrollView>
     </FrameLayout>
