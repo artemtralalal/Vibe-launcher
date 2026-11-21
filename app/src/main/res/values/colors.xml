@@ -1,0 +1,8 @@
+<resources>
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+    <color name="search_bg">#CC2A2A2A</color>
+    <color name="dock_bg">#66222222</color>
+    <color name="settings_bg">#EE1C1C1E</color>
+    <color name="accent">#FF7CC4FF</color>
+</resources>
