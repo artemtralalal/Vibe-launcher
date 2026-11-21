@@ -55,6 +55,14 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getBoolean("welcome_done", false)
         set(v) = prefs.edit().putBoolean("welcome_done", v).apply()
 
+    var iconShape: String
+        get() = prefs.getString("icon_shape", "circle") ?: "circle"
+        set(v) = prefs.edit().putString("icon_shape", v).apply()
+
+    var unlockAnim: String
+        get() = prefs.getString("unlock_anim", "pixel") ?: "pixel"
+        set(v) = prefs.edit().putString("unlock_anim", v).apply()
+
     fun saveGridOrder(keys: List<String>) {
         prefs.edit().putString(KEY_GRID, JSONArray(keys).toString()).apply()
     }
