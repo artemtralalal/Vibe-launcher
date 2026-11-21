@@ -114,6 +114,7 @@ class MainActivity : AppCompatActivity() {
     private var lastLaunchColor: Int = Color.DKGRAY
     private var pendingLaunch = false
     private var openAnimating = false
+    private var cameraGeniePending = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -165,7 +166,10 @@ class MainActivity : AppCompatActivity() {
         quickPanel.isVisible = false
         settingsOverlay.isVisible = false
         if (draggedKey == null) appDrawer.isVisible = false
-        if (pendingLaunch || openAnimating) {
+        if (cameraGeniePending) {
+            cameraGeniePending = false
+            playCameraGenieClose()
+        } else if (pendingLaunch || openAnimating) {
             pendingLaunch = false
             playCloseAnimation()
         } else {
@@ -577,7 +581,7 @@ class MainActivity : AppCompatActivity() {
             "pixel" -> "Pixel"; "poco" -> "POCO/Xiaomi"; "ios" -> "iPhone"
             "ripple" -> "Ripple (отпечаток)"; "wave" -> "Волна"; "fire" -> "Огонь"; "ice" -> "Лёд"
             "samsung" -> "Samsung One UI"; "oneplus" -> "OnePlus"; "nothing" -> "Nothing"; "hyperos" -> "HyperOS"
-            "none" -> "Нет"; else -> prefs.unlockAnim
+            "miui13" -> "MIUI 13"; "none" -> "Нет"; else -> prefs.unlockAnim
         }
         findViewById<TextView>(R.id.unlockAnimLabel).text = "Анимация разблокировки: $label"
     }
@@ -587,7 +591,7 @@ class MainActivity : AppCompatActivity() {
             "pixel" to "Pixel", "poco" to "POCO/Xiaomi", "ios" to "iPhone",
             "ripple" to "Ripple (отпечаток)", "wave" to "Волна", "fire" to "Огонь", "ice" to "Лёд",
             "samsung" to "Samsung One UI", "oneplus" to "OnePlus", "nothing" to "Nothing", "hyperos" to "HyperOS",
-            "none" to "Нет"
+            "miui13" to "MIUI 13", "none" to "Нет"
         )
         AlertDialog.Builder(this).setTitle("Анимация разблокировки")
             .setItems(opts.map { it.second }.toTypedArray()) { _, which ->
@@ -653,6 +657,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupGestures() {
         globalDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                if (settingsOverlay.isVisible || appDrawer.isVisible) return false
+                if (isPointOnAppIcon(e.rawX, e.rawY)) return false
+                launchCameraWithGenie()
+                return true
+            }
+
             override fun onLongPress(e: MotionEvent) {
                 if (settingsOverlay.isVisible || appDrawer.isVisible) return
                 if (!isPointOnAppIcon(e.rawX, e.rawY)) showSettingsButton()
@@ -986,30 +997,38 @@ class MainActivity : AppCompatActivity() {
                             .setDuration(450).setInterpolator(DecelerateInterpolator(2f)).start()
                     }
                     "samsung" -> {
-                        v.alpha = 0f; v.scaleX = 0.85f; v.scaleY = 0.85f; v.translationY = 40f
+                        // One UI: come from "distance" - small/far then zoom forward
+                        v.alpha = 0f; v.scaleX = 0.6f; v.scaleY = 0.6f; v.translationY = 30f
                         v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
-                            .setStartDelay((idx * 18L).coerceAtMost(220L))
-                            .setDuration(420).setInterpolator(DecelerateInterpolator(1.8f)).start()
+                            .setStartDelay((idx * 16L).coerceAtMost(180L))
+                            .setDuration(380).setInterpolator(DecelerateInterpolator(2.5f)).start()
                     }
                     "oneplus" -> {
-                        val loc = IntArray(2); v.getLocationOnScreen(loc)
-                        val vx = loc[0] + v.width / 2f - centerX
-                        v.alpha = 0f; v.translationX = vx * 0.15f; v.translationY = 80f; v.scaleX = 0.92f; v.scaleY = 0.92f
-                        v.animate().alpha(1f).translationX(0f).translationY(0f).scaleX(1f).scaleY(1f)
-                            .setStartDelay((idx * 24L).coerceAtMost(260L))
-                            .setDuration(380).setInterpolator(OvershootInterpolator(0.7f)).start()
+                        v.alpha = 0f; v.scaleX = 0.92f; v.scaleY = 0.92f; v.translationY = 60f
+                        v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+                            .setStartDelay((idx * 22L).coerceAtMost(240L))
+                            .setDuration(360).setInterpolator(DecelerateInterpolator(1.7f)).start()
                     }
                     "nothing" -> {
-                        v.alpha = 0f; v.scaleX = 0.7f; v.scaleY = 0.7f; v.translationY = 0f
+                        v.alpha = 0f; v.scaleX = 0.5f; v.scaleY = 0.5f; v.translationY = 0f
                         v.animate().alpha(1f).scaleX(1f).scaleY(1f)
-                            .setStartDelay((idx * 35L).coerceAtMost(350L))
-                            .setDuration(300).setInterpolator(DecelerateInterpolator(2.2f)).start()
+                            .setStartDelay((idx * 40L).coerceAtMost(380L))
+                            .setDuration(280).setInterpolator(DecelerateInterpolator(2.8f)).start()
                     }
                     "hyperos" -> {
-                        v.alpha = 0f; v.scaleX = 1.2f; v.scaleY = 1.2f; v.translationY = 30f
+                        // rows from bottom, start big then settle down
+                        val row = idx / 4
+                        v.alpha = 0f; v.scaleX = 1.18f; v.scaleY = 1.18f; v.translationY = 120f
                         v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
-                            .setStartDelay((idx * 20L).coerceAtMost(240L))
-                            .setDuration(460).setInterpolator(DecelerateInterpolator(1.5f)).start()
+                            .setStartDelay((row * 70L + (idx % 4) * 20L).coerceAtMost(420L))
+                            .setDuration(480).setInterpolator(DecelerateInterpolator(1.6f)).start()
+                    }
+                    "miui13" -> {
+                        val row = idx / 4
+                        v.alpha = 0f; v.scaleX = 0.9f; v.scaleY = 0.9f; v.translationY = 140f
+                        v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+                            .setStartDelay((row * 55L + (idx % 4) * 18L).coerceAtMost(360L))
+                            .setDuration(420).setInterpolator(DecelerateInterpolator(1.8f)).start()
                     }
                     else -> { // pixel
                         v.alpha = 0f; v.translationY = 120f; v.scaleX = 0.92f; v.scaleY = 0.92f
@@ -1020,6 +1039,74 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (_: Exception) { }
+    }
+
+    private fun playCameraGenieClose() {
+        try {
+            val d = resources.displayMetrics.density
+            val overlay = View(this)
+            overlay.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+            overlay.setBackgroundColor(0xFF000000.toInt())
+            overlay.pivotX = root.width.toFloat() - 40f * d
+            overlay.pivotY = root.height.toFloat() - 140f * d
+            overlay.alpha = 1f
+            root.addView(overlay)
+            overlay.animate().scaleX(0.05f).scaleY(0.05f).alpha(0f).rotation(-8f).setDuration(320)
+                .setInterpolator(DecelerateInterpolator(1.8f))
+                .withEndAction { try { root.removeView(overlay) } catch (_: Exception) {} }.start()
+        } catch (_: Exception) { }
+    }
+
+    private fun launchCameraWithGenie() {
+        try {
+            val d = resources.displayMetrics.density
+            val pulse = View(this)
+            val size = (44 * d).toInt()
+            val lp = FrameLayout.LayoutParams(size, size)
+            lp.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
+            lp.marginEnd = (20 * d).toInt()
+            lp.bottomMargin = (120 * d).toInt()
+            pulse.layoutParams = lp
+            val bg = android.graphics.drawable.GradientDrawable()
+            bg.shape = android.graphics.drawable.GradientDrawable.OVAL
+            bg.setColor(prefs.accentColor)
+            pulse.background = bg
+            pulse.alpha = 0f
+            pulse.scaleX = 0.6f; pulse.scaleY = 0.6f
+            root.addView(pulse)
+            pulse.animate().alpha(0.9f).scaleX(1f).scaleY(1f).setDuration(140).withEndAction {
+                pulse.animate().alpha(0f).scaleX(1.6f).scaleY(1.6f).setDuration(220).withEndAction {
+                    try { root.removeView(pulse) } catch (_: Exception) {}
+                }.start()
+
+                // Genie-like camera launch overlay
+                val overlay = View(this)
+                overlay.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+                overlay.setBackgroundColor(0xFF000000.toInt())
+                overlay.pivotX = root.width.toFloat() - 40f * d
+                overlay.pivotY = root.height.toFloat() - 140f * d
+                overlay.scaleX = 0.05f; overlay.scaleY = 0.05f; overlay.alpha = 0f
+                overlay.rotation = -8f
+                root.addView(overlay)
+                overlay.animate().scaleX(1f).scaleY(1f).alpha(1f).rotation(0f).setDuration(320)
+                    .setInterpolator(DecelerateInterpolator(1.8f))
+                    .withEndAction {
+                        try {
+                            val camIntent = Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)
+                            camIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            cameraGeniePending = true
+                            startActivity(camIntent)
+                        } catch (_: Exception) {
+                            try { startActivity(Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)) } catch (_: Exception) {}
+                        }
+                        overlay.animate().alpha(0f).setDuration(250).setStartDelay(200).withEndAction {
+                            try { root.removeView(overlay) } catch (_: Exception) {}
+                        }.start()
+                    }.start()
+            }.start()
+        } catch (_: Exception) {
+            try { startActivity(Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)) } catch (_: Exception) {}
+        }
     }
 
     private fun animateShatter(target: View, onEnd: () -> Unit) {
@@ -1594,6 +1681,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val dur = prefs.closeDuration.toLong()
+        scaleHomeForOpen(false, dur)
         val app = lastLaunchKey?.let { findApp(it) }
         // Morph to icon halfway
         root.postDelayed({
@@ -1626,7 +1714,6 @@ class MainActivity : AppCompatActivity() {
                 overlay.translationY = 0f
                 overlay.clipToOutline = false
                 clearBlur()
-                scaleHomeForOpen(false)
                 targetView?.alpha = 1f
                 bounceTargetIcon(lastLaunchKey)
             }
@@ -1671,12 +1758,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun clearBlur() = applyBlur(false)
 
-    private fun scaleHomeForOpen(opening: Boolean) {
+    private fun scaleHomeForOpen(opening: Boolean, duration: Long = 260L) {
         homeContent.animate().cancel()
         if (opening) {
-            homeContent.animate().scaleX(0.92f).scaleY(0.92f).alpha(0.85f).setDuration(260).start()
+            homeContent.animate().scaleX(0.92f).scaleY(0.92f).alpha(0.85f).setDuration(duration).start()
         } else {
-            homeContent.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(260).start()
+            homeContent.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(duration).start()
         }
     }
 
