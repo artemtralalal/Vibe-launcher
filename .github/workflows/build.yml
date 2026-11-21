@@ -40,7 +40,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: latest
-          name: "Vibe Launcher Latest"
-          prerelease: false
+          name: "Vibe Launcher Beta"
+          prerelease: true
           make_latest: true
           files: app/build/outputs/apk/debug/*.apk
