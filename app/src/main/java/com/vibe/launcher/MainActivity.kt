@@ -7,6 +7,7 @@ import android.content.ClipData
 import android.content.Context
 import android.content.IntentFilter
 import android.content.ComponentName
+import android.content.res.Configuration
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Outline
@@ -58,6 +59,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var blurSwitch: SwitchMaterial
     private lateinit var appDrawer: View
     private lateinit var drawerRecycler: RecyclerView
+    private lateinit var drawerSearch: android.widget.EditText
     private lateinit var animationOverlay: View
     private lateinit var iconPackLabel: TextView
     private lateinit var pageIndicator: LinearLayout
@@ -133,6 +135,7 @@ class MainActivity : AppCompatActivity() {
         blurSwitch = findViewById(R.id.blurSwitch)
         appDrawer = findViewById(R.id.appDrawer)
         drawerRecycler = findViewById(R.id.drawerRecycler)
+        drawerSearch = findViewById(R.id.drawerSearch)
         animationOverlay = findViewById(R.id.animationOverlay)
         iconPackLabel = findViewById(R.id.iconPackLabel)
         pageIndicator = findViewById(R.id.pageIndicator)
@@ -177,6 +180,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        try {
+            renderDock()
+            renderCurrentPage()
+        } catch (_: Exception) { }
+    }
+
     private fun setupGrid() {
         gridAdapter = AppGridAdapter(
             onClick = { app, icon -> launchApp(app, icon, fromDrawer = false) },
@@ -211,9 +222,18 @@ class MainActivity : AppCompatActivity() {
             shape = { prefs.iconShape },
             cornerRadii = { currentCornerRadii() }
         )
-        drawerRecycler.layoutManager = GridLayoutManager(this, 4)
         drawerRecycler.adapter = drawerAdapter
+        applyDrawerLayout()
         appDrawer.setOnClickListener { }
+        drawerSearch.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val q = s?.toString()?.trim()?.lowercase().orEmpty()
+                val filtered = if (q.isEmpty()) allApps else allApps.filter { it.label.lowercase().contains(q) }
+                drawerAdapter.submit(filtered)
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
     }
 
     private fun setupDock() {
@@ -466,6 +486,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.unlockAnimBtn).setOnClickListener { showUnlockAnimPicker() }
         updateDrawerStyleLabel()
         findViewById<Button>(R.id.drawerStyleBtn).setOnClickListener { showDrawerStylePicker() }
+        updateDrawerLayoutLabel()
+        findViewById<Button>(R.id.drawerLayoutBtn).setOnClickListener { showDrawerLayoutPicker() }
 
         settingsButton.setOnClickListener {
             settingsOverlay.isVisible = true
@@ -615,6 +637,27 @@ class MainActivity : AppCompatActivity() {
             }.show()
     }
 
+    private fun updateDrawerLayoutLabel() {
+        val label = when (prefs.drawerLayout) { "list" -> "Список"; else -> "Сетка" }
+        findViewById<TextView>(R.id.drawerLayoutLabel).text = "Вид меню: $label"
+    }
+
+    private fun showDrawerLayoutPicker() {
+        val opts = listOf("grid" to "Сетка", "list" to "Список")
+        AlertDialog.Builder(this).setTitle("Вид меню приложений")
+            .setItems(opts.map { it.second }.toTypedArray()) { _, which ->
+                prefs.drawerLayout = opts[which].first
+                updateDrawerLayoutLabel()
+                applyDrawerLayout()
+            }.show()
+    }
+
+    private fun applyDrawerLayout() {
+        if (!::drawerRecycler.isInitialized) return
+        drawerRecycler.layoutManager = if (prefs.drawerLayout == "list") LinearLayoutManager(this) else GridLayoutManager(this, 4)
+        drawerRecycler.adapter = drawerAdapter
+    }
+
     private fun applyAccent() {
         try {
             val c = prefs.accentColor
@@ -677,7 +720,11 @@ class MainActivity : AppCompatActivity() {
                     if (!appDrawer.isVisible && !settingsOverlay.isVisible) { openDrawer(); return true }
                 }
                 if (abs(dy) > abs(dx) && dy > 120 && abs(velocityY) > 200) {
-                    if (appDrawer.isVisible) { closeDrawer(); return true }
+                    if (appDrawer.isVisible) {
+                        val atTop = !drawerRecycler.canScrollVertically(-1)
+                        val fromTopZone = e1.y < (appDrawer.top + 180 * resources.displayMetrics.density)
+                        if (atTop || fromTopZone) { closeDrawer(); return true }
+                    }
                 }
                 if (abs(dx) > abs(dy) && abs(dx) > 120 && abs(velocityX) > 200) {
                     if (!appDrawer.isVisible && !settingsOverlay.isVisible && draggedKey == null && !pageDragDidSnap) {
@@ -797,6 +844,8 @@ class MainActivity : AppCompatActivity() {
         appDrawer.animate().translationY(h).setDuration(220).withEndAction {
             appDrawer.isVisible = false
             appDrawer.translationY = 0f
+            if (::drawerSearch.isInitialized) drawerSearch.setText("")
+            drawerAdapter.submit(allApps)
         }.start()
     }
 
@@ -824,8 +873,23 @@ class MainActivity : AppCompatActivity() {
         subtitle.animate().alpha(1f).translationY(0f).setDuration(450).setStartDelay(550).start()
         start.animate().alpha(1f).translationY(0f).setDuration(450).setStartDelay(700).start()
 
+        val wpCheck = findViewById<android.widget.CheckBox>(R.id.welcomeWallpaperCheck)
+        fun applyDefaultWallpaperIfNeeded() {
+            if (!wpCheck.isChecked) return
+            try {
+                val bmp = android.graphics.Bitmap.createBitmap(1080, 1920, android.graphics.Bitmap.Config.ARGB_8888)
+                val c = android.graphics.Canvas(bmp)
+                val p = android.graphics.Paint()
+                p.shader = android.graphics.LinearGradient(0f, 0f, 0f, 1920f, intArrayOf(0xFF0A0A0A.toInt(), 0xFF222222.toInt(), 0xFF050505.toInt()), floatArrayOf(0f, 0.5f, 1f), android.graphics.Shader.TileMode.CLAMP)
+                c.drawRect(0f, 0f, 1080f, 1920f, p)
+                p.shader = null; p.color = 0x22FFFFFF; c.drawCircle(780f, 420f, 260f, p)
+                p.color = 0x14FFFFFF; c.drawCircle(260f, 1350f, 320f, p)
+                WallpaperManager.getInstance(this).setBitmap(bmp)
+            } catch (_: Exception) { }
+        }
         fun finishWelcome() {
             prefs.welcomeDone = true
+            applyDefaultWallpaperIfNeeded()
             overlay.animate().alpha(0f).setDuration(250).withEndAction {
                 overlay.isVisible = false
                 overlay.alpha = 1f
