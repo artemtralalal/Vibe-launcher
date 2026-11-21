@@ -236,6 +236,28 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="28dp"
             android:text="Начать" />
+
+        <LinearLayout
+            android:id="@+id/welcomeChoices"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <Button
+                android:id="@+id/welcomeAutoBtn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Авторасстановка" />
+
+            <Button
+                android:id="@+id/welcomeEmptyBtn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Пустой рабочий стол" />
+        </LinearLayout>
     </LinearLayout>
 
 </FrameLayout>
