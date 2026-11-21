@@ -110,16 +110,44 @@
             android:textSize="16sp"
             android:textStyle="bold" />
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/drawerRecycler"
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:clipToPadding="false"
-            android:overScrollMode="never"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="24dp" />
+            android:layout_weight="1">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/drawerRecycler"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:overScrollMode="never"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="80dp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="72dp"
+                android:layout_gravity="bottom"
+                android:background="@drawable/bg_drawer_fade" />
+        </FrameLayout>
+
+        <EditText
+            android:id="@+id/drawerSearch"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/bg_search_capsule"
+            android:hint="Поиск"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:textColor="@color/white"
+            android:textColorHint="#99FFFFFF"
+            android:textSize="14sp" />
     </LinearLayout>
 
     <View
@@ -318,6 +346,19 @@
                     android:layout_height="wrap_content"
                     android:text="Стиль меню приложений" />
 
+                <TextView
+                    android:id="@+id/drawerLayoutLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Вид меню: сетка"
+                    android:textColor="@color/white" />
+                <Button
+                    android:id="@+id/drawerLayoutBtn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Вид меню приложений" />
+
                 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="О телефоне" android:textColor="@color/white" android:textStyle="bold" android:textSize="16sp" android:layout_marginTop="16dp"/>
                 <LinearLayout
                     android:id="@+id/aboutCardBtn"
@@ -441,7 +482,7 @@
         android:id="@+id/welcomeOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#FF10131A"
+        android:background="#FF0A0A0A"
         android:gravity="center"
         android:orientation="vertical"
         android:padding="32dp"
@@ -507,6 +548,14 @@
             android:layout_marginTop="20dp"
             android:orientation="vertical"
             android:visibility="gone">
+
+            <CheckBox
+                android:id="@+id/welcomeWallpaperCheck"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="Установить фирменные ч/б обои"
+                android:textColor="@color/white" />
 
             <Button
                 android:id="@+id/welcomeAutoBtn"
