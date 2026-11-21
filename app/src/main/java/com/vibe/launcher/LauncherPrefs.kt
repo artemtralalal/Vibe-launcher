@@ -75,6 +75,10 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getString("drawer_style", "swipe") ?: "swipe"
         set(v) = prefs.edit().putString("drawer_style", v).apply()
 
+    var drawerLayout: String
+        get() = prefs.getString("drawer_layout", "grid") ?: "grid"
+        set(v) = prefs.edit().putString("drawer_layout", v).apply()
+
     var accentColor: Int
         get() = prefs.getInt("accent_color", 0xFF7C4DFF.toInt())
         set(v) = prefs.edit().putInt("accent_color", v).apply()
