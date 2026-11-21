@@ -79,15 +79,63 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getInt("accent_color", 0xFF7C4DFF.toInt())
         set(v) = prefs.edit().putInt("accent_color", v).apply()
 
+    var iconRadius: Int
+        get() = prefs.getInt("icon_radius", 50)
+        set(v) = prefs.edit().putInt("icon_radius", v.coerceIn(0, 100)).apply()
+
+    var iconRadiusTL: Int
+        get() = prefs.getInt("icon_r_tl", -1)
+        set(v) = prefs.edit().putInt("icon_r_tl", v).apply()
+    var iconRadiusTR: Int
+        get() = prefs.getInt("icon_r_tr", -1)
+        set(v) = prefs.edit().putInt("icon_r_tr", v).apply()
+    var iconRadiusBL: Int
+        get() = prefs.getInt("icon_r_bl", -1)
+        set(v) = prefs.edit().putInt("icon_r_bl", v).apply()
+    var iconRadiusBR: Int
+        get() = prefs.getInt("icon_r_br", -1)
+        set(v) = prefs.edit().putInt("icon_r_br", v).apply()
+
+    var currentPage: Int
+        get() = prefs.getInt("current_page", 0)
+        set(v) = prefs.edit().putInt("current_page", v).apply()
+
+    fun savePages(pages: List<List<String>>) {
+        val arr = JSONArray()
+        pages.forEach { page ->
+            val p = JSONArray()
+            page.forEach { p.put(it) }
+            arr.put(p)
+        }
+        prefs.edit().putString(KEY_PAGES, arr.toString()).apply()
+    }
+
+    fun loadPages(): List<List<String>> {
+        val raw = prefs.getString(KEY_PAGES, null)
+        if (raw != null) {
+            return try {
+                val arr = JSONArray(raw)
+                List(arr.length()) { i ->
+                    val p = arr.optJSONArray(i) ?: JSONArray()
+                    List(p.length()) { j -> p.optString(j) }.filter { it.isNotBlank() }
+                }
+            } catch (_: Exception) { emptyList() }
+        }
+        // Migration from old single grid
+        val old = loadList(KEY_GRID)
+        return if (old.isNotEmpty()) listOf(old) else emptyList()
+    }
+
     fun saveGridOrder(keys: List<String>) {
-        prefs.edit().putString(KEY_GRID, JSONArray(keys).toString()).apply()
+        // legacy compat: save as single page
+        savePages(listOf(keys))
     }
 
     fun saveDockOrder(keys: List<String>) {
         prefs.edit().putString(KEY_DOCK, JSONArray(keys).toString()).apply()
     }
 
-    fun loadGridOrder(): List<String> = loadList(KEY_GRID)
+    fun loadGridOrder(): List<String> = loadPages().firstOrNull() ?: emptyList()
     fun loadDockOrder(): List<String> = loadList(KEY_DOCK)
 
     private fun loadList(key: String): List<String> {
@@ -104,5 +152,6 @@ class LauncherPrefs(context: Context) {
         private const val KEY_FLAGSHIP = "flagship_animations"
         private const val KEY_GRID = "grid_order"
         private const val KEY_DOCK = "dock_order"
+        private const val KEY_PAGES = "home_pages"
     }
 }
