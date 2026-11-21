@@ -44,4 +44,5 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.gridlayout:gridlayout:1.0.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation("androidx.palette:palette-ktx:1.0.0")
 }
