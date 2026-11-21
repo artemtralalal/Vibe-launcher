@@ -673,13 +673,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun findApp(key: String): AppEntry? = allApps.firstOrNull { it.key == key }
 
-    private fun applyPendingDrop() {
-        val key = pendingDropKey ?: return
+    private fun applyPendingDropNow(key: String, toDock: Int?, toGrid: Int, fromDock: Int?, fromDrawer: Boolean) {
         val app = findApp(key) ?: return
-        val toDock = pendingDropDockSlot
-        val toGrid = pendingDropGridIndex
-        val fromDock = draggedFromDock
-        val fromDrawer = draggedFromDrawer
 
         if (toDock != null) {
             if (fromDock == toDock) return
@@ -719,30 +714,38 @@ class MainActivity : AppCompatActivity() {
         val dropped = dragDropped
         val fromDrawer = draggedFromDrawer
         val key = draggedKey
-        try {
-            if (dropped) applyPendingDrop()
-            dockBar.setBackgroundResource(R.drawable.bg_dock)
-            for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.alpha = 1f
-            for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.alpha = 1f
-            if (fromDrawer && key != null) {
-                val onHome = gridAdapter.all().any { it.key == key } || dockApps.filterNotNull().any { it.key == key }
-                if (!onHome) {
-                    appDrawer.isVisible = true
-                    appDrawer.alpha = 1f
-                    appDrawer.translationY = 0f
-                } else {
-                    appDrawer.isVisible = false
-                    appDrawer.alpha = 1f
-                    appDrawer.translationY = 0f
-                }
-            }
-        } catch (_: Exception) { }
+        val pKey = pendingDropKey
+        val pDock = pendingDropDockSlot
+        val pGrid = pendingDropGridIndex
+        val fromDock = draggedFromDock
+
         draggedKey = null; draggedFromDock = null; draggedFromDrawer = false; dragDropped = false
         pendingDropKey = null; pendingDropDockSlot = null; pendingDropGridIndex = -1
-        try {
-            renderDock()
-            if (dropped) persistLayout()
-        } catch (_: Exception) { }
+
+        root.post {
+            try {
+                if (dropped && pKey != null) {
+                    applyPendingDropNow(pKey, pDock, pGrid, fromDock, fromDrawer)
+                }
+                dockBar.setBackgroundResource(R.drawable.bg_dock)
+                for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.alpha = 1f
+                for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.alpha = 1f
+                if (fromDrawer && key != null) {
+                    val onHome = gridAdapter.all().any { it.key == key } || dockApps.filterNotNull().any { it.key == key }
+                    if (!onHome) {
+                        appDrawer.isVisible = true
+                        appDrawer.alpha = 1f
+                        appDrawer.translationY = 0f
+                    } else {
+                        appDrawer.isVisible = false
+                        appDrawer.alpha = 1f
+                        appDrawer.translationY = 0f
+                    }
+                }
+                renderDock()
+                if (dropped) persistLayout()
+            } catch (_: Exception) { }
+        }
     }
 
     private fun persistLayout() {
