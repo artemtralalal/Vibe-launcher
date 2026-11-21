@@ -9,7 +9,8 @@ import androidx.recyclerview.widget.RecyclerView
 
 class DrawerAdapter(
     private val onClick: (AppEntry, View) -> Unit,
-    private val onLongPress: (AppEntry, View) -> Boolean
+    private val onLongPress: (AppEntry, View) -> Boolean,
+    private val shape: () -> String = { "circle" }
 ) : RecyclerView.Adapter<DrawerAdapter.VH>() {
 
     private val items = mutableListOf<AppEntry>()
@@ -31,6 +32,18 @@ class DrawerAdapter(
         val item = items[position]
         holder.icon.setImageDrawable(item.icon)
         holder.label.text = item.label
+        holder.icon.clipToOutline = shape() != "square"
+        holder.icon.outlineProvider = object : android.view.ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: android.graphics.Outline) {
+                val r = when (shape()) {
+                    "circle" -> view.width / 2f
+                    "rounded" -> view.width * 0.22f
+                    "squircle" -> view.width * 0.32f
+                    else -> 0f
+                }
+                outline.setRoundRect(0, 0, view.width, view.height, r)
+            }
+        }
         holder.itemView.setOnClickListener { onClick(item, holder.icon) }
         holder.itemView.setOnLongClickListener { onLongPress(item, holder.itemView) }
     }
