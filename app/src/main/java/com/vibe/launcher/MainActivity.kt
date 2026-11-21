@@ -4,18 +4,33 @@ import android.app.ActivityOptions
 import android.content.ClipData
 import android.content.ComponentName
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.Outline
+import android.graphics.RenderEffect
+import android.graphics.Shader
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.Drawable
+import android.os.Build
 import android.os.Bundle
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewOutlineProvider
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
+import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.drawable.toBitmap
 import androidx.core.view.isVisible
+import androidx.palette.graphics.Palette
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -27,16 +42,21 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: LauncherPrefs
     private lateinit var root: FrameLayout
+    private lateinit var homeContent: View
     private lateinit var gridRecycler: RecyclerView
     private lateinit var dockBar: LinearLayout
     private lateinit var settingsButton: ImageButton
     private lateinit var settingsOverlay: FrameLayout
     private lateinit var flagshipSwitch: SwitchMaterial
+    private lateinit var blurSwitch: SwitchMaterial
     private lateinit var appDrawer: View
     private lateinit var drawerRecycler: RecyclerView
+    private lateinit var animationOverlay: View
+    private lateinit var iconPackLabel: TextView
 
     private lateinit var gridAdapter: AppGridAdapter
     private lateinit var drawerAdapter: DrawerAdapter
+    private lateinit var iconPackManager: IconPackManager
 
     private val allApps = mutableListOf<AppEntry>()
     private val dockApps = arrayListOf<AppEntry?>(null, null, null, null)
@@ -44,19 +64,29 @@ class MainActivity : AppCompatActivity() {
     private var draggedFromDock: Int? = null
     private var draggedFromDrawer = false
 
+    private var lastLaunchKey: String? = null
+    private var lastLaunchBounds: IntArray? = null
+    private var lastLaunchColor: Int = Color.DKGRAY
+    private var pendingLaunch = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         prefs = LauncherPrefs(this)
+        iconPackManager = IconPackManager(this)
         root = findViewById(R.id.root)
+        homeContent = findViewById(R.id.homeContent)
         gridRecycler = findViewById(R.id.gridRecycler)
         dockBar = findViewById(R.id.dockBar)
         settingsButton = findViewById(R.id.settingsButton)
         settingsOverlay = findViewById(R.id.settingsOverlay)
         flagshipSwitch = findViewById(R.id.flagshipSwitch)
+        blurSwitch = findViewById(R.id.blurSwitch)
         appDrawer = findViewById(R.id.appDrawer)
         drawerRecycler = findViewById(R.id.drawerRecycler)
+        animationOverlay = findViewById(R.id.animationOverlay)
+        iconPackLabel = findViewById(R.id.iconPackLabel)
 
         setupGrid()
         setupDrawer()
@@ -72,11 +102,17 @@ class MainActivity : AppCompatActivity() {
         settingsButton.isVisible = false
         settingsOverlay.isVisible = false
         if (draggedKey == null) appDrawer.isVisible = false
+        if (pendingLaunch) {
+            pendingLaunch = false
+            playCloseAnimation()
+        } else {
+            clearBlur()
+        }
     }
 
     private fun setupGrid() {
         gridAdapter = AppGridAdapter(
-            onClick = { app, icon -> launchApp(app, icon) },
+            onClick = { app, icon -> launchApp(app, icon, fromDrawer = false) },
             onLongPressDrag = { app, view -> startIconDrag(app, view, fromDock = null, fromDrawer = false) },
             onEmptyLongPress = { showSettingsButton() }
         )
@@ -100,12 +136,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupDrawer() {
         drawerAdapter = DrawerAdapter(
-            onClick = { app, icon -> launchApp(app, icon) },
+            onClick = { app, icon -> launchApp(app, icon, fromDrawer = true) },
             onLongPress = { app, view -> startIconDrag(app, view, fromDock = null, fromDrawer = true) }
         )
         drawerRecycler.layoutManager = LinearLayoutManager(this)
         drawerRecycler.adapter = drawerAdapter
-        appDrawer.setOnClickListener { /* consume */ }
+        appDrawer.setOnClickListener { }
     }
 
     private fun setupDock() {
@@ -115,15 +151,60 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupSettings() {
         flagshipSwitch.isChecked = prefs.flagshipAnimations
-        flagshipSwitch.setOnCheckedChangeListener { _, checked ->
-            prefs.flagshipAnimations = checked
+        flagshipSwitch.setOnCheckedChangeListener { _, c -> prefs.flagshipAnimations = c }
+        blurSwitch.isChecked = prefs.blurEnabled
+        blurSwitch.setOnCheckedChangeListener { _, c -> prefs.blurEnabled = c }
+
+        bindSeek(findViewById(R.id.openDurationSeek), prefs.openDuration, 100, 700) { prefs.openDuration = it }
+        bindSeek(findViewById(R.id.closeDurationSeek), prefs.closeDuration, 100, 700) { prefs.closeDuration = it }
+        bindSeek(findViewById(R.id.openScaleSeek), (prefs.openScale * 100).toInt(), 20, 100) { prefs.openScale = it / 100f }
+        bindSeek(findViewById(R.id.closeScaleSeek), (prefs.closeScale * 100).toInt(), 20, 100) { prefs.closeScale = it / 100f }
+        bindSeek(findViewById(R.id.closeTySeek), (prefs.closeTranslateY + 100).toInt(), 0, 200) { prefs.closeTranslateY = (it - 100).toFloat() }
+        bindSeek(findViewById(R.id.overshootSeek), (prefs.openOvershoot * 100).toInt(), 0, 150) {
+            prefs.openOvershoot = it / 100f
+            prefs.closeOvershoot = it / 120f
         }
+
+        updateIconPackLabel()
+        findViewById<Button>(R.id.pickIconPackBtn).setOnClickListener { showIconPackPicker() }
+
         settingsButton.setOnClickListener {
             settingsOverlay.isVisible = true
             settingsButton.isVisible = false
         }
         settingsOverlay.setOnClickListener { settingsOverlay.isVisible = false }
-        findViewById<View>(R.id.settingsPanel).setOnClickListener { /* consume */ }
+        findViewById<View>(R.id.settingsPanel).setOnClickListener { }
+    }
+
+    private fun bindSeek(seek: SeekBar, value: Int, min: Int, max: Int, onChange: (Int) -> Unit) {
+        seek.max = max - min
+        seek.progress = (value - min).coerceIn(0, max - min)
+        seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) onChange(progress + min)
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+    }
+
+    private fun updateIconPackLabel() {
+        val pkg = prefs.iconPackPackage
+        iconPackLabel.text = if (pkg.isBlank()) "Пакет иконок: системный" else "Пакет иконок: $pkg"
+    }
+
+    private fun showIconPackPicker() {
+        val packs = mutableListOf("" to "Системные")
+        packs.addAll(iconPackManager.getInstalledIconPacks())
+        val names = packs.map { it.second }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Пакет иконок")
+            .setItems(names) { _, which ->
+                prefs.iconPackPackage = packs[which].first
+                updateIconPackLabel()
+                loadApps()
+            }
+            .show()
     }
 
     private fun setupGestures() {
@@ -133,30 +214,16 @@ class MainActivity : AppCompatActivity() {
                 val dy = e2.y - e1.y
                 val dx = e2.x - e1.x
                 if (abs(dy) > abs(dx) && dy < -120 && abs(velocityY) > 200) {
-                    if (!appDrawer.isVisible && !settingsOverlay.isVisible) {
-                        openDrawer()
-                        return true
-                    }
+                    if (!appDrawer.isVisible && !settingsOverlay.isVisible) { openDrawer(); return true }
                 }
                 if (abs(dy) > abs(dx) && dy > 120 && abs(velocityY) > 200) {
-                    if (appDrawer.isVisible) {
-                        closeDrawer()
-                        return true
-                    }
+                    if (appDrawer.isVisible) { closeDrawer(); return true }
                 }
                 return false
             }
         })
-
-        root.setOnTouchListener { _, event ->
-            swipeDetector.onTouchEvent(event)
-            false
-        }
-        // Also catch swipes on home content area
-        findViewById<View>(R.id.homeContent).setOnTouchListener { _, event ->
-            swipeDetector.onTouchEvent(event)
-            false
-        }
+        root.setOnTouchListener { _, event -> swipeDetector.onTouchEvent(event); false }
+        findViewById<View>(R.id.homeContent).setOnTouchListener { _, event -> swipeDetector.onTouchEvent(event); false }
     }
 
     private fun setupBack() {
@@ -166,9 +233,7 @@ class MainActivity : AppCompatActivity() {
                     settingsOverlay.isVisible -> settingsOverlay.isVisible = false
                     settingsButton.isVisible -> settingsButton.isVisible = false
                     appDrawer.isVisible -> closeDrawer()
-                    else -> {
-                        // Home launcher: do nothing
-                    }
+                    else -> {}
                 }
             }
         })
@@ -176,13 +241,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun openDrawer() {
         settingsButton.isVisible = false
-        appDrawer.translationY = appDrawer.height.toFloat().takeIf { it > 0 } ?: 1200f
+        appDrawer.translationY = appDrawer.height.toFloat().takeIf { it > 0 } ?: 1400f
         appDrawer.isVisible = true
-        appDrawer.animate().translationY(0f).setDuration(260).start()
+        appDrawer.animate().translationY(0f).setDuration(260).setInterpolator(DecelerateInterpolator()).start()
     }
 
     private fun closeDrawer() {
-        val h = appDrawer.height.toFloat().takeIf { it > 0 } ?: 1200f
+        val h = appDrawer.height.toFloat().takeIf { it > 0 } ?: 1400f
         appDrawer.animate().translationY(h).setDuration(220).withEndAction {
             appDrawer.isVisible = false
             appDrawer.translationY = 0f
@@ -201,12 +266,15 @@ class MainActivity : AppCompatActivity() {
     private fun loadApps() {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val resolved = packageManager.queryIntentActivities(intent, 0)
+        val pack = prefs.iconPackPackage
         val apps = resolved.mapNotNull { ri ->
             val label = ri.loadLabel(packageManager)?.toString()?.trim().orEmpty()
             val pkg = ri.activityInfo?.packageName ?: return@mapNotNull null
             val act = ri.activityInfo?.name ?: return@mapNotNull null
-            val icon = ri.loadIcon(packageManager) ?: return@mapNotNull null
+            val defIcon = ri.loadIcon(packageManager) ?: return@mapNotNull null
             if (pkg == packageName) return@mapNotNull null
+            val component = "$pkg/$act"
+            val icon = iconPackManager.loadIcon(pack, component, defIcon)
             AppEntry(label, pkg, act, icon)
         }.distinctBy { it.key }.sortedBy { it.label.lowercase() }
 
@@ -217,11 +285,10 @@ class MainActivity : AppCompatActivity() {
         val savedDock = prefs.loadDockOrder().mapNotNull { byKey[it] }.distinctBy { it.key }.take(4)
         for (i in 0 until 4) dockApps[i] = savedDock.getOrNull(i)
         val used = dockApps.filterNotNull().map { it.key }.toMutableSet()
-
-        val savedGrid = prefs.loadGridOrder().mapNotNull { byKey[it] }.distinctBy { it.key }
-        val grid = (savedGrid.filter { it.key !in used } + apps.filter { it.key !in used && it.key !in savedGrid.map { s -> s.key }.toSet() })
-            .distinctBy { it.key }
-            .take(24)
+        val savedGridKeys = prefs.loadGridOrder().toSet()
+        val savedGrid = prefs.loadGridOrder().mapNotNull { byKey[it] }.filter { it.key !in used }
+        val grid = (savedGrid + apps.filter { it.key !in used && it.key !in savedGridKeys })
+            .distinctBy { it.key }.take(24)
 
         gridAdapter.submitApps(grid)
         drawerAdapter.submit(allApps)
@@ -242,7 +309,7 @@ class MainActivity : AppCompatActivity() {
             if (app != null) {
                 icon.setImageDrawable(app.icon)
                 label.text = app.label
-                item.setOnClickListener { launchApp(app, icon) }
+                item.setOnClickListener { launchApp(app, icon, fromDrawer = false) }
                 item.setOnLongClickListener { startIconDrag(app, item, fromDock = i, fromDrawer = false) }
                 item.alpha = 1f
             } else {
@@ -260,38 +327,29 @@ class MainActivity : AppCompatActivity() {
         settingsButton.isVisible = false
         val data = ClipData.newPlainText("app", app.key)
         val shadow = View.DragShadowBuilder(view)
-        try {
+        return try {
             view.startDragAndDrop(data, shadow, app.key, 0)
             view.alpha = 0.35f
             if (fromDrawer) {
-                // Hide drawer so user can drop onto home screen
                 appDrawer.animate().cancel()
                 appDrawer.isVisible = false
             }
+            true
         } catch (_: Exception) {
-            draggedKey = null
-            draggedFromDock = null
-            draggedFromDrawer = false
-            return false
+            draggedKey = null; draggedFromDock = null; draggedFromDrawer = false
+            false
         }
-        return true
     }
 
     private fun handleGridDrag(event: android.view.DragEvent): Boolean {
         when (event.action) {
-            android.view.DragEvent.ACTION_DRAG_ENDED -> {
-                resetDragState()
-            }
+            android.view.DragEvent.ACTION_DRAG_ENDED -> resetDragState()
             android.view.DragEvent.ACTION_DROP -> {
                 val key = event.clipData?.getItemAt(0)?.text?.toString() ?: return true
                 val app = findApp(key) ?: return true
                 val fromDock = draggedFromDock
                 val fromDrawer = draggedFromDrawer
-                if (fromDock != null) {
-                    dockApps[fromDock] = null
-                } else if (!fromDrawer) {
-                    gridAdapter.removeByKey(key)
-                }
+                if (fromDock != null) dockApps[fromDock] = null else if (!fromDrawer) gridAdapter.removeByKey(key)
                 val child = gridRecycler.findChildViewUnder(event.x, event.y)
                 val insertAt = if (child != null) gridRecycler.getChildAdapterPosition(child) else gridAdapter.itemCount
                 if (gridAdapter.itemCount >= 24 && gridAdapter.all().none { it.key == app.key }) {
@@ -322,17 +380,12 @@ class MainActivity : AppCompatActivity() {
                 val fromDock = draggedFromDock
                 val fromDrawer = draggedFromDrawer
                 val replaced = dockApps[slot]
-                if (fromDock != null) {
-                    dockApps[fromDock] = replaced
-                } else if (!fromDrawer) {
+                if (fromDock != null) dockApps[fromDock] = replaced
+                else if (!fromDrawer) {
                     gridAdapter.removeByKey(key)
-                    if (replaced != null && gridAdapter.itemCount < 24) {
-                        gridAdapter.insertAt(gridAdapter.itemCount, replaced)
-                    }
-                } else {
-                    if (replaced != null && gridAdapter.itemCount < 24) {
-                        gridAdapter.insertAt(gridAdapter.itemCount, replaced)
-                    }
+                    if (replaced != null && gridAdapter.itemCount < 24) gridAdapter.insertAt(gridAdapter.itemCount, replaced)
+                } else if (replaced != null && gridAdapter.itemCount < 24) {
+                    gridAdapter.insertAt(gridAdapter.itemCount, replaced)
                 }
                 dockApps[slot] = app
                 renderDock()
@@ -348,20 +401,12 @@ class MainActivity : AppCompatActivity() {
         if (empty >= 0) dockApps[empty] = app
     }
 
-    private fun findApp(key: String): AppEntry? {
-        return allApps.firstOrNull { it.key == key }
-    }
+    private fun findApp(key: String): AppEntry? = allApps.firstOrNull { it.key == key }
 
     private fun resetDragState() {
-        for (i in 0 until gridRecycler.childCount) {
-            gridRecycler.getChildAt(i)?.alpha = 1f
-        }
-        for (i in 0 until dockBar.childCount) {
-            dockBar.getChildAt(i)?.alpha = 1f
-        }
-        // If drag came from drawer and wasn't dropped onto home, reopen drawer
+        for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.alpha = 1f
+        for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.alpha = 1f
         if (draggedFromDrawer && draggedKey != null) {
-            // Check if app was placed on home/dock; if not, reopen drawer
             val key = draggedKey
             val onHome = gridAdapter.all().any { it.key == key } || dockApps.filterNotNull().any { it.key == key }
             if (!onHome) {
@@ -372,9 +417,7 @@ class MainActivity : AppCompatActivity() {
                 appDrawer.translationY = 0f
             }
         }
-        draggedKey = null
-        draggedFromDock = null
-        draggedFromDrawer = false
+        draggedKey = null; draggedFromDock = null; draggedFromDrawer = false
         renderDock()
     }
 
@@ -383,20 +426,186 @@ class MainActivity : AppCompatActivity() {
         prefs.saveDockOrder(dockApps.mapNotNull { it?.key })
     }
 
-    private fun launchApp(app: AppEntry, iconView: View) {
+    private fun launchApp(app: AppEntry, iconView: View, fromDrawer: Boolean) {
         val intent = Intent(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(ComponentName(app.packageName, app.activityName))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-        val options = if (prefs.flagshipAnimations) {
-            ActivityOptions.makeScaleUpAnimation(iconView, 0, 0, max(1, iconView.width), max(1, iconView.height))
-        } else {
-            ActivityOptions.makeCustomAnimation(this, android.R.anim.fade_in, android.R.anim.fade_out)
+        val loc = IntArray(2)
+        iconView.getLocationOnScreen(loc)
+        lastLaunchKey = app.key
+        lastLaunchBounds = intArrayOf(loc[0], loc[1], iconView.width, iconView.height)
+        lastLaunchColor = extractColor(app.icon)
+
+        if (!prefs.flagshipAnimations) {
+            val opts = ActivityOptions.makeCustomAnimation(this, android.R.anim.fade_in, android.R.anim.fade_out)
+            try { startActivity(intent, opts.toBundle()) } catch (_: Exception) {}
+            pendingLaunch = false
+            return
         }
-        try {
-            startActivity(intent, options.toBundle())
+
+        playOpenAnimation(fromDrawer, lastLaunchBounds!!, lastLaunchColor) {
+            val opts = ActivityOptions.makeCustomAnimation(this, 0, 0)
+            try {
+                startActivity(intent, opts.toBundle())
+                pendingLaunch = true
+            } catch (_: Exception) {
+                pendingLaunch = false
+                clearBlur()
+                animationOverlay.isVisible = false
+            }
+        }
+    }
+
+    private fun playOpenAnimation(fromDrawer: Boolean, bounds: IntArray, color: Int, onEnd: () -> Unit) {
+        applyBlur(true)
+        scaleHomeForOpen(true)
+
+        val overlay = animationOverlay
+        overlay.background = roundedBg(color)
+        overlay.isVisible = true
+        overlay.alpha = 0f
+
+        val screenW = root.width.toFloat().coerceAtLeast(1f)
+        val screenH = root.height.toFloat().coerceAtLeast(1f)
+        val startW = bounds[2].toFloat().coerceAtLeast(1f)
+        val startH = bounds[3].toFloat().coerceAtLeast(1f)
+        val startCx = bounds[0] + startW / 2f
+        val startCy = bounds[1] + startH / 2f
+        val endCx = screenW / 2f
+        val endCy = screenH / 2f
+
+        val fromCenter = fromDrawer
+        val sX = if (fromCenter) 0.2f else (startW / screenW)
+        val sY = if (fromCenter) 0.2f else (startH / screenH)
+        val tX = if (fromCenter) 0f else (startCx - endCx)
+        val tY = if (fromCenter) 0f else (startCy - endCy)
+
+        overlay.scaleX = sX
+        overlay.scaleY = sY
+        overlay.translationX = tX
+        overlay.translationY = tY
+        overlay.alpha = 1f
+
+        overlay.animate().cancel()
+        overlay.animate()
+            .scaleX(1f).scaleY(1f)
+            .translationX(prefs.openTranslateX)
+            .translationY(prefs.openTranslateY)
+            .setDuration(prefs.openDuration.toLong())
+            .setInterpolator(OvershootInterpolator(prefs.openOvershoot))
+            .withEndAction { onEnd() }
+            .start()
+    }
+
+    private fun playCloseAnimation() {
+        val bounds = lastLaunchBounds ?: run { clearBlur(); scaleHomeForOpen(false); return }
+        val overlay = animationOverlay
+        val screenW = root.width.toFloat().coerceAtLeast(1f)
+        val screenH = root.height.toFloat().coerceAtLeast(1f)
+        val endW = bounds[2].toFloat().coerceAtLeast(1f)
+        val endH = bounds[3].toFloat().coerceAtLeast(1f)
+        val endCx = bounds[0] + endW / 2f
+        val endCy = bounds[1] + endH / 2f
+        val startCx = screenW / 2f
+        val startCy = screenH / 2f
+
+        val tX = endCx - startCx + prefs.closeTranslateX
+        val tY = endCy - startCy + prefs.closeTranslateY
+        val sX = (endW / screenW).coerceAtLeast(0.08f)
+        val sY = (endH / screenH).coerceAtLeast(0.08f)
+
+        overlay.isVisible = true
+        overlay.alpha = 1f
+        overlay.scaleX = 1f
+        overlay.scaleY = 1f
+        overlay.translationX = 0f
+        overlay.translationY = 0f
+        overlay.background = roundedBg(lastLaunchColor)
+
+        overlay.animate().cancel()
+        overlay.animate()
+            .scaleX(sX).scaleY(sY)
+            .translationX(tX).translationY(tY)
+            .alpha(0.95f)
+            .setDuration(prefs.closeDuration.toLong())
+            .setInterpolator(DecelerateInterpolator())
+            .withEndAction {
+                overlay.isVisible = false
+                overlay.alpha = 1f
+                overlay.scaleX = 1f
+                overlay.scaleY = 1f
+                overlay.translationX = 0f
+                overlay.translationY = 0f
+                clearBlur()
+                scaleHomeForOpen(false)
+                bounceTargetIcon(lastLaunchKey)
+            }
+            .start()
+    }
+
+    private fun bounceTargetIcon(key: String?) {
+        if (key == null) return
+        val view = findIconViewByKey(key) ?: return
+        view.animate().cancel()
+        view.scaleX = 0.85f
+        view.scaleY = 0.85f
+        view.animate().scaleX(1f).scaleY(1f).setDuration(220)
+            .setInterpolator(OvershootInterpolator(1.4f)).start()
+    }
+
+    private fun findIconViewByKey(key: String): View? {
+        for (i in 0 until gridRecycler.childCount) {
+            val child = gridRecycler.getChildAt(i) ?: continue
+            val pos = gridRecycler.getChildAdapterPosition(child)
+            if (pos >= 0 && pos < gridAdapter.itemCount && gridAdapter.all().getOrNull(pos)?.key == key) return child
+        }
+        for (i in 0 until dockBar.childCount) {
+            val child = dockBar.getChildAt(i) ?: continue
+            val label = child.findViewById<TextView>(R.id.appLabel)?.text?.toString()
+            val app = dockApps.getOrNull(i)
+            if (app?.key == key) return child.findViewById(R.id.appIcon) ?: child
+        }
+        return null
+    }
+
+    private fun applyBlur(enable: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (enable && prefs.blurEnabled) {
+                val r = prefs.blurRadius.coerceIn(1f, 60f)
+                homeContent.setRenderEffect(RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP))
+            } else {
+                homeContent.setRenderEffect(null)
+            }
+        }
+    }
+
+    private fun clearBlur() = applyBlur(false)
+
+    private fun scaleHomeForOpen(opening: Boolean) {
+        homeContent.animate().cancel()
+        if (opening) {
+            homeContent.animate().scaleX(0.92f).scaleY(0.92f).alpha(0.85f).setDuration(260).start()
+        } else {
+            homeContent.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(260).start()
+        }
+    }
+
+    private fun roundedBg(color: Int): Drawable {
+        val d = android.graphics.drawable.GradientDrawable()
+        d.shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+        d.cornerRadius = 48f * resources.displayMetrics.density
+        d.setColor(color)
+        return d
+    }
+
+    private fun extractColor(icon: Drawable): Int {
+        return try {
+            val bmp = icon.toBitmap(64, 64)
+            Palette.from(bmp).generate().getDominantColor(Color.DKGRAY)
         } catch (_: Exception) {
+            Color.DKGRAY
         }
     }
 }
