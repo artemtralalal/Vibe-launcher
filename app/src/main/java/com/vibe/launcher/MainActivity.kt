@@ -85,6 +85,7 @@ class MainActivity : AppCompatActivity() {
     private var pageSwitchRunnable: Runnable? = null
     private var pageDragActive = false
     private var pageDragDidSnap = false
+    private var lastUnlockAnimAt = 0L
     private var pageDragStartX = 0f
     private var pageDragStartY = 0f
     private var pageDragDx = 0f
@@ -112,6 +113,7 @@ class MainActivity : AppCompatActivity() {
     private var lastLaunchBounds: IntArray? = null
     private var lastLaunchColor: Int = Color.DKGRAY
     private var pendingLaunch = false
+    private var openAnimating = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -144,6 +146,7 @@ class MainActivity : AppCompatActivity() {
         setupBack()
         setupPageEdges()
         setupVolumePanel()
+        setupAbout()
         loadApps()
         setupWelcome()
         try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
@@ -162,7 +165,7 @@ class MainActivity : AppCompatActivity() {
         quickPanel.isVisible = false
         settingsOverlay.isVisible = false
         if (draggedKey == null) appDrawer.isVisible = false
-        if (pendingLaunch) {
+        if (pendingLaunch || openAnimating) {
             pendingLaunch = false
             playCloseAnimation()
         } else {
@@ -307,6 +310,66 @@ class MainActivity : AppCompatActivity() {
         }
         pageEdgeLeft.setOnDragListener(listener)
         pageEdgeRight.setOnDragListener(listener)
+    }
+
+    private fun setupAbout() {
+        val cardBtn = findViewById<View>(R.id.aboutCardBtn)
+        val aboutOverlay = findViewById<View>(R.id.aboutOverlay)
+        val aboutCard = findViewById<View>(R.id.aboutCard)
+        val aboutGradient = findViewById<View>(R.id.aboutGradientBg)
+        val aboutVersion = findViewById<TextView>(R.id.aboutVersion)
+        val aboutCardVersion = findViewById<TextView>(R.id.aboutCardVersion)
+        val aboutDevice = findViewById<TextView>(R.id.aboutDevice)
+        val devOverlay = findViewById<View>(R.id.devOverlay)
+        val ver = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "1.9.3-beta" } catch (_: Exception) { "1.9.3-beta" }
+        aboutCardVersion.text = ver
+        aboutVersion.text = "Version $ver"
+        aboutDevice.text = "${Build.MANUFACTURER} ${Build.MODEL} • Android ${Build.VERSION.RELEASE}"
+
+        fun openAbout() {
+            aboutOverlay.isVisible = true
+            aboutOverlay.alpha = 0f
+            aboutOverlay.animate().alpha(1f).setDuration(220).start()
+            val c1 = prefs.accentColor
+            val c2 = Color.argb(255, (Color.red(c1)*0.4f).toInt(), (Color.green(c1)*0.4f).toInt(), (Color.blue(c1)*0.4f).toInt())
+            aboutGradient.background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                intArrayOf(c2, 0xFF10131A.toInt(), c1 and 0x55FFFFFF)
+            )
+        }
+        cardBtn.setOnClickListener { openAbout() }
+        aboutCard.setOnClickListener { /* expand feel - already full overlay */ }
+        findViewById<View>(R.id.aboutCloseBtn).setOnClickListener {
+            aboutOverlay.animate().alpha(0f).setDuration(180).withEndAction { aboutOverlay.isVisible = false; aboutOverlay.alpha = 1f }.start()
+        }
+        findViewById<View>(R.id.aboutGithubBtn).setOnClickListener {
+            try { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/artemtralalal/Vibe-launcher"))) } catch (_: Exception) {}
+        }
+        aboutVersion.setOnClickListener {
+            val input = android.widget.EditText(this)
+            input.hint = "Code"
+            AlertDialog.Builder(this).setTitle("Developer mode").setView(input)
+                .setPositiveButton("OK") { _, _ ->
+                    if (input.text.toString().trim() == "2013") {
+                        prefs.devMode = true
+                        devOverlay.isVisible = true
+                    }
+                }.setNegativeButton("Cancel", null).show()
+        }
+        findViewById<View>(R.id.devCloseDevBtn).setOnClickListener { devOverlay.isVisible = false }
+        findViewById<View>(R.id.devIconBehaviorBtn).setOnClickListener {
+            prefs.iconPressAnim = !prefs.iconPressAnim
+            updateDevLabels()
+        }
+        findViewById<View>(R.id.devCloseStyleBtn).setOnClickListener {
+            android.widget.Toast.makeText(this, "Morph to icon: ON", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        updateDevLabels()
+    }
+
+    private fun updateDevLabels() {
+        val b = findViewById<Button>(R.id.devIconBehaviorBtn)
+        b.text = if (prefs.iconPressAnim) "Press scale + fly (ON)" else "Press scale + fly (OFF)"
     }
 
     private fun setupVolumePanel() {
@@ -512,7 +575,9 @@ class MainActivity : AppCompatActivity() {
     private fun updateUnlockLabel() {
         val label = when (prefs.unlockAnim) {
             "pixel" -> "Pixel"; "poco" -> "POCO/Xiaomi"; "ios" -> "iPhone"
-            "ripple" -> "Ripple (отпечаток)"; "wave" -> "Волна"; "fire" -> "Огонь"; "ice" -> "Лёд"; "none" -> "Нет"; else -> prefs.unlockAnim
+            "ripple" -> "Ripple (отпечаток)"; "wave" -> "Волна"; "fire" -> "Огонь"; "ice" -> "Лёд"
+            "samsung" -> "Samsung One UI"; "oneplus" -> "OnePlus"; "nothing" -> "Nothing"; "hyperos" -> "HyperOS"
+            "none" -> "Нет"; else -> prefs.unlockAnim
         }
         findViewById<TextView>(R.id.unlockAnimLabel).text = "Анимация разблокировки: $label"
     }
@@ -520,7 +585,9 @@ class MainActivity : AppCompatActivity() {
     private fun showUnlockAnimPicker() {
         val opts = listOf(
             "pixel" to "Pixel", "poco" to "POCO/Xiaomi", "ios" to "iPhone",
-            "ripple" to "Ripple (отпечаток)", "wave" to "Волна", "fire" to "Огонь", "ice" to "Лёд", "none" to "Нет"
+            "ripple" to "Ripple (отпечаток)", "wave" to "Волна", "fire" to "Огонь", "ice" to "Лёд",
+            "samsung" to "Samsung One UI", "oneplus" to "OnePlus", "nothing" to "Nothing", "hyperos" to "HyperOS",
+            "none" to "Нет"
         )
         AlertDialog.Builder(this).setTitle("Анимация разблокировки")
             .setItems(opts.map { it.second }.toTypedArray()) { _, which ->
@@ -694,6 +761,8 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
+                    findViewById<View>(R.id.devOverlay).isVisible -> findViewById<View>(R.id.devOverlay).isVisible = false
+                    findViewById<View>(R.id.aboutOverlay).isVisible -> findViewById<View>(R.id.aboutOverlay).isVisible = false
                     settingsOverlay.isVisible -> settingsOverlay.isVisible = false
                     quickPanel.isVisible -> quickPanel.isVisible = false
                     settingsButton.isVisible -> settingsButton.isVisible = false
@@ -810,10 +879,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun playUnlockAnimation() {
         if (prefs.unlockAnim == "none") return
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastUnlockAnimAt < 600) return
+        lastUnlockAnimAt = now
+        root.post { runUnlockAnimation(retry = true) }
+    }
+
+    private fun runUnlockAnimation(retry: Boolean) {
+        if (prefs.unlockAnim == "none") return
         try {
             val views = mutableListOf<View>()
             for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.let { views.add(it) }
             for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.let { views.add(it) }
+            if (views.isEmpty() && retry) {
+                root.postDelayed({ runUnlockAnimation(retry = false) }, 120)
+                return
+            }
             val centerX = root.width / 2f
             val bottomY = root.height.toFloat()
             val anim = prefs.unlockAnim
@@ -904,6 +985,32 @@ class MainActivity : AppCompatActivity() {
                             .setStartDelay((idx * 25L).coerceAtMost(300L))
                             .setDuration(450).setInterpolator(DecelerateInterpolator(2f)).start()
                     }
+                    "samsung" -> {
+                        v.alpha = 0f; v.scaleX = 0.85f; v.scaleY = 0.85f; v.translationY = 40f
+                        v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+                            .setStartDelay((idx * 18L).coerceAtMost(220L))
+                            .setDuration(420).setInterpolator(DecelerateInterpolator(1.8f)).start()
+                    }
+                    "oneplus" -> {
+                        val loc = IntArray(2); v.getLocationOnScreen(loc)
+                        val vx = loc[0] + v.width / 2f - centerX
+                        v.alpha = 0f; v.translationX = vx * 0.15f; v.translationY = 80f; v.scaleX = 0.92f; v.scaleY = 0.92f
+                        v.animate().alpha(1f).translationX(0f).translationY(0f).scaleX(1f).scaleY(1f)
+                            .setStartDelay((idx * 24L).coerceAtMost(260L))
+                            .setDuration(380).setInterpolator(OvershootInterpolator(0.7f)).start()
+                    }
+                    "nothing" -> {
+                        v.alpha = 0f; v.scaleX = 0.7f; v.scaleY = 0.7f; v.translationY = 0f
+                        v.animate().alpha(1f).scaleX(1f).scaleY(1f)
+                            .setStartDelay((idx * 35L).coerceAtMost(350L))
+                            .setDuration(300).setInterpolator(DecelerateInterpolator(2.2f)).start()
+                    }
+                    "hyperos" -> {
+                        v.alpha = 0f; v.scaleX = 1.2f; v.scaleY = 1.2f; v.translationY = 30f
+                        v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+                            .setStartDelay((idx * 20L).coerceAtMost(240L))
+                            .setDuration(460).setInterpolator(DecelerateInterpolator(1.5f)).start()
+                    }
                     else -> { // pixel
                         v.alpha = 0f; v.translationY = 120f; v.scaleX = 0.92f; v.scaleY = 0.92f
                         v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
@@ -964,10 +1071,12 @@ class MainActivity : AppCompatActivity() {
         if (settingsOverlay.isVisible || appDrawer.isVisible) return
         quickPanel.bringToFront()
         quickPanel.alpha = 0f
-        quickPanel.scaleX = 0.92f
-        quickPanel.scaleY = 0.92f
+        quickPanel.scaleX = 0.88f
+        quickPanel.scaleY = 0.88f
+        quickPanel.translationY = 120f
         quickPanel.isVisible = true
-        quickPanel.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(180).start()
+        quickPanel.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+            .setDuration(260).setInterpolator(DecelerateInterpolator(1.6f)).start()
         settingsButton.isVisible = false
     }
 
@@ -1109,6 +1218,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun gridDropIndex(x: Float, y: Float): Int {
+        val child = gridRecycler.findChildViewUnder(x, y)
+        if (child != null) return gridRecycler.getChildAdapterPosition(child).coerceAtLeast(0)
+        // estimate from grid position
+        val cols = 4
+        val padTop = gridRecycler.paddingTop.toFloat()
+        val usableW = (gridRecycler.width - gridRecycler.paddingLeft - gridRecycler.paddingRight).toFloat().coerceAtLeast(1f)
+        val cellW = usableW / cols
+        val first = gridRecycler.getChildAt(0)
+        val cellH = (first?.height?.toFloat() ?: (100f * resources.displayMetrics.density)).coerceAtLeast(1f)
+        val col = ((x - gridRecycler.paddingLeft) / cellW).toInt().coerceIn(0, cols - 1)
+        val row = ((y - padTop + gridRecycler.computeVerticalScrollOffset()) / cellH).toInt().coerceAtLeast(0)
+        return (row * cols + col).coerceIn(0, gridAdapter.itemCount)
+    }
+
     private fun handleGridDrag(event: android.view.DragEvent): Boolean {
         when (event.action) {
             android.view.DragEvent.ACTION_DRAG_LOCATION -> {
@@ -1125,11 +1249,10 @@ class MainActivity : AppCompatActivity() {
             android.view.DragEvent.ACTION_DROP -> try {
                 cancelPageSwitch()
                 val key = event.clipData?.getItemAt(0)?.text?.toString() ?: return true
-                val child = gridRecycler.findChildViewUnder(event.x, event.y)
-                val insertAt = if (child != null) gridRecycler.getChildAdapterPosition(child) else gridAdapter.itemCount
+                val insertAt = gridDropIndex(event.x, event.y)
                 pendingDropKey = key
                 pendingDropDockSlot = null
-                pendingDropGridIndex = insertAt.coerceAtLeast(0)
+                pendingDropGridIndex = insertAt
                 dragDropped = true
             } catch (_: Exception) { }
         }
@@ -1347,40 +1470,52 @@ class MainActivity : AppCompatActivity() {
             .setComponent(ComponentName(app.packageName, app.activityName))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-        val loc = IntArray(2)
-        iconView.getLocationOnScreen(loc)
-        lastLaunchKey = app.key
-        lastLaunchBounds = intArrayOf(loc[0], loc[1], iconView.width, iconView.height)
-        lastLaunchColor = extractColor(app.icon)
+        val doLaunch = {
+            val loc = IntArray(2)
+            iconView.getLocationOnScreen(loc)
+            lastLaunchKey = app.key
+            lastLaunchBounds = intArrayOf(loc[0], loc[1], iconView.width, iconView.height)
+            lastLaunchColor = extractColor(app.icon)
 
-        if (!prefs.flagshipAnimations) {
-            val opts = ActivityOptions.makeCustomAnimation(this, android.R.anim.fade_in, android.R.anim.fade_out)
-            try { startActivity(intent, opts.toBundle()) } catch (_: Exception) {}
-            pendingLaunch = false
-            return
+            if (!prefs.flagshipAnimations) {
+                val opts = ActivityOptions.makeCustomAnimation(this, android.R.anim.fade_in, android.R.anim.fade_out)
+                try { startActivity(intent, opts.toBundle()) } catch (_: Exception) {}
+                pendingLaunch = false
+            } else {
+                playOpenAnimation(fromDrawer, lastLaunchBounds!!, lastLaunchColor) {
+                    val opts = ActivityOptions.makeCustomAnimation(this, 0, 0)
+                    try {
+                        startActivity(intent, opts.toBundle())
+                        pendingLaunch = true
+                    } catch (_: Exception) {
+                        pendingLaunch = false
+                        clearBlur()
+                        animationOverlay.isVisible = false
+                    }
+                }
+            }
         }
 
-        playOpenAnimation(fromDrawer, lastLaunchBounds!!, lastLaunchColor) {
-            val opts = ActivityOptions.makeCustomAnimation(this, 0, 0)
-            try {
-                startActivity(intent, opts.toBundle())
-                pendingLaunch = true
-            } catch (_: Exception) {
-                pendingLaunch = false
-                clearBlur()
-                animationOverlay.isVisible = false
-            }
+        if (prefs.iconPressAnim) {
+            iconView.animate().cancel()
+            iconView.animate().scaleX(0.86f).scaleY(0.86f).setDuration(70).withEndAction {
+                iconView.animate().scaleX(1f).scaleY(1f).setDuration(90).start()
+                doLaunch()
+            }.start()
+        } else {
+            doLaunch()
         }
     }
 
     private fun playOpenAnimation(fromDrawer: Boolean, bounds: IntArray, color: Int, onEnd: () -> Unit) {
+        openAnimating = true
         applyBlur(true)
         scaleHomeForOpen(true)
 
         val overlay = animationOverlay
         overlay.background = roundedBg(color)
         overlay.isVisible = true
-        overlay.alpha = 0f
+        overlay.alpha = 1f
 
         val screenW = root.width.toFloat().coerceAtLeast(1f)
         val screenH = root.height.toFloat().coerceAtLeast(1f)
@@ -1401,7 +1536,6 @@ class MainActivity : AppCompatActivity() {
         overlay.scaleY = sY
         overlay.translationX = tX
         overlay.translationY = tY
-        overlay.alpha = 1f
 
         overlay.animate().cancel()
         overlay.animate()
@@ -1410,13 +1544,21 @@ class MainActivity : AppCompatActivity() {
             .translationY(prefs.openTranslateY)
             .setDuration(prefs.openDuration.toLong())
             .setInterpolator(OvershootInterpolator(prefs.openOvershoot))
-            .withEndAction { onEnd() }
+            .withEndAction {
+                if (openAnimating) {
+                    openAnimating = false
+                    onEnd()
+                }
+            }
             .start()
     }
 
     private fun playCloseAnimation() {
-        val bounds = lastLaunchBounds ?: run { clearBlur(); scaleHomeForOpen(false); return }
+        val bounds = lastLaunchBounds ?: run { clearBlur(); scaleHomeForOpen(false); openAnimating = false; return }
         val overlay = animationOverlay
+        val wasOpenAnimating = openAnimating
+        openAnimating = false
+
         val screenW = root.width.toFloat().coerceAtLeast(1f)
         val screenH = root.height.toFloat().coerceAtLeast(1f)
         val endW = bounds[2].toFloat().coerceAtLeast(1f)
@@ -1431,20 +1573,49 @@ class MainActivity : AppCompatActivity() {
         val sX = (endW / screenW).coerceAtLeast(0.08f)
         val sY = (endH / screenH).coerceAtLeast(0.08f)
 
-        overlay.isVisible = true
-        overlay.alpha = 1f
-        overlay.scaleX = 1f
-        overlay.scaleY = 1f
-        overlay.translationX = 0f
-        overlay.translationY = 0f
-        overlay.background = roundedBg(lastLaunchColor)
+        val targetView = findIconViewByKey(lastLaunchKey)
+        targetView?.alpha = 0f
 
         overlay.animate().cancel()
+        overlay.isVisible = true
+        if (!wasOpenAnimating) {
+            overlay.alpha = 1f
+            overlay.scaleX = 1f
+            overlay.scaleY = 1f
+            overlay.translationX = 0f
+            overlay.translationY = 0f
+        }
+        overlay.background = roundedBg(lastLaunchColor)
+        overlay.clipToOutline = true
+        overlay.outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) {
+                outline.setRoundRect(0, 0, view.width, view.height, 48f * resources.displayMetrics.density)
+            }
+        }
+
+        val dur = prefs.closeDuration.toLong()
+        val app = lastLaunchKey?.let { findApp(it) }
+        // Morph to icon halfway
+        root.postDelayed({
+            try {
+                if (app != null) {
+                    overlay.background = app.icon.constantState?.newDrawable()?.mutate() ?: app.icon
+                    overlay.outlineProvider = object : ViewOutlineProvider() {
+                        override fun getOutline(view: View, outline: Outline) {
+                            val r = minOf(view.width, view.height) * 0.22f
+                            outline.setRoundRect(0, 0, view.width, view.height, r)
+                        }
+                    }
+                    overlay.invalidateOutline()
+                }
+            } catch (_: Exception) {}
+        }, dur / 2)
+
         overlay.animate()
             .scaleX(sX).scaleY(sY)
             .translationX(tX).translationY(tY)
-            .alpha(0.96f)
-            .setDuration(prefs.closeDuration.toLong())
+            .alpha(1f)
+            .setDuration(dur)
             .setInterpolator(DecelerateInterpolator(1.6f))
             .withEndAction {
                 overlay.isVisible = false
@@ -1453,8 +1624,10 @@ class MainActivity : AppCompatActivity() {
                 overlay.scaleY = 1f
                 overlay.translationX = 0f
                 overlay.translationY = 0f
+                overlay.clipToOutline = false
                 clearBlur()
                 scaleHomeForOpen(false)
+                targetView?.alpha = 1f
                 bounceTargetIcon(lastLaunchKey)
             }
             .start()
