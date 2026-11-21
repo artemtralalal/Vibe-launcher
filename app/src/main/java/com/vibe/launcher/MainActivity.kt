@@ -52,6 +52,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var gridRecycler: RecyclerView
     private lateinit var dockBar: LinearLayout
     private lateinit var settingsButton: ImageButton
+    private lateinit var quickPanel: View
     private lateinit var settingsOverlay: FrameLayout
     private lateinit var flagshipSwitch: SwitchMaterial
     private lateinit var blurSwitch: SwitchMaterial
@@ -118,6 +119,7 @@ class MainActivity : AppCompatActivity() {
         gridRecycler = findViewById(R.id.gridRecycler)
         dockBar = findViewById(R.id.dockBar)
         settingsButton = findViewById(R.id.settingsButton)
+        quickPanel = findViewById(R.id.quickPanel)
         settingsOverlay = findViewById(R.id.settingsOverlay)
         flagshipSwitch = findViewById(R.id.flagshipSwitch)
         blurSwitch = findViewById(R.id.blurSwitch)
@@ -151,7 +153,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        settingsButton.isVisible = false
+        quickPanel.isVisible = false; settingsButton.isVisible = false
+        quickPanel.isVisible = false
         settingsOverlay.isVisible = false
         if (draggedKey == null) appDrawer.isVisible = false
         if (pendingLaunch) {
@@ -394,8 +397,13 @@ class MainActivity : AppCompatActivity() {
 
         settingsButton.setOnClickListener {
             settingsOverlay.isVisible = true
-            settingsButton.isVisible = false
+            quickPanel.isVisible = false; settingsButton.isVisible = false
+            quickPanel.isVisible = false
         }
+        findViewById<View>(R.id.quickWallpaper).setOnClickListener { quickPanel.isVisible = false; openWallpaperPicker() }
+        findViewById<View>(R.id.quickSettings).setOnClickListener { quickPanel.isVisible = false; settingsOverlay.isVisible = true }
+        findViewById<View>(R.id.quickIcons).setOnClickListener { quickPanel.isVisible = false; showIconShapePicker() }
+        findViewById<View>(R.id.quickWidgets).setOnClickListener { quickPanel.isVisible = false; android.widget.Toast.makeText(this, "Виджеты скоро будут добавлены", android.widget.Toast.LENGTH_SHORT).show() }
         settingsOverlay.setOnClickListener { settingsOverlay.isVisible = false }
         findViewById<View>(R.id.settingsPanel).setOnClickListener { }
     }
@@ -624,6 +632,7 @@ class MainActivity : AppCompatActivity() {
             override fun handleOnBackPressed() {
                 when {
                     settingsOverlay.isVisible -> settingsOverlay.isVisible = false
+                    quickPanel.isVisible -> quickPanel.isVisible = false
                     settingsButton.isVisible -> settingsButton.isVisible = false
                     appDrawer.isVisible -> closeDrawer()
                     else -> {}
@@ -633,7 +642,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openDrawer() {
-        settingsButton.isVisible = false
+        quickPanel.isVisible = false; settingsButton.isVisible = false
         appDrawer.alpha = 1f
         appDrawer.translationY = appDrawer.height.toFloat().takeIf { it > 0 } ?: 1400f
         appDrawer.isVisible = true
@@ -852,18 +861,24 @@ class MainActivity : AppCompatActivity() {
             root.getLocationOnScreen(rootLoc)
             val left = loc[0] - rootLoc[0]
             val top = loc[1] - rootLoc[1]
-            val cols = 3; val rows = 3
-            val pw = bmp.width / cols; val ph = bmp.height / rows
+            val cols: Int = 3
+            val rows: Int = 3
+            val pw: Int = bmp.width / cols
+            val ph: Int = bmp.height / rows
             val pieces = mutableListOf<View>()
-            for (r in 0 until rows) for (c in 0 until cols) {
-                val pieceBmp = android.graphics.Bitmap.createBitmap(bmp, c * pw, r * ph, pw, ph)
-                val iv = ImageView(this)
-                iv.setImageBitmap(pieceBmp)
-                iv.x = (left + c * pw).toFloat()
-                iv.y = (top + r * ph).toFloat()
-                iv.layoutParams = FrameLayout.LayoutParams(pw, ph)
-                root.addView(iv)
-                pieces.add(iv)
+            for (r in 0 until rows) {
+                for (c in 0 until cols) {
+                    val px: Int = c * pw
+                    val py: Int = r * ph
+                    val pieceBmp = android.graphics.Bitmap.createBitmap(bmp, px, py, pw, ph)
+                    val iv = ImageView(this)
+                    iv.setImageBitmap(pieceBmp)
+                    iv.x = (left + px).toFloat()
+                    iv.y = (top + py).toFloat()
+                    iv.layoutParams = FrameLayout.LayoutParams(pw, ph)
+                    root.addView(iv)
+                    pieces.add(iv)
+                }
             }
             target.alpha = 0f
             val rnd = java.util.Random()
@@ -884,11 +899,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSettingsButton() {
         if (settingsOverlay.isVisible || appDrawer.isVisible) return
-        settingsButton.alpha = 0f
-        settingsButton.scaleX = 0.8f
-        settingsButton.scaleY = 0.8f
-        settingsButton.isVisible = true
-        settingsButton.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(180).start()
+        quickPanel.alpha = 0f
+        quickPanel.scaleX = 0.92f
+        quickPanel.scaleY = 0.92f
+        quickPanel.isVisible = true
+        quickPanel.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(180).start()
+        quickPanel.isVisible = false; settingsButton.isVisible = false
     }
 
     private fun loadApps() {
@@ -1011,7 +1027,7 @@ class MainActivity : AppCompatActivity() {
         draggedFromDrawer = fromDrawer
         draggedFromPage = if (fromDock == null && !fromDrawer) currentPageIndex else -1
         dragDropped = false
-        settingsButton.isVisible = false
+        quickPanel.isVisible = false; settingsButton.isVisible = false
         val data = ClipData.newPlainText("app", app.key)
         val shadow = View.DragShadowBuilder(view)
         return try {
