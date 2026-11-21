@@ -63,6 +63,22 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getString("unlock_anim", "pixel") ?: "pixel"
         set(v) = prefs.edit().putString("unlock_anim", v).apply()
 
+    var layoutInitialized: Boolean
+        get() = prefs.getBoolean("layout_initialized", false)
+        set(v) = prefs.edit().putBoolean("layout_initialized", v).apply()
+
+    var showLabels: Boolean
+        get() = prefs.getBoolean("show_labels", true)
+        set(v) = prefs.edit().putBoolean("show_labels", v).apply()
+
+    var drawerStyle: String
+        get() = prefs.getString("drawer_style", "swipe") ?: "swipe"
+        set(v) = prefs.edit().putString("drawer_style", v).apply()
+
+    var accentColor: Int
+        get() = prefs.getInt("accent_color", 0xFF7C4DFF.toInt())
+        set(v) = prefs.edit().putInt("accent_color", v).apply()
+
     fun saveGridOrder(keys: List<String>) {
         prefs.edit().putString(KEY_GRID, JSONArray(keys).toString()).apply()
     }
