@@ -1,7 +1,11 @@
 package com.vibe.launcher
 
 import android.app.ActivityOptions
+import android.app.WallpaperManager
+import android.content.BroadcastReceiver
 import android.content.ClipData
+import android.content.Context
+import android.content.IntentFilter
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
@@ -64,6 +68,15 @@ class MainActivity : AppCompatActivity() {
     private var draggedFromDock: Int? = null
     private var draggedFromDrawer = false
     private var dragDropped = false
+    private var pendingDropKey: String? = null
+    private var pendingDropDockSlot: Int? = null
+    private var pendingDropGridIndex: Int = -1
+
+    private val unlockReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_USER_PRESENT) playUnlockAnimation()
+        }
+    }
 
     private var lastLaunchKey: String? = null
     private var lastLaunchBounds: IntArray? = null
@@ -97,6 +110,12 @@ class MainActivity : AppCompatActivity() {
         setupBack()
         loadApps()
         setupWelcome()
+        try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
+    }
+
+    override fun onDestroy() {
+        try { unregisterReceiver(unlockReceiver) } catch (_: Exception) {}
+        super.onDestroy()
     }
 
     override fun onResume() {
@@ -116,7 +135,8 @@ class MainActivity : AppCompatActivity() {
         gridAdapter = AppGridAdapter(
             onClick = { app, icon -> launchApp(app, icon, fromDrawer = false) },
             onLongPressDrag = { app, view -> startIconDrag(app, view, fromDock = null, fromDrawer = false) },
-            onEmptyLongPress = { showSettingsButton() }
+            onEmptyLongPress = { showSettingsButton() },
+            shape = { prefs.iconShape }
         )
         gridRecycler.layoutManager = GridLayoutManager(this, 4)
         gridRecycler.adapter = gridAdapter
@@ -139,7 +159,8 @@ class MainActivity : AppCompatActivity() {
     private fun setupDrawer() {
         drawerAdapter = DrawerAdapter(
             onClick = { app, icon -> launchApp(app, icon, fromDrawer = true) },
-            onLongPress = { app, view -> startIconDrag(app, view, fromDock = null, fromDrawer = true) }
+            onLongPress = { app, view -> startIconDrag(app, view, fromDock = null, fromDrawer = true) },
+            shape = { prefs.iconShape }
         )
         drawerRecycler.layoutManager = LinearLayoutManager(this)
         drawerRecycler.adapter = drawerAdapter
@@ -169,6 +190,11 @@ class MainActivity : AppCompatActivity() {
 
         updateIconPackLabel()
         findViewById<Button>(R.id.pickIconPackBtn).setOnClickListener { showIconPackPicker() }
+        findViewById<Button>(R.id.wallpaperBtn).setOnClickListener { openWallpaperPicker() }
+        updateIconShapeLabel()
+        findViewById<Button>(R.id.iconShapeBtn).setOnClickListener { showIconShapePicker() }
+        updateUnlockLabel()
+        findViewById<Button>(R.id.unlockAnimBtn).setOnClickListener { showUnlockAnimPicker() }
 
         settingsButton.setOnClickListener {
             settingsOverlay.isVisible = true
@@ -207,6 +233,44 @@ class MainActivity : AppCompatActivity() {
                 loadApps()
             }
             .show()
+    }
+
+    private fun openWallpaperPicker() {
+        try {
+            val intent = Intent(Intent.ACTION_SET_WALLPAPER)
+            startActivity(Intent.createChooser(intent, "Обои"))
+        } catch (_: Exception) {
+            try { startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)) } catch (_: Exception) { }
+        }
+    }
+
+    private fun updateIconShapeLabel() {
+        val label = when (prefs.iconShape) { "circle" -> "Круг"; "rounded" -> "Скруглённый"; "squircle" -> "Squircle"; "square" -> "Квадрат"; else -> prefs.iconShape }
+        findViewById<TextView>(R.id.iconShapeLabel).text = "Форма иконок: $label"
+    }
+
+    private fun showIconShapePicker() {
+        val shapes = listOf("circle" to "Круг", "rounded" to "Скруглённый", "squircle" to "Squircle", "square" to "Квадрат")
+        AlertDialog.Builder(this).setTitle("Форма иконок")
+            .setItems(shapes.map { it.second }.toTypedArray()) { _, which ->
+                prefs.iconShape = shapes[which].first
+                updateIconShapeLabel()
+                loadApps()
+            }.show()
+    }
+
+    private fun updateUnlockLabel() {
+        val label = when (prefs.unlockAnim) { "pixel" -> "Pixel"; "poco" -> "POCO/Xiaomi"; "ios" -> "iPhone"; "none" -> "Нет"; else -> prefs.unlockAnim }
+        findViewById<TextView>(R.id.unlockAnimLabel).text = "Анимация разблокировки: $label"
+    }
+
+    private fun showUnlockAnimPicker() {
+        val opts = listOf("pixel" to "Pixel", "poco" to "POCO/Xiaomi", "ios" to "iPhone", "none" to "Нет")
+        AlertDialog.Builder(this).setTitle("Анимация разблокировки")
+            .setItems(opts.map { it.second }.toTypedArray()) { _, which ->
+                prefs.unlockAnim = opts[which].first
+                updateUnlockLabel()
+            }.show()
     }
 
     private lateinit var globalDetector: GestureDetector
@@ -358,6 +422,25 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) { }
     }
 
+    private fun playUnlockAnimation() {
+        if (prefs.unlockAnim == "none") return
+        try {
+            val views = mutableListOf<View>()
+            for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.let { views.add(it) }
+            for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.let { views.add(it) }
+            views.forEachIndexed { idx, v ->
+                v.alpha = 0f
+                v.translationY = when (prefs.unlockAnim) { "ios" -> 120f; "poco" -> 180f; else -> 140f }
+                v.scaleX = 0.9f; v.scaleY = 0.9f
+                v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
+                    .setStartDelay((idx * 30L).coerceAtMost(300L))
+                    .setDuration(320)
+                    .setInterpolator(DecelerateInterpolator(1.4f))
+                    .start()
+            }
+        } catch (_: Exception) { }
+    }
+
     private fun showSettingsButton() {
         if (settingsOverlay.isVisible || appDrawer.isVisible) return
         settingsButton.alpha = 0f
@@ -418,6 +501,18 @@ class MainActivity : AppCompatActivity() {
             if (app != null) {
                 icon.setImageDrawable(app.icon)
                 label.text = app.label
+                icon.clipToOutline = prefs.iconShape != "square"
+                icon.outlineProvider = object : android.view.ViewOutlineProvider() {
+                    override fun getOutline(view: View, outline: android.graphics.Outline) {
+                        val r = when (prefs.iconShape) {
+                            "circle" -> view.width / 2f
+                            "rounded" -> view.width * 0.22f
+                            "squircle" -> view.width * 0.32f
+                            else -> 0f
+                        }
+                        outline.setRoundRect(0, 0, view.width, view.height, r)
+                    }
+                }
                 item.setOnClickListener { launchApp(app, icon, fromDrawer = false) }
                 item.setOnLongClickListener { startIconDrag(app, item, fromDock = i, fromDrawer = false) }
                 item.alpha = 1f
@@ -457,20 +552,11 @@ class MainActivity : AppCompatActivity() {
             android.view.DragEvent.ACTION_DRAG_ENDED -> resetDragState()
             android.view.DragEvent.ACTION_DROP -> try {
                 val key = event.clipData?.getItemAt(0)?.text?.toString() ?: return true
-                val app = findApp(key) ?: return true
-                val fromDock = draggedFromDock
-                val fromDrawer = draggedFromDrawer
-                if (fromDock != null) dockApps[fromDock] = null else if (!fromDrawer) gridAdapter.removeByKey(key)
                 val child = gridRecycler.findChildViewUnder(event.x, event.y)
                 val insertAt = if (child != null) gridRecycler.getChildAdapterPosition(child) else gridAdapter.itemCount
-                if (gridAdapter.itemCount >= 24 && gridAdapter.all().none { it.key == app.key }) {
-                    val overflow = gridAdapter.all().lastOrNull()
-                    if (overflow != null) {
-                        gridAdapter.removeByKey(overflow.key)
-                        placeInDockOrDrop(overflow)
-                    }
-                }
-                gridAdapter.insertAt(insertAt.coerceAtLeast(0), app)
+                pendingDropKey = key
+                pendingDropDockSlot = null
+                pendingDropGridIndex = insertAt.coerceAtLeast(0)
                 dragDropped = true
             } catch (_: Exception) { }
         }
@@ -486,18 +572,9 @@ class MainActivity : AppCompatActivity() {
         when (event.action) {
             android.view.DragEvent.ACTION_DROP -> try {
                 val key = event.clipData?.getItemAt(0)?.text?.toString() ?: return true
-                val app = findApp(key) ?: return true
-                val fromDock = draggedFromDock
-                val fromDrawer = draggedFromDrawer
-                val replaced = dockApps[slot]
-                if (fromDock != null) dockApps[fromDock] = replaced
-                else if (!fromDrawer) {
-                    gridAdapter.removeByKey(key)
-                    if (replaced != null && gridAdapter.itemCount < 24) gridAdapter.insertAt(gridAdapter.itemCount, replaced)
-                } else if (replaced != null && gridAdapter.itemCount < 24) {
-                    gridAdapter.insertAt(gridAdapter.itemCount, replaced)
-                }
-                dockApps[slot] = app
+                pendingDropKey = key
+                pendingDropDockSlot = slot
+                pendingDropGridIndex = -1
                 dragDropped = true
             } catch (_: Exception) { }
             android.view.DragEvent.ACTION_DRAG_ENDED -> resetDragState()
@@ -512,6 +589,43 @@ class MainActivity : AppCompatActivity() {
 
     private fun findApp(key: String): AppEntry? = allApps.firstOrNull { it.key == key }
 
+    private fun applyPendingDrop() {
+        val key = pendingDropKey ?: return
+        val app = findApp(key) ?: return
+        val toDock = pendingDropDockSlot
+        val toGrid = pendingDropGridIndex
+        val fromDock = draggedFromDock
+        val fromDrawer = draggedFromDrawer
+
+        if (toDock != null) {
+            if (fromDock == toDock) return
+            val replaced = dockApps[toDock]
+            if (fromDock != null) {
+                dockApps[fromDock] = replaced
+            } else if (!fromDrawer) {
+                gridAdapter.removeByKey(key)
+                if (replaced != null && gridAdapter.itemCount < 24) gridAdapter.insertAt(gridAdapter.itemCount, replaced)
+            } else {
+                if (replaced != null && gridAdapter.itemCount < 24) gridAdapter.insertAt(gridAdapter.itemCount, replaced)
+            }
+            dockApps[toDock] = app
+        } else {
+            if (fromDock != null) {
+                dockApps[fromDock] = null
+            } else if (!fromDrawer) {
+                gridAdapter.removeByKey(key)
+            }
+            if (gridAdapter.itemCount >= 24 && gridAdapter.all().none { it.key == app.key }) {
+                val overflow = gridAdapter.all().lastOrNull()
+                if (overflow != null) {
+                    gridAdapter.removeByKey(overflow.key)
+                    placeInDockOrDrop(overflow)
+                }
+            }
+            gridAdapter.insertAt(toGrid.coerceIn(0, gridAdapter.itemCount), app)
+        }
+    }
+
     private fun resetDragState() {
         if (draggedKey == null && !draggedFromDrawer) {
             for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.alpha = 1f
@@ -522,6 +636,7 @@ class MainActivity : AppCompatActivity() {
         val fromDrawer = draggedFromDrawer
         val key = draggedKey
         try {
+            if (dropped) applyPendingDrop()
             for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.alpha = 1f
             for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.alpha = 1f
             if (fromDrawer && key != null) {
@@ -538,6 +653,7 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (_: Exception) { }
         draggedKey = null; draggedFromDock = null; draggedFromDrawer = false; dragDropped = false
+        pendingDropKey = null; pendingDropDockSlot = null; pendingDropGridIndex = -1
         try {
             renderDock()
             if (dropped) persistLayout()
