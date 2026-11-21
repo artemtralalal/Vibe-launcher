@@ -134,9 +134,10 @@ class MainActivity : AppCompatActivity() {
     private fun setupGrid() {
         gridAdapter = AppGridAdapter(
             onClick = { app, icon -> launchApp(app, icon, fromDrawer = false) },
-            onLongPressDrag = { app, view -> startIconDrag(app, view, fromDock = null, fromDrawer = false) },
+            onLongPressDrag = { app, view -> showIconMenu(app, view, fromDock = null, fromDrawer = false) },
             onEmptyLongPress = { showSettingsButton() },
-            shape = { prefs.iconShape }
+            shape = { prefs.iconShape },
+            showLabels = { prefs.showLabels }
         )
         gridRecycler.layoutManager = GridLayoutManager(this, 4)
         gridRecycler.adapter = gridAdapter
@@ -159,10 +160,10 @@ class MainActivity : AppCompatActivity() {
     private fun setupDrawer() {
         drawerAdapter = DrawerAdapter(
             onClick = { app, icon -> launchApp(app, icon, fromDrawer = true) },
-            onLongPress = { app, view -> startIconDrag(app, view, fromDock = null, fromDrawer = true) },
+            onLongPress = { app, view -> showIconMenu(app, view, fromDock = null, fromDrawer = true) },
             shape = { prefs.iconShape }
         )
-        drawerRecycler.layoutManager = LinearLayoutManager(this)
+        drawerRecycler.layoutManager = GridLayoutManager(this, 4)
         drawerRecycler.adapter = drawerAdapter
         appDrawer.setOnClickListener { }
     }
@@ -177,6 +178,9 @@ class MainActivity : AppCompatActivity() {
         flagshipSwitch.setOnCheckedChangeListener { _, c -> prefs.flagshipAnimations = c }
         blurSwitch.isChecked = prefs.blurEnabled
         blurSwitch.setOnCheckedChangeListener { _, c -> prefs.blurEnabled = c }
+        val labelsSwitch = findViewById<SwitchMaterial>(R.id.labelsSwitch)
+        labelsSwitch.isChecked = prefs.showLabels
+        labelsSwitch.setOnCheckedChangeListener { _, c -> prefs.showLabels = c; gridAdapter.notifyDataSetChanged() }
 
         bindSeek(findViewById(R.id.openDurationSeek), prefs.openDuration, 100, 700) { prefs.openDuration = it }
         bindSeek(findViewById(R.id.closeDurationSeek), prefs.closeDuration, 100, 700) { prefs.closeDuration = it }
@@ -195,6 +199,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.iconShapeBtn).setOnClickListener { showIconShapePicker() }
         updateUnlockLabel()
         findViewById<Button>(R.id.unlockAnimBtn).setOnClickListener { showUnlockAnimPicker() }
+        updateDrawerStyleLabel()
+        findViewById<Button>(R.id.drawerStyleBtn).setOnClickListener { showDrawerStylePicker() }
 
         settingsButton.setOnClickListener {
             settingsOverlay.isVisible = true
@@ -270,6 +276,21 @@ class MainActivity : AppCompatActivity() {
             .setItems(opts.map { it.second }.toTypedArray()) { _, which ->
                 prefs.unlockAnim = opts[which].first
                 updateUnlockLabel()
+            }.show()
+    }
+
+    private fun updateDrawerStyleLabel() {
+        val label = if (prefs.drawerStyle == "button") "Кнопка в доке" else "Свайп вверх"
+        findViewById<TextView>(R.id.drawerStyleLabel).text = "Меню приложений: $label"
+    }
+
+    private fun showDrawerStylePicker() {
+        val opts = listOf("swipe" to "Свайп вверх", "button" to "Кнопка в доке")
+        AlertDialog.Builder(this).setTitle("Стиль меню приложений")
+            .setItems(opts.map { it.second }.toTypedArray()) { _, which ->
+                prefs.drawerStyle = opts[which].first
+                updateDrawerStyleLabel()
+                renderDock()
             }.show()
     }
 
@@ -390,6 +411,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyAutoLayout() {
         try {
+            prefs.layoutInitialized = true
             val dockCandidates = listOf(
                 listOf("dialer", "phone", "телефон"),
                 listOf("contacts", "people", "контакт"),
@@ -415,6 +437,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyEmptyLayout() {
         try {
+            prefs.layoutInitialized = true
             for (i in 0 until 4) dockApps[i] = null
             gridAdapter.submitApps(emptyList())
             renderDock()
@@ -472,18 +495,20 @@ class MainActivity : AppCompatActivity() {
             allApps.addAll(apps)
 
             val byKey = apps.associateBy { it.key }
-            val savedDock = prefs.loadDockOrder().mapNotNull { byKey[it] }.distinctBy { it.key }.take(4)
-            for (i in 0 until 4) dockApps[i] = savedDock.getOrNull(i)
-            val used = dockApps.filterNotNull().map { it.key }.toMutableSet()
-            val savedGridKeys = prefs.loadGridOrder().toSet()
-            val savedGrid = prefs.loadGridOrder().mapNotNull { byKey[it] }.filter { it.key !in used }
-            val grid = (savedGrid + apps.filter { it.key !in used && it.key !in savedGridKeys })
-                .distinctBy { it.key }.take(24)
-
-            gridAdapter.submitApps(grid)
+            if (prefs.layoutInitialized) {
+                val savedDock = prefs.loadDockOrder().mapNotNull { byKey[it] }.distinctBy { it.key }.take(4)
+                for (i in 0 until 4) dockApps[i] = savedDock.getOrNull(i)
+                val used = dockApps.filterNotNull().map { it.key }.toMutableSet()
+                val savedGrid = prefs.loadGridOrder().mapNotNull { byKey[it] }.filter { it.key !in used }
+                val grid = savedGrid.distinctBy { it.key }.take(24)
+                gridAdapter.submitApps(grid)
+            } else {
+                for (i in 0 until 4) dockApps[i] = null
+                gridAdapter.submitApps(emptyList())
+            }
             drawerAdapter.submit(allApps)
             renderDock()
-            persistLayout()
+            if (prefs.layoutInitialized) persistLayout()
         } catch (_: Exception) { }
     }
 
@@ -514,7 +539,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 item.setOnClickListener { launchApp(app, icon, fromDrawer = false) }
-                item.setOnLongClickListener { startIconDrag(app, item, fromDock = i, fromDrawer = false) }
+                item.setOnLongClickListener { showIconMenu(app, item, fromDock = i, fromDrawer = false) }
                 item.alpha = 1f
             } else {
                 item.alpha = 0f
@@ -522,6 +547,41 @@ class MainActivity : AppCompatActivity() {
             item.setOnDragListener { _, event -> handleDockSlotDrag(i, event) }
             dockBar.addView(item)
         }
+        if (prefs.drawerStyle == "button") {
+            val btn = ImageButton(this)
+            val size = (56 * resources.displayMetrics.density).toInt()
+            val lp = LinearLayout.LayoutParams(size, size)
+            lp.marginStart = (8 * resources.displayMetrics.density).toInt()
+            btn.layoutParams = lp
+            btn.setBackgroundResource(R.drawable.bg_settings_button)
+            btn.setImageResource(android.R.drawable.ic_dialog_dialer)
+            btn.setColorFilter(Color.WHITE)
+            btn.scaleType = ImageView.ScaleType.CENTER_INSIDE
+            btn.setOnClickListener {
+                if (appDrawer.isVisible) closeDrawer() else openDrawer()
+            }
+            dockBar.addView(btn)
+        }
+    }
+
+    private fun showIconMenu(app: AppEntry, view: View, fromDock: Int?, fromDrawer: Boolean): Boolean {
+        val options = mutableListOf<String>()
+        val actions = mutableListOf<() -> Unit>()
+        options.add("Переместить"); actions.add { startIconDrag(app, view, fromDock, fromDrawer) }
+        if (!fromDrawer) {
+            options.add("Убрать с рабочего стола"); actions.add {
+                if (fromDock != null) dockApps[fromDock] = null else gridAdapter.removeByKey(app.key)
+                renderDock(); persistLayout()
+            }
+        }
+        options.add("Удалить с телефона"); actions.add {
+            try {
+                val intent = Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${app.packageName}"))
+                startActivity(intent)
+            } catch (_: Exception) { }
+        }
+        AlertDialog.Builder(this).setTitle(app.label).setItems(options.toTypedArray()) { _, which -> actions[which]() }.show()
+        return true
     }
 
     private fun startIconDrag(app: AppEntry, view: View, fromDock: Int?, fromDrawer: Boolean): Boolean {
