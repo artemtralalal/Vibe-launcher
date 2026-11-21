@@ -1,9 +1,13 @@
 package com.vibe.launcher
 
-import android.content.ClipData
+import android.graphics.Outline
+import android.graphics.Path
+import android.graphics.RectF
+import android.os.Build
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
@@ -13,7 +17,8 @@ class AppGridAdapter(
     private val onLongPressDrag: (AppEntry, View) -> Boolean,
     private val onEmptyLongPress: () -> Unit,
     private val shape: () -> String = { "circle" },
-    private val showLabels: () -> Boolean = { true }
+    private val showLabels: () -> Boolean = { true },
+    private val cornerRadii: () -> FloatArray? = { null }
 ) : RecyclerView.Adapter<AppGridAdapter.VH>() {
 
     private val items = mutableListOf<AppEntry>()
@@ -30,11 +35,8 @@ class AppGridAdapter(
     fun filter(query: String) {
         val q = query.trim().lowercase()
         items.clear()
-        if (q.isEmpty()) {
-            items.addAll(allItems)
-        } else {
-            items.addAll(allItems.filter { it.label.lowercase().contains(q) })
-        }
+        if (q.isEmpty()) items.addAll(allItems)
+        else items.addAll(allItems.filter { it.label.lowercase().contains(q) })
         notifyDataSetChanged()
     }
 
@@ -47,8 +49,7 @@ class AppGridAdapter(
         val item = allItems.removeAt(from)
         val target = toIndex.coerceIn(0, allItems.size)
         allItems.add(target, item)
-        items.clear()
-        items.addAll(allItems)
+        items.clear(); items.addAll(allItems)
         notifyDataSetChanged()
     }
 
@@ -56,8 +57,7 @@ class AppGridAdapter(
         val idx = allItems.indexOfFirst { it.key == key }
         if (idx == -1) return null
         val item = allItems.removeAt(idx)
-        items.clear()
-        items.addAll(allItems)
+        items.clear(); items.addAll(allItems)
         notifyDataSetChanged()
         return item
     }
@@ -67,8 +67,7 @@ class AppGridAdapter(
         if (existing != -1) allItems.removeAt(existing)
         val target = index.coerceIn(0, allItems.size)
         allItems.add(target, entry)
-        items.clear()
-        items.addAll(allItems)
+        items.clear(); items.addAll(allItems)
         notifyDataSetChanged()
     }
 
@@ -84,23 +83,35 @@ class AppGridAdapter(
         holder.icon.setImageDrawable(item.icon)
         holder.label.text = item.label
         holder.label.visibility = if (showLabels()) View.VISIBLE else View.GONE
-        applyShape(holder.icon, shape())
+        applyShape(holder.icon, shape(), cornerRadii())
         holder.itemView.setOnClickListener { onClick(item, holder.icon) }
         holder.itemView.setOnLongClickListener { onLongPressDrag(item, holder.itemView) }
     }
 
-    private fun applyShape(view: ImageView, shape: String) {
-        view.clipToOutline = shape != "square"
-        view.outlineProvider = object : android.view.ViewOutlineProvider() {
-            override fun getOutline(view: View, outline: android.graphics.Outline) {
-                val r = when (shape) {
-                    "circle" -> view.width / 2f
-                    "rounded" -> view.width * 0.22f
-                    "squircle" -> view.width * 0.32f
-                    else -> 0f
+    companion object {
+        fun applyShape(view: ImageView, shape: String, radii: FloatArray? = null) {
+            val custom = radii != null && radii.size == 8
+            view.clipToOutline = shape != "square" || custom
+            view.outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) {
+                    val w = view.width; val h = view.height
+                    if (w <= 0 || h <= 0) return
+                    if (custom) {
+                        val path = Path()
+                        path.addRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), radii!!, Path.Direction.CW)
+                        if (Build.VERSION.SDK_INT >= 30) outline.setPath(path) else @Suppress("DEPRECATION") outline.setConvexPath(path)
+                        return
+                    }
+                    val r = when (shape) {
+                        "circle" -> minOf(w, h) / 2f
+                        "rounded" -> minOf(w, h) * 0.22f
+                        "squircle" -> minOf(w, h) * 0.32f
+                        else -> 0f
+                    }
+                    if (r <= 0f) outline.setRect(0, 0, w, h) else outline.setRoundRect(0, 0, w, h, r)
                 }
-                outline.setRoundRect(0, 0, view.width, view.height, r)
             }
+            view.invalidateOutline()
         }
     }
 
