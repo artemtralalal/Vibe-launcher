@@ -25,32 +25,56 @@
             android:overScrollMode="never"
             android:paddingBottom="8dp" />
 
-        <EditText
-            android:id="@+id/searchInput"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginStart="20dp"
-            android:layout_marginEnd="20dp"
-            android:layout_marginBottom="12dp"
-            android:background="@drawable/bg_search_capsule"
-            android:hint="@string/search_apps"
-            android:imeOptions="actionSearch"
-            android:inputType="text"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp"
-            android:singleLine="true"
-            android:textColor="@color/white"
-            android:textColorHint="#CCFFFFFF" />
-
         <LinearLayout
             android:id="@+id/dockBar"
             android:layout_width="match_parent"
             android:layout_height="92dp"
+            android:layout_marginTop="8dp"
             android:background="@drawable/bg_dock"
             android:gravity="center"
             android:orientation="horizontal"
             android:paddingStart="12dp"
             android:paddingEnd="12dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/appDrawer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="bottom"
+        android:background="@drawable/bg_drawer"
+        android:orientation="vertical"
+        android:paddingTop="10dp"
+        android:visibility="gone">
+
+        <View
+            android:id="@+id/drawerHandle"
+            android:layout_width="44dp"
+            android:layout_height="5dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/bg_handle" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingBottom="8dp"
+            android:text="Все приложения"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/drawerRecycler"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="24dp" />
     </LinearLayout>
 
     <ImageButton
