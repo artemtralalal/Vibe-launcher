@@ -1573,7 +1573,7 @@ class MainActivity : AppCompatActivity() {
         val sX = (endW / screenW).coerceAtLeast(0.08f)
         val sY = (endH / screenH).coerceAtLeast(0.08f)
 
-        val targetView = findIconViewByKey(lastLaunchKey)
+        val targetView = lastLaunchKey?.let { findIconViewByKey(it) }
         targetView?.alpha = 0f
 
         overlay.animate().cancel()
