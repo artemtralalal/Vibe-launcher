@@ -451,15 +451,35 @@ class MainActivity : AppCompatActivity() {
             val views = mutableListOf<View>()
             for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.let { views.add(it) }
             for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.let { views.add(it) }
+            val centerX = root.width / 2f
+            val bottomY = root.height.toFloat()
             views.forEachIndexed { idx, v ->
-                v.alpha = 0f
-                v.translationY = when (prefs.unlockAnim) { "ios" -> 120f; "poco" -> 180f; else -> 140f }
-                v.scaleX = 0.9f; v.scaleY = 0.9f
-                v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
-                    .setStartDelay((idx * 30L).coerceAtMost(300L))
-                    .setDuration(320)
-                    .setInterpolator(DecelerateInterpolator(1.4f))
-                    .start()
+                v.animate().cancel()
+                when (prefs.unlockAnim) {
+                    "ios" -> {
+                        v.alpha = 0f; v.scaleX = 1.15f; v.scaleY = 1.15f; v.translationY = 0f
+                        v.animate().alpha(1f).scaleX(1f).scaleY(1f)
+                            .setStartDelay((idx * 20L).coerceAtMost(220L))
+                            .setDuration(360).setInterpolator(DecelerateInterpolator(2f)).start()
+                    }
+                    "poco" -> {
+                        val loc = IntArray(2); v.getLocationOnScreen(loc)
+                        val vx = loc[0] + v.width / 2f - centerX
+                        val vy = loc[1] + v.height / 2f - bottomY
+                        val dist = kotlin.math.sqrt(vx * vx + vy * vy).coerceAtLeast(1f)
+                        v.alpha = 0f; v.scaleX = 0.6f; v.scaleY = 0.6f
+                        v.translationX = -vx * 0.25f; v.translationY = -vy * 0.25f
+                        v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationX(0f).translationY(0f)
+                            .setStartDelay((dist / 4f).toLong().coerceAtMost(320L))
+                            .setDuration(420).setInterpolator(OvershootInterpolator(0.9f)).start()
+                    }
+                    else -> { // pixel
+                        v.alpha = 0f; v.translationY = 120f; v.scaleX = 0.92f; v.scaleY = 0.92f
+                        v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
+                            .setStartDelay((idx * 28L).coerceAtMost(300L))
+                            .setDuration(380).setInterpolator(DecelerateInterpolator(1.6f)).start()
+                    }
+                }
             }
         } catch (_: Exception) { }
     }
@@ -547,21 +567,9 @@ class MainActivity : AppCompatActivity() {
             item.setOnDragListener { _, event -> handleDockSlotDrag(i, event) }
             dockBar.addView(item)
         }
-        if (prefs.drawerStyle == "button") {
-            val btn = ImageButton(this)
-            val size = (56 * resources.displayMetrics.density).toInt()
-            val lp = LinearLayout.LayoutParams(size, size)
-            lp.marginStart = (8 * resources.displayMetrics.density).toInt()
-            btn.layoutParams = lp
-            btn.setBackgroundResource(R.drawable.bg_settings_button)
-            btn.setImageResource(android.R.drawable.ic_dialog_dialer)
-            btn.setColorFilter(Color.WHITE)
-            btn.scaleType = ImageView.ScaleType.CENTER_INSIDE
-            btn.setOnClickListener {
-                if (appDrawer.isVisible) closeDrawer() else openDrawer()
-            }
-            dockBar.addView(btn)
-        }
+        val drawerBtn = findViewById<ImageButton>(R.id.drawerBtn)
+        drawerBtn.isVisible = prefs.drawerStyle == "button"
+        drawerBtn.setOnClickListener { if (appDrawer.isVisible) closeDrawer() else openDrawer() }
     }
 
     private fun showIconMenu(app: AppEntry, view: View, fromDock: Int?, fromDrawer: Boolean): Boolean {
@@ -624,12 +632,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleDockDrag(event: android.view.DragEvent): Boolean {
+        when (event.action) {
+            android.view.DragEvent.ACTION_DRAG_ENTERED -> dockBar.setBackgroundResource(R.drawable.bg_dock_highlight)
+            android.view.DragEvent.ACTION_DRAG_EXITED, android.view.DragEvent.ACTION_DRAG_ENDED -> dockBar.setBackgroundResource(R.drawable.bg_dock)
+        }
         if (event.action == android.view.DragEvent.ACTION_DRAG_ENDED) resetDragState()
         return true
     }
 
     private fun handleDockSlotDrag(slot: Int, event: android.view.DragEvent): Boolean {
         when (event.action) {
+            android.view.DragEvent.ACTION_DRAG_ENTERED -> dockBar.setBackgroundResource(R.drawable.bg_dock_highlight)
+            android.view.DragEvent.ACTION_DRAG_EXITED -> dockBar.setBackgroundResource(R.drawable.bg_dock)
             android.view.DragEvent.ACTION_DROP -> try {
                 val key = event.clipData?.getItemAt(0)?.text?.toString() ?: return true
                 pendingDropKey = key
@@ -697,6 +711,7 @@ class MainActivity : AppCompatActivity() {
         val key = draggedKey
         try {
             if (dropped) applyPendingDrop()
+            dockBar.setBackgroundResource(R.drawable.bg_dock)
             for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.alpha = 1f
             for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.alpha = 1f
             if (fromDrawer && key != null) {
