@@ -11,7 +11,8 @@ import androidx.recyclerview.widget.RecyclerView
 class AppGridAdapter(
     private val onClick: (AppEntry, View) -> Unit,
     private val onLongPressDrag: (AppEntry, View) -> Boolean,
-    private val onEmptyLongPress: () -> Unit
+    private val onEmptyLongPress: () -> Unit,
+    private val shape: () -> String = { "circle" }
 ) : RecyclerView.Adapter<AppGridAdapter.VH>() {
 
     private val items = mutableListOf<AppEntry>()
@@ -81,8 +82,24 @@ class AppGridAdapter(
         val item = items[position]
         holder.icon.setImageDrawable(item.icon)
         holder.label.text = item.label
+        applyShape(holder.icon, shape())
         holder.itemView.setOnClickListener { onClick(item, holder.icon) }
         holder.itemView.setOnLongClickListener { onLongPressDrag(item, holder.itemView) }
+    }
+
+    private fun applyShape(view: ImageView, shape: String) {
+        view.clipToOutline = shape != "square"
+        view.outlineProvider = object : android.view.ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: android.graphics.Outline) {
+                val r = when (shape) {
+                    "circle" -> view.width / 2f
+                    "rounded" -> view.width * 0.22f
+                    "squircle" -> view.width * 0.32f
+                    else -> 0f
+                }
+                outline.setRoundRect(0, 0, view.width, view.height, r)
+            }
+        }
     }
 
     class VH(view: View) : RecyclerView.ViewHolder(view) {
