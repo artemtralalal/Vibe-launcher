@@ -569,13 +569,23 @@ class MainActivity : AppCompatActivity() {
         }
         val drawerBtn = findViewById<ImageButton>(R.id.drawerBtn)
         drawerBtn.isVisible = prefs.drawerStyle == "button"
+        drawerBtn.setColorFilter(prefs.accentColor)
         drawerBtn.setOnClickListener { if (appDrawer.isVisible) closeDrawer() else openDrawer() }
     }
 
     private fun showIconMenu(app: AppEntry, view: View, fromDock: Int?, fromDrawer: Boolean): Boolean {
         val options = mutableListOf<String>()
         val actions = mutableListOf<() -> Unit>()
-        options.add("Переместить"); actions.add { startIconDrag(app, view, fromDock, fromDrawer) }
+        options.add("Переместить"); actions.add {
+            view.setOnTouchListener { v, ev ->
+                if (ev.action == android.view.MotionEvent.ACTION_DOWN) {
+                    v.setOnTouchListener(null)
+                    startIconDrag(app, v, fromDock, fromDrawer)
+                    true
+                } else false
+            }
+            android.widget.Toast.makeText(this, "Теперь перетащите иконку", android.widget.Toast.LENGTH_SHORT).show()
+        }
         if (!fromDrawer) {
             options.add("Убрать с рабочего стола"); actions.add {
                 if (fromDock != null) dockApps[fromDock] = null else gridAdapter.removeByKey(app.key)
