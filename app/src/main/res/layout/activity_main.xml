@@ -129,6 +129,23 @@
         android:background="#FF202020"
         android:visibility="gone" />
 
+    <LinearLayout
+        android:id="@+id/quickPanel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="24dp"
+        android:background="@drawable/bg_settings_panel"
+        android:orientation="horizontal"
+        android:padding="10dp"
+        android:visibility="gone">
+
+        <TextView android:id="@+id/quickWallpaper" android:layout_width="72dp" android:layout_height="wrap_content" android:gravity="center" android:padding="8dp" android:text="Обои" android:textColor="@color/white" android:textSize="12sp"/>
+        <TextView android:id="@+id/quickSettings" android:layout_width="72dp" android:layout_height="wrap_content" android:gravity="center" android:padding="8dp" android:text="Настройки" android:textColor="@color/white" android:textSize="12sp"/>
+        <TextView android:id="@+id/quickIcons" android:layout_width="72dp" android:layout_height="wrap_content" android:gravity="center" android:padding="8dp" android:text="Иконки" android:textColor="@color/white" android:textSize="12sp"/>
+        <TextView android:id="@+id/quickWidgets" android:layout_width="72dp" android:layout_height="wrap_content" android:gravity="center" android:padding="8dp" android:text="Виджеты" android:textColor="@color/white" android:textSize="12sp"/>
+    </LinearLayout>
+
     <ImageButton
         android:id="@+id/settingsButton"
         android:layout_width="56dp"
@@ -197,6 +214,7 @@
                     android:text="Подписи иконок на рабочем столе"
                     android:textColor="@color/white" />
 
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Анимации" android:textColor="@color/white" android:textStyle="bold" android:textSize="16sp" android:layout_marginTop="16dp"/>
                 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Открытие: длительность" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
                 <SeekBar android:id="@+id/openDurationSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="600"/>
                 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закрытие: длительность" android:textColor="#CCFFFFFF"/>
@@ -210,11 +228,12 @@
                 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Отскок (overshoot)" android:textColor="#CCFFFFFF"/>
                 <SeekBar android:id="@+id/overshootSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="150"/>
 
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Внешний вид" android:textColor="@color/white" android:textStyle="bold" android:textSize="16sp" android:layout_marginTop="16dp"/>
                 <TextView
                     android:id="@+id/iconPackLabel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="8dp"
                     android:text="Пакет иконок: системный"
                     android:textColor="@color/white" />
 
