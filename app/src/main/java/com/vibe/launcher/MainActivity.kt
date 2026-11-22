@@ -1099,6 +1099,7 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
+                    dockFolderPopup != null -> { try { root.removeView(dockFolderPopup) } catch (_: Exception) {}; dockFolderPopup = null }
                     findViewById<View>(R.id.folderOverlay).isVisible -> findViewById<View>(R.id.folderOverlay).isVisible = false
                     findViewById<View>(R.id.iconMenuOverlay).isVisible -> {
                         findViewById<View>(R.id.iconMenuOverlay).isVisible = false
@@ -1644,7 +1645,7 @@ class MainActivity : AppCompatActivity() {
                 icon.setImageDrawable(getDockFolderIcon())
                 AppGridAdapter.applyShape(icon, prefs.iconShape, currentCornerRadii())
                 item.alpha = 1f
-                item.setOnClickListener { if (appDrawer.isVisible) closeDrawer() else openDrawer() }
+                item.setOnClickListener { showDockFolderPopup(item) }
                 item.setOnLongClickListener { showDrawerSettingsDialog(); true }
             } else {
                 val app = dockApps[i]
@@ -1765,6 +1766,82 @@ class MainActivity : AppCompatActivity() {
         pages[currentPageIndex] = slots
         gridAdapter.submitApps(slots)
         persistLayout()
+    }
+
+    private var dockFolderPopup: View? = null
+    private fun showDockFolderPopup(anchor: View) {
+        try {
+            dockFolderPopup?.let { try { root.removeView(it) } catch (_: Exception) {} }
+            val wrap = FrameLayout(this)
+            wrap.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+            wrap.isClickable = true; wrap.isFocusable = true
+            val dim = View(this)
+            dim.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+            dim.setBackgroundColor(0x55000000)
+            dim.alpha = 0f
+            dim.setOnClickListener {
+                val p = wrap.findViewWithTag<View>("dockPanel")
+                if (p != null) {
+                    p.animate().scaleX(0.7f).scaleY(0.7f).alpha(0f).translationY(dp(60).toFloat()).setDuration(180).withEndAction {
+                        try { root.removeView(wrap) } catch (_: Exception) {}; dockFolderPopup = null
+                    }.start()
+                    dim.animate().alpha(0f).setDuration(180).start()
+                } else { try { root.removeView(wrap) } catch (_: Exception) {}; dockFolderPopup = null }
+            }
+            wrap.addView(dim)
+
+            val panel = LinearLayout(this)
+            panel.tag = "dockPanel"
+            panel.orientation = LinearLayout.VERTICAL
+            panel.background = roundedBg(0xEE1F1F1F.toInt())
+            panel.setPadding(dp(16), dp(14), dp(16), dp(16))
+            val pLp = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT)
+            pLp.gravity = android.view.Gravity.BOTTOM
+            pLp.bottomMargin = dp(110)
+            pLp.marginStart = dp(12); pLp.marginEnd = dp(12)
+            panel.layoutParams = pLp
+            panel.elevation = dp(12).toFloat()
+            panel.clipToOutline = true
+
+            val title = TextView(this)
+            title.text = "Библиотека приложений"
+            title.setTextColor(0xFFFFFFFF.toInt()); title.textSize = 17f; title.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            panel.addView(title)
+
+            val grid = RecyclerView(this)
+            grid.layoutManager = GridLayoutManager(this, 4)
+            val ad = DrawerAdapter(
+                onClick = { app, icon ->
+                    try { root.removeView(wrap) } catch (_: Exception) {}; dockFolderPopup = null
+                    launchApp(app, icon, fromDrawer = true)
+                },
+                onLongPress = { app, view -> showIconMenu(app, view, fromDock = null, fromDrawer = true); true },
+                shape = { prefs.iconShape }, cornerRadii = { currentCornerRadii() }
+            )
+            grid.adapter = ad
+            ad.submit(allApps)
+            val gLp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(340))
+            gLp.topMargin = dp(12)
+            grid.layoutParams = gLp
+            panel.addView(grid)
+
+            wrap.addView(panel)
+            root.addView(wrap)
+            dockFolderPopup = wrap
+
+            // Animate from dock anchor
+            val loc = IntArray(2); anchor.getLocationInWindow(loc)
+            val ax = loc[0] + anchor.width / 2f
+            val screenW = resources.displayMetrics.widthPixels.toFloat()
+            panel.pivotX = ax.coerceIn(dp(40).toFloat(), screenW - dp(40).toFloat())
+            panel.pivotY = dp(360).toFloat()
+            panel.scaleX = 0.25f; panel.scaleY = 0.25f
+            panel.translationY = dp(120).toFloat()
+            panel.alpha = 0f
+            dim.animate().alpha(1f).setDuration(220).start()
+            panel.animate().scaleX(1f).scaleY(1f).translationY(0f).alpha(1f)
+                .setDuration(320).setInterpolator(DecelerateInterpolator(1.5f)).start()
+        } catch (_: Exception) { }
     }
 
     private fun getDockFolderIcon(): android.graphics.drawable.Drawable {
@@ -2334,7 +2411,7 @@ class MainActivity : AppCompatActivity() {
         overlay.translationX = 0f; overlay.translationY = 0f
         overlay.rotationX = 0f; overlay.rotationY = 0f
         overlay.animate().alpha(1f).scaleX(1f).scaleY(1f)
-            .setDuration(220).setInterpolator(DecelerateInterpolator(1.6f))
+            .setDuration(280).setInterpolator(DecelerateInterpolator(1.5f))
             .withEndAction { openAnimating = false; onEnd() }.start()
     }
 
@@ -2345,6 +2422,7 @@ class MainActivity : AppCompatActivity() {
         lastLaunchKey?.let { findIconViewByKey(it)?.alpha = 1f }
         applyBlur(true)
         scaleHomeForOpen(true)
+        val musicMode = try { audioManager.isMusicActive } catch (_: Exception) { false }
 
         val overlay = animationOverlay
         overlay.background = roundedBg(color)
@@ -2382,6 +2460,21 @@ class MainActivity : AppCompatActivity() {
         }
 
         overlay.animate().cancel()
+        if (musicMode && !prefs.powerSaving) {
+            overlay.animate()
+                .scaleX(0.35f).scaleY(0.35f)
+                .translationY(-root.height * 0.8f)
+                .translationX(prefs.openTranslateX)
+                .rotationX(8f).rotationY(-6f)
+                .alpha(0.2f)
+                .setDuration(prefs.openDuration.toLong().coerceAtLeast(260L))
+                .setInterpolator(DecelerateInterpolator(1.2f))
+                .withEndAction {
+                    overlay.alpha = 1f; overlay.rotationX = 0f; overlay.rotationY = 0f
+                    if (openAnimating) { openAnimating = false; onEnd() }
+                }.start()
+            return
+        }
         overlay.animate()
             .scaleX(1f).scaleY(1f)
             .translationX(prefs.openTranslateX)
@@ -2407,6 +2500,7 @@ class MainActivity : AppCompatActivity() {
         closeAnimator = null
         closeTargetView?.alpha = 1f
         clearBlur()
+        overlay.bringToFront()
         if (!prefs.flagshipAnimations || prefs.powerSaving) {
             overlay.animate().cancel()
             overlay.isVisible = true
@@ -2414,9 +2508,9 @@ class MainActivity : AppCompatActivity() {
             overlay.translationX = 0f; overlay.translationY = 0f
             overlay.scaleX = 1f; overlay.scaleY = 1f
             overlay.rotationX = 0f; overlay.rotationY = 0f
-            scaleHomeForOpen(false, 260)
-            overlay.animate().alpha(0f).scaleX(0.18f).scaleY(0.18f)
-                .setDuration(260).setInterpolator(DecelerateInterpolator(1.6f))
+            scaleHomeForOpen(false, 420)
+            overlay.animate().alpha(0.08f).scaleX(0.28f).scaleY(0.28f)
+                .setDuration(420).setInterpolator(DecelerateInterpolator(1.5f))
                 .withEndAction {
                     overlay.isVisible = false; overlay.alpha = 1f; overlay.translationY = 0f; overlay.translationX = 0f; overlay.scaleX = 1f; overlay.scaleY = 1f; overlay.clipToOutline = false; overlay.outlineProvider = ViewOutlineProvider.BACKGROUND
                 }.start()
@@ -2444,9 +2538,9 @@ class MainActivity : AppCompatActivity() {
             overlay.animate().cancel()
             overlay.isVisible = true
             overlay.translationX = 0f; overlay.translationY = 0f
-            scaleHomeForOpen(false, 260)
-            overlay.animate().alpha(0f).scaleX(0.18f).scaleY(0.18f)
-                .setDuration(260).setInterpolator(DecelerateInterpolator(1.6f))
+            scaleHomeForOpen(false, 420)
+            overlay.animate().alpha(0.08f).scaleX(0.28f).scaleY(0.28f)
+                .setDuration(420).setInterpolator(DecelerateInterpolator(1.5f))
                 .withEndAction {
                     overlay.isVisible = false; overlay.alpha = 1f; overlay.translationY = 0f; overlay.translationX = 0f; overlay.scaleX = 1f; overlay.scaleY = 1f; overlay.clipToOutline = false; overlay.outlineProvider = ViewOutlineProvider.BACKGROUND; overlay.rotationX = 0f; overlay.rotationY = 0f
                 }.start()
