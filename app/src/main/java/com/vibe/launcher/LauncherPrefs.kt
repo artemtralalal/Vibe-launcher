@@ -132,8 +132,20 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getBoolean("drawer_ipad", false)
         set(v) = prefs.edit().putBoolean("drawer_ipad", v).apply()
 
+    var musicAnimEnabled: Boolean
+        get() = prefs.getBoolean("music_anim_enabled", false)
+        set(v) = prefs.edit().putBoolean("music_anim_enabled", v).apply()
+
+    var musicPermissionAsked: Boolean
+        get() = prefs.getBoolean("music_perm_asked", false)
+        set(v) = prefs.edit().putBoolean("music_perm_asked", v).apply()
+
     fun saveFolders(json: String) { prefs.edit().putString("folders_json", json).apply() }
     fun loadFolders(): String = prefs.getString("folders_json", "[]") ?: "[]"
+
+    fun setIconOverride(key: String, uri: String) { prefs.edit().putString("icon_ovr_$key", uri).apply() }
+    fun getIconOverride(key: String): String = prefs.getString("icon_ovr_$key", "") ?: ""
+    fun clearIconOverride(key: String) { prefs.edit().remove("icon_ovr_$key").apply() }
 
     var accentColor: Int
         get() = prefs.getInt("accent_color", 0xFF7C4DFF.toInt())
