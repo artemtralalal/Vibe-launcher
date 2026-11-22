@@ -108,6 +108,10 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getInt("dock_radius", 28)
         set(v) = prefs.edit().putInt("dock_radius", v.coerceIn(0, 50)).apply()
 
+    var dockHideOnOpen: Boolean
+        get() = prefs.getBoolean("dock_hide_open", true)
+        set(v) = prefs.edit().putBoolean("dock_hide_open", v).apply()
+
     var powerSaving: Boolean
         get() = prefs.getBoolean("power_saving", false)
         set(v) = prefs.edit().putBoolean("power_saving", v).apply()
