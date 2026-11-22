@@ -108,6 +108,18 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getInt("dock_radius", 28)
         set(v) = prefs.edit().putInt("dock_radius", v.coerceIn(0, 50)).apply()
 
+    var dockCornerMode: String
+        get() = prefs.getString("dock_corner_mode", "bottom") ?: "bottom" // bottom | bottom-left | bottom-right
+        set(v) = prefs.edit().putString("dock_corner_mode", v).apply()
+
+    var dockXOffset: Int
+        get() = prefs.getInt("dock_x_offset", 0)
+        set(v) = prefs.edit().putInt("dock_x_offset", v.coerceIn(-200, 200)).apply()
+
+    var dockYOffset: Int
+        get() = prefs.getInt("dock_y_offset", 0)
+        set(v) = prefs.edit().putInt("dock_y_offset", v.coerceIn(-200, 200)).apply()
+
     var dockHideOnOpen: Boolean
         get() = prefs.getBoolean("dock_hide_open", true)
         set(v) = prefs.edit().putBoolean("dock_hide_open", v).apply()
