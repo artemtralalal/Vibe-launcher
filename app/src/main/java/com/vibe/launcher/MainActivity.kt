@@ -52,6 +52,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var homeContent: View
     private lateinit var gridRecycler: RecyclerView
     private lateinit var dockBar: LinearLayout
+    private lateinit var dockContainer: LinearLayout
     private lateinit var settingsButton: ImageButton
     private lateinit var quickPanel: View
     private lateinit var settingsOverlay: FrameLayout
@@ -144,6 +145,7 @@ class MainActivity : AppCompatActivity() {
         homeContent = findViewById(R.id.homeContent)
         gridRecycler = findViewById(R.id.gridRecycler)
         dockBar = findViewById(R.id.dockBar)
+        dockContainer = findViewById(R.id.dockContainer)
         settingsButton = findViewById(R.id.settingsButton)
         quickPanel = findViewById(R.id.quickPanel)
         settingsOverlay = findViewById(R.id.settingsOverlay)
@@ -215,8 +217,8 @@ class MainActivity : AppCompatActivity() {
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         val homeContent = findViewById<LinearLayout>(R.id.homeContent)
         val workspace = findViewById<FrameLayout>(R.id.workspaceContainer)
-        val dockContainer = findViewById<LinearLayout>(R.id.dockContainer)
-        val dockBar = findViewById<LinearLayout>(R.id.dockBar)
+        val dockContainer = this.dockContainer
+        val dockBar = this.dockBar
         val drawerBtn = findViewById<ImageButton>(R.id.drawerBtn)
         val d = resources.displayMetrics.density
 
@@ -301,6 +303,8 @@ class MainActivity : AppCompatActivity() {
         )
         gridRecycler.layoutManager = GridLayoutManager(this, prefs.portraitGridCols.coerceIn(3, 7))
         gridRecycler.adapter = gridAdapter
+        gridRecycler.clipChildren = false
+        gridRecycler.clipToPadding = false
         gridRecycler.setOnDragListener { _, event -> handleGridDrag(event) }
 
         val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
@@ -651,6 +655,7 @@ class MainActivity : AppCompatActivity() {
         flagshipSwitch.setOnCheckedChangeListener { _, c -> prefs.flagshipAnimations = c }
         blurSwitch.isChecked = prefs.blurEnabled
         blurSwitch.setOnCheckedChangeListener { _, c -> prefs.blurEnabled = c }
+        findViewById<SwitchMaterial>(R.id.dockHideSwitch).apply { isChecked = prefs.dockHideOnOpen; setOnCheckedChangeListener { _, c -> prefs.dockHideOnOpen = c; if (c) animateDock(true) else { dockContainer.translationY = 0f; dockContainer.alpha = 1f } } }
         val tiltSwitch = findViewById<SwitchMaterial>(R.id.tiltSwitch)
         tiltSwitch.isChecked = prefs.tiltAnimation
         tiltSwitch.setOnCheckedChangeListener { _, c -> prefs.tiltAnimation = c }
@@ -1756,6 +1761,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderDock() {
         dockBar.removeAllViews()
+        dockBar.clipChildren = false
+        dockBar.clipToPadding = false
         val density = resources.displayMetrics.density
         val vertical = dockBar.orientation == LinearLayout.VERTICAL
         val ipad = prefs.drawerIpadMode
@@ -1772,6 +1779,12 @@ class MainActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams(itemWidth, LinearLayout.LayoutParams.MATCH_PARENT)
             }
             item.layoutParams = lp
+            val scale = prefs.iconScale.coerceIn(60, 140) / 100f
+            val base = dp(56)
+            val sz = (base * scale).toInt().coerceAtLeast(1)
+            val ilp = icon.layoutParams
+            ilp.width = sz; ilp.height = sz; icon.layoutParams = ilp
+            item.clipChildren = false; item.clipToPadding = false
             if (ipad && i == 4) {
                 icon.setImageDrawable(getDockFolderIcon())
                 AppGridAdapter.applyShape(icon, prefs.iconShape, currentCornerRadii())
@@ -2621,6 +2634,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun playSimpleOpenAnimation(onEnd: () -> Unit) {
         openAnimating = true
+        animateDock(false)
         val overlay = animationOverlay
         overlay.animate().cancel()
         overlay.background = roundedBg(prefs.accentColor)
@@ -2641,6 +2655,7 @@ class MainActivity : AppCompatActivity() {
         lastLaunchKey?.let { findIconViewByKey(it)?.alpha = 1f }
         applyBlur(true)
         scaleHomeForOpen(true)
+        animateDock(false)
 
         val overlay = animationOverlay
         overlay.background = roundedBg(color)
@@ -2713,6 +2728,7 @@ class MainActivity : AppCompatActivity() {
         closeTargetView?.alpha = 1f
         clearBlur()
         overlay.bringToFront()
+        animateDock(true)
         if (!prefs.flagshipAnimations || prefs.powerSaving) {
             overlay.animate().cancel()
             overlay.isVisible = true
@@ -2960,6 +2976,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun clearBlur() = applyBlur(false)
+
+    private fun animateDock(show: Boolean, duration: Long = 220L) {
+        if (!prefs.dockHideOnOpen || prefs.powerSaving) {
+            dockContainer.translationY = 0f; dockContainer.alpha = 1f; return
+        }
+        val d = resources.displayMetrics.density
+        val hideY = 120f * d
+        dockContainer.animate().cancel()
+        if (show) {
+            dockContainer.translationY = hideY; dockContainer.alpha = 0f
+            dockContainer.animate().translationY(0f).alpha(1f).setDuration(duration)
+                .setInterpolator(DecelerateInterpolator(1.4f)).start()
+        } else {
+            dockContainer.animate().translationY(hideY).alpha(0f).setDuration(duration)
+                .setInterpolator(DecelerateInterpolator(1.2f)).start()
+        }
+    }
 
     private fun scaleHomeForOpen(opening: Boolean, duration: Long = 260L) {
         homeContent.animate().cancel()
