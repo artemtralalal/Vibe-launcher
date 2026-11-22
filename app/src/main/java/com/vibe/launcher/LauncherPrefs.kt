@@ -81,6 +81,18 @@ class LauncherPrefs(context: Context) {
     var tiltAnimation: Boolean
         get() = prefs.getBoolean("tilt_anim", false)
         set(v) = prefs.edit().putBoolean("tilt_anim", v).apply()
+
+    var tiltIntensity: Int
+        get() = prefs.getInt("tilt_intensity", 50)
+        set(v) = prefs.edit().putInt("tilt_intensity", v.coerceIn(0, 100)).apply()
+
+    var windowCornerRadius: Int
+        get() = prefs.getInt("window_corner", 32)
+        set(v) = prefs.edit().putInt("window_corner", v.coerceIn(0, 60)).apply()
+
+    var devMode: Boolean
+        get() = prefs.getBoolean("dev_mode", false)
+        set(v) = prefs.edit().putBoolean("dev_mode", v).apply()
     var blurRadius: Float
         get() = prefs.getFloat("blur_radius", 24f)
         set(v) = prefs.edit().putFloat("blur_radius", v).apply()
