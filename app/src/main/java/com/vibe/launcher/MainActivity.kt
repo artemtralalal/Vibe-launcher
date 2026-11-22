@@ -1711,7 +1711,7 @@ class MainActivity : AppCompatActivity() {
         val size = dp(56)
         val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
         val c = android.graphics.Canvas(bmp)
-        val p = android.graphics.Paint(Paint.ANTI_ALIAS_FLAG)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
         p.color = 0x33FFFFFF
         val r = dp(14).toFloat()
         c.drawRoundRect(0f,0f,size.toFloat(),size.toFloat(),r,r,p)
@@ -1771,7 +1771,7 @@ class MainActivity : AppCompatActivity() {
         val size = dp(56)
         val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
         val c = android.graphics.Canvas(bmp)
-        val p = android.graphics.Paint(Paint.ANTI_ALIAS_FLAG)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
         p.color = 0x33FFFFFF
         val r = dp(14).toFloat()
         c.drawRoundRect(0f,0f,size.toFloat(),size.toFloat(),r,r,p)
@@ -1839,7 +1839,7 @@ class MainActivity : AppCompatActivity() {
                 val keys = folders[fid].orEmpty()
                 folders.remove(fid); folderNames.remove(fid); saveFoldersToPrefs()
                 gridAdapter.removeByKey(app.key)
-                keys.forEachIndexed { idx, k -> findApp(k)?.let { addToCurrentPage(it, gridAdapter.itemCount) } }
+                keys.forEach { k -> findApp(k)?.let { placeAppInSlot(it, currentPageIndex, firstEmptySlot(currentPageIndex)) } }
                 persistLayout(); renderCurrentPage(); renderDock()
             }
         } else {
