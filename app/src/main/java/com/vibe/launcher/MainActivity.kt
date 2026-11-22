@@ -94,6 +94,7 @@ class MainActivity : AppCompatActivity() {
     private var dragGridOverlay: DragGridOverlay? = null
     private val folders = mutableMapOf<String, MutableList<String>>() // folderId -> appKeys
     private val folderNames = mutableMapOf<String, String>()
+    private val folderTypes = mutableMapOf<String, String>() // normal, vertical, horizontal, big, superbig
 
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -103,6 +104,16 @@ class MainActivity : AppCompatActivity() {
 
     private val wallpaperPickLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) showWallpaperTargetDialog(uri)
+    }
+    private var pendingIconEditKey: String? = null
+    private val iconPickLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val key = pendingIconEditKey
+        pendingIconEditKey = null
+        if (uri != null && key != null) {
+            try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
+            prefs.setIconOverride(key, uri.toString())
+            loadApps()
+        }
     }
 
     private lateinit var volumePanel: View
@@ -160,6 +171,7 @@ class MainActivity : AppCompatActivity() {
         loadFoldersFromPrefs()
         loadApps()
         setupWelcome()
+        if (prefs.welcomeDone) maybeAskMusicPermission()
         applyPowerSavingMode()
         try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
         try { registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) } catch (_: Exception) {}
@@ -578,6 +590,15 @@ class MainActivity : AppCompatActivity() {
         val tiltSwitch = findViewById<SwitchMaterial>(R.id.tiltSwitch)
         tiltSwitch.isChecked = prefs.tiltAnimation
         tiltSwitch.setOnCheckedChangeListener { _, c -> prefs.tiltAnimation = c }
+        val musicSwitch = findViewById<SwitchMaterial>(R.id.musicAnimSwitch)
+        musicSwitch.isChecked = prefs.musicAnimEnabled
+        musicSwitch.setOnCheckedChangeListener { _, c ->
+            prefs.musicAnimEnabled = c
+            if (c && !prefs.musicPermissionAsked) {
+                prefs.musicPermissionAsked = true
+                android.widget.Toast.makeText(this, "Для точного отслеживания музыки можно выдать доступ к уведомлениям в настройках системы", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
         bindSeek(findViewById(R.id.tiltIntensitySeek), prefs.tiltIntensity, 0, 100) { prefs.tiltIntensity = it }
         bindSeek(findViewById(R.id.windowCornerSeek), prefs.windowCornerRadius, 0, 60) { prefs.windowCornerRadius = it }
         val powerSwitch = findViewById<SwitchMaterial>(R.id.powerSavingSwitch)
@@ -662,6 +683,25 @@ class MainActivity : AppCompatActivity() {
     private fun updateIconPackLabel() {
         val pkg = prefs.iconPackPackage
         iconPackLabel.text = if (pkg.isBlank()) "Пакет иконок: системный" else "Пакет иконок: $pkg"
+    }
+
+    private fun showIconEditDialog(app: AppEntry) {
+        val opts = arrayOf("Из галереи", "Выбрать пакет иконок", "Сбросить иконку")
+        AlertDialog.Builder(this)
+            .setTitle("Иконка: ${app.label}")
+            .setItems(opts) { _, which ->
+                when (which) {
+                    0 -> {
+                        pendingIconEditKey = app.key
+                        try { iconPickLauncher.launch(arrayOf("image/*")) } catch (_: Exception) {
+                            pendingIconEditKey = null
+                            android.widget.Toast.makeText(this, "Не удалось открыть галерею", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    1 -> showIconPackPicker()
+                    2 -> { prefs.clearIconOverride(app.key); loadApps() }
+                }
+            }.show()
     }
 
     private fun showIconPackPicker() {
@@ -1139,6 +1179,20 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
+    private fun maybeAskMusicPermission() {
+        if (prefs.musicPermissionAsked) return
+        AlertDialog.Builder(this)
+            .setTitle("Музыка и анимации")
+            .setMessage("Разрешить Vibe Launcher отслеживать воспроизведение музыки для спец-анимации открытия приложений? Можно изменить позже в настройках.")
+            .setPositiveButton("Включить") { _, _ ->
+                prefs.musicPermissionAsked = true
+                prefs.musicAnimEnabled = true
+                try { findViewById<SwitchMaterial>(R.id.musicAnimSwitch).isChecked = true } catch (_: Exception) {}
+            }
+            .setNegativeButton("Позже") { _, _ -> prefs.musicPermissionAsked = true }
+            .show()
+    }
+
     private fun setupWelcome() {
         val overlay = findViewById<View>(R.id.welcomeOverlay)
         val start = findViewById<View>(R.id.welcomeStartBtn)
@@ -1183,6 +1237,7 @@ class MainActivity : AppCompatActivity() {
             overlay.animate().alpha(0f).setDuration(250).withEndAction {
                 overlay.isVisible = false
                 overlay.alpha = 1f
+                maybeAskMusicPermission()
             }.start()
         }
 
@@ -1555,6 +1610,17 @@ class MainActivity : AppCompatActivity() {
         settingsButton.isVisible = false
     }
 
+    private fun applyIconOverride(key: String, fallback: android.graphics.drawable.Drawable): android.graphics.drawable.Drawable {
+        val uriStr = prefs.getIconOverride(key)
+        if (uriStr.isBlank()) return fallback
+        return try {
+            val uri = android.net.Uri.parse(uriStr)
+            contentResolver.openInputStream(uri)?.use { input ->
+                android.graphics.drawable.Drawable.createFromStream(input, uri.toString()) ?: fallback
+            } ?: fallback
+        } catch (_: Exception) { fallback }
+    }
+
     private fun loadApps() {
         val pack = prefs.iconPackPackage
         Thread {
@@ -1569,7 +1635,8 @@ class MainActivity : AppCompatActivity() {
                         val defIcon = ri.loadIcon(packageManager) ?: return@mapNotNull null
                         if (pkg == packageName) return@mapNotNull null
                         val component = "$pkg/$act"
-                        val icon = runCatching { iconPackManager.loadIcon(pack, component, defIcon) }.getOrDefault(defIcon)
+                        val baseIcon = runCatching { iconPackManager.loadIcon(pack, component, defIcon) }.getOrDefault(defIcon)
+                        val icon = applyIconOverride(component, baseIcon)
                         AppEntry(label, pkg, act, icon)
                     } catch (_: Exception) { null }
                 }.distinctBy { it.key }.sortedBy { it.label.lowercase() }
@@ -1672,17 +1739,18 @@ class MainActivity : AppCompatActivity() {
     private fun loadFoldersFromPrefs() {
         try {
             val arr = org.json.JSONArray(prefs.loadFolders())
-            folders.clear(); folderNames.clear()
+            folders.clear(); folderNames.clear(); folderTypes.clear()
             for (i in 0 until arr.length()) {
                 val o = arr.optJSONObject(i) ?: continue
                 val id = o.optString("id"); if (id.isBlank()) continue
                 folderNames[id] = o.optString("name", "Папка")
+                folderTypes[id] = o.optString("type", "normal")
                 val apps = mutableListOf<String>()
                 val a = o.optJSONArray("apps") ?: org.json.JSONArray()
                 for (j in 0 until a.length()) a.optString(j)?.takeIf { it.isNotBlank() }?.let { apps.add(it) }
                 folders[id] = apps
             }
-        } catch (_: Exception) { folders.clear(); folderNames.clear() }
+        } catch (_: Exception) { folders.clear(); folderNames.clear(); folderTypes.clear() }
     }
 
     private fun saveFoldersToPrefs() {
@@ -1691,6 +1759,7 @@ class MainActivity : AppCompatActivity() {
             folders.forEach { (id, apps) ->
                 val o = org.json.JSONObject()
                 o.put("id", id); o.put("name", folderNames[id] ?: "Папка")
+                o.put("type", folderTypes[id] ?: "normal")
                 val a = org.json.JSONArray(); apps.forEach { a.put(it) }; o.put("apps", a)
                 arr.put(o)
             }
@@ -1701,6 +1770,16 @@ class MainActivity : AppCompatActivity() {
     private fun folderKey(id: String) = "folder/$id"
     private fun isFolderKey(key: String?) = key?.startsWith("folder/") == true || key?.startsWith("folder::") == true
     private fun folderIdFromKey(key: String) = key.removePrefix("folder/").removePrefix("folder::")
+
+    private fun folderType(id: String) = folderTypes[id] ?: "normal"
+    private fun isSmallFolder(id: String) = folderType(id) in listOf("normal", "vertical", "horizontal", "square")
+    private fun folderColumns(id: String) = when (folderType(id)) {
+        "vertical" -> 1
+        "horizontal" -> 3
+        "big" -> 4
+        "superbig" -> 5
+        else -> 2
+    }
 
     private fun buildFolderEntry(id: String): AppEntry {
         val name = folderNames[id] ?: "Папка"
@@ -1734,27 +1813,104 @@ class MainActivity : AppCompatActivity() {
 
     private fun openFolder(id: String) {
         val overlay = findViewById<FrameLayout>(R.id.folderOverlay)
+        val card = findViewById<LinearLayout>(R.id.folderCard)
         val title = findViewById<TextView>(R.id.folderTitle)
         val rv = findViewById<RecyclerView>(R.id.folderRecycler)
         title.text = folderNames[id] ?: "Папка"
-        val apps = folders[id].orEmpty().mapNotNull { findApp(it) }
-        rv.layoutManager = GridLayoutManager(this, 4)
+        title.setOnClickListener { renameFolderDialog(id) }
+        val all = folders[id].orEmpty().mapNotNull { findApp(it) }
+        val small = isSmallFolder(id)
+        val cols = folderColumns(id).coerceIn(2, 5)
+        rv.layoutManager = GridLayoutManager(this, cols)
+        val shown = if (small && all.size > 4) all.take(3) else all
         val ad = DrawerAdapter(
-            onClick = { app, icon -> overlay.isVisible = false; launchApp(app, icon, fromDrawer = false) },
+            onClick = { app, icon ->
+                lastLaunchKey = folderKey(id)
+                overlay.isVisible = false
+                launchApp(app, icon, fromDrawer = false)
+            },
             onLongPress = { app, view -> showIconMenu(app, view, fromDock = null, fromDrawer = true); true },
             shape = { prefs.iconShape },
             cornerRadii = { currentCornerRadii() }
         )
         rv.adapter = ad
-        ad.submit(apps)
+        ad.submit(shown)
+        // Show "open all" hint for small folders with overflow
+        var moreBtn = card.findViewWithTag<TextView>("folderMore")
+        if (small && all.size > 4) {
+            if (moreBtn == null) {
+                moreBtn = TextView(this).apply {
+                    tag = "folderMore"
+                    setTextColor(0xCCFFFFFF.toInt())
+                    textSize = 14f
+                    gravity = android.view.Gravity.CENTER
+                    setPadding(0, dp(8), 0, 0)
+                }
+                card.addView(moreBtn)
+            }
+            moreBtn.text = "Показать все (${all.size})"
+            moreBtn.isVisible = true
+            moreBtn.setOnClickListener {
+                ad.submit(all)
+                moreBtn.isVisible = false
+            }
+        } else {
+            moreBtn?.isVisible = false
+        }
         overlay.isVisible = true
-        overlay.setOnClickListener { overlay.isVisible = false }
-        findViewById<View>(R.id.folderCard).setOnClickListener { }
+        overlay.alpha = 0f
+        overlay.animate().alpha(1f).setDuration(180).start()
+        overlay.setOnClickListener { closeFolderOverlay() }
+        card.setOnClickListener { }
+    }
+
+    private fun closeFolderOverlay() {
+        val overlay = findViewById<FrameLayout>(R.id.folderOverlay)
+        overlay.animate().alpha(0f).setDuration(150).withEndAction { overlay.isVisible = false; overlay.alpha = 1f }.start()
+    }
+
+    private fun renameFolderDialog(id: String) {
+        val input = android.widget.EditText(this)
+        input.setText(folderNames[id] ?: "Папка")
+        AlertDialog.Builder(this).setTitle("Имя папки").setView(input)
+            .setPositiveButton("OK") { _, _ ->
+                folderNames[id] = input.text?.toString()?.trim().takeUnless { it.isNullOrBlank() } ?: "Папка"
+                saveFoldersToPrefs(); refreshFolderIcons(); openFolder(id)
+            }.setNegativeButton("Отмена", null).show()
+    }
+
+    private fun refreshFolderIcons() {
+        for (p in pages.indices) {
+            for (i in pages[p].indices) {
+                val e = pages[p][i] ?: continue
+                if (isFolderKey(e.key)) pages[p][i] = buildFolderEntry(folderIdFromKey(e.key))
+            }
+        }
+        if (currentPageIndex in pages.indices) gridAdapter.submitApps(pages[currentPageIndex])
+        persistLayout()
+    }
+
+    private fun showFolderTypePicker(id: String) {
+        val opts = listOf(
+            "normal" to "Обычная (квадратная)",
+            "vertical" to "Вертикальная",
+            "horizontal" to "Горизонтальная",
+            "big" to "Большая",
+            "superbig" to "Супербольшая"
+        )
+        val labels = opts.map { (k, v) -> if (folderType(id) == k) "✓ $v" else v }.toTypedArray()
+        AlertDialog.Builder(this).setTitle("Размер папки")
+            .setItems(labels) { _, which ->
+                folderTypes[id] = opts[which].first
+                saveFoldersToPrefs()
+                refreshFolderIcons()
+            }.show()
     }
 
     private fun createFolderWith(appKey1: String, appKey2: String, targetSlot: Int) {
         val id = "f${System.currentTimeMillis()}"
         folderNames[id] = "Папка"
+        folderTypes[id] = "normal"
         folders[id] = mutableListOf(appKey1, appKey2)
         saveFoldersToPrefs()
         val folderEntry = buildFolderEntry(id)
@@ -1869,6 +2025,8 @@ class MainActivity : AppCompatActivity() {
         val preview = findViewById<ImageView>(R.id.iconMenuPreview)
         card.removeAllViews()
         card.setOnClickListener { }
+        card.background = roundedBg(0xF0222222.toInt())
+        card.elevation = dp(12).toFloat()
 
         fun closeMenu() {
             overlay.isVisible = false
@@ -1903,18 +2061,11 @@ class MainActivity : AppCompatActivity() {
         if (isFolderKey(app.key)) {
             val fid = folderIdFromKey(app.key)
             addOption("Открыть") { openFolder(fid) }
-            addOption("Переименовать") {
-                val input = android.widget.EditText(this)
-                input.setText(folderNames[fid] ?: "Папка")
-                AlertDialog.Builder(this).setTitle("Имя папки").setView(input)
-                    .setPositiveButton("OK") { _, _ ->
-                        folderNames[fid] = input.text?.toString()?.trim().takeUnless { it.isNullOrBlank() } ?: "Папка"
-                        saveFoldersToPrefs(); loadApps()
-                    }.setNegativeButton("Отмена", null).show()
-            }
+            addOption("Переименовать") { renameFolderDialog(fid) }
+            addOption("Размер / вид папки") { showFolderTypePicker(fid) }
             addOption("Удалить папку", danger = true) {
                 val keys = folders[fid].orEmpty()
-                folders.remove(fid); folderNames.remove(fid); saveFoldersToPrefs()
+                folders.remove(fid); folderNames.remove(fid); folderTypes.remove(fid); saveFoldersToPrefs()
                 gridAdapter.removeByKey(app.key)
                 keys.forEach { k -> findApp(k)?.let { placeAppInSlot(it, currentPageIndex, firstEmptySlot(currentPageIndex)) } }
                 persistLayout(); renderCurrentPage(); renderDock()
@@ -1930,6 +2081,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 android.widget.Toast.makeText(this, "Перетащите иконку", android.widget.Toast.LENGTH_SHORT).show()
             }
+            addOption("Изменить иконку") { showIconEditDialog(app) }
             if (!fromDrawer) {
                 addOption("Убрать с рабочего стола") {
                     animateShatter(view) {
@@ -2178,6 +2330,7 @@ class MainActivity : AppCompatActivity() {
             } else if (fromDrawer && !isFolderKey(occupant.key) && !isFolderKey(app.key)) {
                 val id = "f${System.currentTimeMillis()}"
                 folderNames[id] = "Папка"
+                folderTypes[id] = "normal"
                 folders[id] = mutableListOf(occupant.key, app.key)
                 saveFoldersToPrefs()
                 currentSlots[targetSlot] = buildFolderEntry(id)
@@ -2422,7 +2575,7 @@ class MainActivity : AppCompatActivity() {
         lastLaunchKey?.let { findIconViewByKey(it)?.alpha = 1f }
         applyBlur(true)
         scaleHomeForOpen(true)
-        val musicMode = try { audioManager.isMusicActive } catch (_: Exception) { false }
+        val musicMode = prefs.musicAnimEnabled && try { audioManager.isMusicActive } catch (_: Exception) { false }
 
         val overlay = animationOverlay
         overlay.background = roundedBg(color)
