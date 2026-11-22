@@ -380,6 +380,8 @@
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/desktopModeSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Режим ПК/планшета в горизонтали" android:textColor="@color/white" />
                         <TextView android:id="@+id/landDockLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Док в горизонтали: справа" android:textColor="@color/white" />
                         <Button android:id="@+id/landDockBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Положение дока (горизонт.)"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Масштаб дока" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/dockScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="70"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Строки сетки" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
                         <SeekBar android:id="@+id/gridRowsSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="4"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сетка (портрет): колонки" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
