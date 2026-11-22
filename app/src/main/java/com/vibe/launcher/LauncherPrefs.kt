@@ -136,6 +136,30 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getInt("dock_scale", 100)
         set(v) = prefs.edit().putInt("dock_scale", v.coerceIn(70, 140)).apply()
 
+    var doubleTapLock: Boolean
+        get() = prefs.getBoolean("double_tap_lock", true)
+        set(v) = prefs.edit().putBoolean("double_tap_lock", v).apply()
+
+    var lockAnimation: String
+        get() = prefs.getString("lock_animation", "pixel") ?: "pixel"
+        set(v) = prefs.edit().putString("lock_animation", v).apply()
+
+    var aodEnabled: Boolean
+        get() = prefs.getBoolean("aod_enabled", false)
+        set(v) = prefs.edit().putBoolean("aod_enabled", v).apply()
+
+    var fullscreenMode: Boolean
+        get() = prefs.getBoolean("fullscreen_mode", false)
+        set(v) = prefs.edit().putBoolean("fullscreen_mode", v).apply()
+
+    var aodStyle: String
+        get() = prefs.getString("aod_style", "hyperos") ?: "hyperos"
+        set(v) = prefs.edit().putString("aod_style", v).apply()
+
+    var aodTapToWake: String
+        get() = prefs.getString("aod_tap_wake", "double") ?: "double"
+        set(v) = prefs.edit().putString("aod_tap_wake", v).apply()
+
     var powerSaving: Boolean
         get() = prefs.getBoolean("power_saving", false)
         set(v) = prefs.edit().putBoolean("power_saving", v).apply()
