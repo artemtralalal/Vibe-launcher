@@ -56,11 +56,17 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getInt("land_grid_pad", 12)
         set(v) = prefs.edit().putInt("land_grid_pad", v).apply()
     var portraitGridCols: Int
-        get() = prefs.getInt("port_cols", 5)
+        get() = prefs.getInt("port_cols", 4)
         set(v) = prefs.edit().putInt("port_cols", v).apply()
     var portraitGridPadding: Int
         get() = prefs.getInt("port_grid_pad", 16)
         set(v) = prefs.edit().putInt("port_grid_pad", v).apply()
+    var gridSideMargin: Int
+        get() = prefs.getInt("grid_side_margin", 16)
+        set(v) = prefs.edit().putInt("grid_side_margin", v.coerceIn(0, 64)).apply()
+    var iconScale: Int
+        get() = prefs.getInt("icon_scale", 100)
+        set(v) = prefs.edit().putInt("icon_scale", v.coerceIn(60, 140)).apply()
     var homeGridRows: Int
         get() = prefs.getInt("home_grid_rows", 6)
         set(v) = prefs.edit().putInt("home_grid_rows", v).apply()
@@ -73,6 +79,34 @@ class LauncherPrefs(context: Context) {
     var blurEnabled: Boolean
         get() = prefs.getBoolean("blur_enabled", true)
         set(v) = prefs.edit().putBoolean("blur_enabled", v).apply()
+
+    var liquidGlass: Boolean
+        get() = prefs.getBoolean("liquid_glass", false)
+        set(v) = prefs.edit().putBoolean("liquid_glass", v).apply()
+
+    var liquidWobble: Boolean
+        get() = prefs.getBoolean("liquid_wobble", true)
+        set(v) = prefs.edit().putBoolean("liquid_wobble", v).apply()
+
+    var liquidWobbleIntensity: Int
+        get() = prefs.getInt("liquid_wobble_i", 50)
+        set(v) = prefs.edit().putInt("liquid_wobble_i", v.coerceIn(0, 100)).apply()
+
+    var lightMode: Boolean
+        get() = prefs.getBoolean("light_mode", false)
+        set(v) = prefs.edit().putBoolean("light_mode", v).apply()
+
+    var animPreset: String
+        get() = prefs.getString("anim_preset", "custom") ?: "custom" // custom | genie
+        set(v) = prefs.edit().putString("anim_preset", v).apply()
+
+    var dockStyle: String
+        get() = prefs.getString("dock_style", "blur") ?: "blur" // blur | glass | solid | transparent
+        set(v) = prefs.edit().putString("dock_style", v).apply()
+
+    var dockRadius: Int
+        get() = prefs.getInt("dock_radius", 28)
+        set(v) = prefs.edit().putInt("dock_radius", v.coerceIn(0, 50)).apply()
 
     var powerSaving: Boolean
         get() = prefs.getBoolean("power_saving", false)
