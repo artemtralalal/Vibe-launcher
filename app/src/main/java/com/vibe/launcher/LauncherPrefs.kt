@@ -101,8 +101,28 @@ class LauncherPrefs(context: Context) {
         set(v) = prefs.edit().putString("anim_preset", v).apply()
 
     var dockStyle: String
-        get() = prefs.getString("dock_style", "blur") ?: "blur" // blur | glass | solid | transparent
+        get() = prefs.getString("dock_style", "blur") ?: "blur" // legacy
         set(v) = prefs.edit().putString("dock_style", v).apply()
+
+    var dockLayout: String
+        get() {
+            val v = prefs.getString("dock_layout", null)
+            if (v != null) return if (v == "macos") "harbor" else if (v == "fold_right") "orbit" else v
+            return when (dockStyle) { "macos" -> "harbor"; "fold_right" -> "orbit"; else -> "standard" }
+        }
+        set(v) = prefs.edit().putString("dock_layout", v).apply()
+
+    var dockBg: String
+        get() {
+            val v = prefs.getString("dock_bg", null)
+            if (v != null) return v
+            return when (dockStyle) { "glass","solid","transparent","blur" -> dockStyle; else -> "blur" }
+        }
+        set(v) = prefs.edit().putString("dock_bg", v).apply()
+
+    var dockTransparency: Int
+        get() = prefs.getInt("dock_transparency", 40) // 0=opaque,100=transparent
+        set(v) = prefs.edit().putInt("dock_transparency", v.coerceIn(0, 100)).apply()
 
     var dockRadius: Int
         get() = prefs.getInt("dock_radius", 28)
@@ -128,6 +148,10 @@ class LauncherPrefs(context: Context) {
     var dockHideStyle: String
         get() = prefs.getString("dock_hide_style", "slide") ?: "slide" // slide | genie
         set(v) = prefs.edit().putString("dock_hide_style", v).apply()
+
+    var dockBounceMs: Int
+        get() = prefs.getInt("dock_bounce_ms", 450)
+        set(v) = prefs.edit().putInt("dock_bounce_ms", v.coerceIn(0, 2000)).apply()
 
     var desktopMode: Boolean
         get() = prefs.getBoolean("desktop_mode", false)
