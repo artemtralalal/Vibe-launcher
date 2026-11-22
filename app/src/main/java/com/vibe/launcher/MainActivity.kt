@@ -1984,6 +1984,7 @@ class MainActivity : AppCompatActivity() {
         openAnimating = false
         closeAnimator?.cancel()
         closeAnimator = null
+        clearBlur()
 
         val screenW = root.width.toFloat().coerceAtLeast(1f)
         val screenH = root.height.toFloat().coerceAtLeast(1f)
@@ -2062,6 +2063,7 @@ class MainActivity : AppCompatActivity() {
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (closeAnimator === animation) closeAnimator = null
                     overlay.isVisible = false
                     overlay.alpha = 1f
                     overlay.scaleX = 1f
@@ -2074,7 +2076,8 @@ class MainActivity : AppCompatActivity() {
                     bounceTargetIcon(lastLaunchKey)
                 }
                 override fun onAnimationCancel(animation: android.animation.Animator) {
-                    // keep state for interruptible transition
+                    if (closeAnimator === animation) closeAnimator = null
+                    targetView?.alpha = 1f
                 }
             })
         }
@@ -2089,18 +2092,15 @@ class MainActivity : AppCompatActivity() {
         view.animate().cancel()
         view.translationY = 0f
         if (arcOn && overshoot > 0.01f) {
-            val drop = (6f + overshoot * 18f) * resources.displayMetrics.density
-            view.scaleX = 0.88f; view.scaleY = 0.88f
-            view.translationY = -drop * 0.35f
-            view.animate().scaleX(1f).scaleY(1f).translationY(drop).setDuration(140)
-                .setInterpolator(DecelerateInterpolator(1.2f))
-                .withEndAction {
-                    view.animate().translationY(0f).setDuration(260)
-                        .setInterpolator(OvershootInterpolator(1.2f + overshoot)).start()
-                }.start()
+            val drop = (4f + overshoot * 10f) * resources.displayMetrics.density
+            view.scaleX = 0.92f
+            view.scaleY = 0.92f
+            view.translationY = drop
+            view.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(280)
+                .setInterpolator(OvershootInterpolator(1.0f + overshoot * 0.8f)).start()
         } else {
-            view.scaleX = 0.92f; view.scaleY = 0.92f
-            view.animate().scaleX(1f).scaleY(1f).setDuration(180)
+            view.scaleX = 0.94f; view.scaleY = 0.94f
+            view.animate().scaleX(1f).scaleY(1f).setDuration(160)
                 .setInterpolator(DecelerateInterpolator(1.5f)).start()
         }
     }
