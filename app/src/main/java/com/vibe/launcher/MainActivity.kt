@@ -117,6 +117,7 @@ class MainActivity : AppCompatActivity() {
     private var pendingLaunch = false
     private var openAnimating = false
     private var cameraGeniePending = false
+    private var closeAnimator: android.animation.ValueAnimator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -151,6 +152,7 @@ class MainActivity : AppCompatActivity() {
         setupPageEdges()
         setupVolumePanel()
         setupAbout()
+        applyOrientationLayout()
         loadApps()
         setupWelcome()
         try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
@@ -183,9 +185,78 @@ class MainActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         try {
+            applyOrientationLayout()
             renderDock()
             renderCurrentPage()
         } catch (_: Exception) { }
+    }
+
+    private fun applyOrientationLayout() {
+        val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val homeContent = findViewById<LinearLayout>(R.id.homeContent)
+        val workspace = findViewById<FrameLayout>(R.id.workspaceContainer)
+        val dockContainer = findViewById<LinearLayout>(R.id.dockContainer)
+        val dockBar = findViewById<LinearLayout>(R.id.dockBar)
+        val drawerBtn = findViewById<ImageButton>(R.id.drawerBtn)
+        val d = resources.displayMetrics.density
+
+        val cols = if (landscape) prefs.landscapeGridCols.coerceIn(4, 8) else prefs.portraitGridCols.coerceIn(3, 6)
+        val gridPad = if (landscape) prefs.landscapeGridPadding else prefs.portraitGridPadding
+        val iconScale = if (landscape) prefs.landscapeIconScale.coerceIn(60, 120) / 100f else 1f
+
+        gridRecycler.setPadding((gridPad * d).toInt(), 0, (gridPad * d).toInt(), (8 * d).toInt())
+        val lm = gridRecycler.layoutManager
+        if (lm is GridLayoutManager) {
+            if (lm.spanCount != cols) gridRecycler.layoutManager = GridLayoutManager(this, cols)
+        } else {
+            gridRecycler.layoutManager = GridLayoutManager(this, cols)
+        }
+        gridRecycler.scaleX = iconScale
+        gridRecycler.scaleY = iconScale
+        gridRecycler.pivotX = gridRecycler.width / 2f
+        gridRecycler.pivotY = 0f
+
+        val indicator = findViewById<LinearLayout>(R.id.pageIndicator)
+        if (landscape && prefs.landscapeDockSide == "right") {
+            homeContent.orientation = LinearLayout.HORIZONTAL
+            (workspace.layoutParams as LinearLayout.LayoutParams).apply {
+                width = 0; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 1f; bottomMargin = 0; marginEnd = (8*d).toInt()
+            }.also { workspace.layoutParams = it }
+            (dockContainer.layoutParams as LinearLayout.LayoutParams).apply {
+                width = LinearLayout.LayoutParams.WRAP_CONTENT; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 0f; topMargin = 0
+            }.also { dockContainer.layoutParams = it }
+            dockContainer.orientation = LinearLayout.VERTICAL
+            dockContainer.gravity = android.view.Gravity.CENTER
+            (dockBar.layoutParams as LinearLayout.LayoutParams).apply {
+                width = (88 * d).toInt(); height = 0; weight = 1f
+            }.also { dockBar.layoutParams = it }
+            dockBar.orientation = LinearLayout.VERTICAL
+            val pad = (prefs.landscapeDockPadding * d).toInt()
+            dockBar.setPadding(pad, pad, pad, pad)
+            (drawerBtn.layoutParams as LinearLayout.LayoutParams).apply {
+                marginStart = 0; topMargin = (8*d).toInt()
+            }.also { drawerBtn.layoutParams = it }
+            indicator.isVisible = false
+        } else {
+            homeContent.orientation = LinearLayout.VERTICAL
+            (workspace.layoutParams as LinearLayout.LayoutParams).apply {
+                width = LinearLayout.LayoutParams.MATCH_PARENT; height = 0; weight = 1f; marginEnd = 0; bottomMargin = 0
+            }.also { workspace.layoutParams = it }
+            (dockContainer.layoutParams as LinearLayout.LayoutParams).apply {
+                width = LinearLayout.LayoutParams.MATCH_PARENT; height = LinearLayout.LayoutParams.WRAP_CONTENT; weight = 0f; topMargin = (4*d).toInt()
+            }.also { dockContainer.layoutParams = it }
+            dockContainer.orientation = LinearLayout.HORIZONTAL
+            dockContainer.gravity = android.view.Gravity.CENTER_VERTICAL
+            (dockBar.layoutParams as LinearLayout.LayoutParams).apply {
+                width = 0; height = (92 * d).toInt(); weight = 1f
+            }.also { dockBar.layoutParams = it }
+            dockBar.orientation = LinearLayout.HORIZONTAL
+            dockBar.setPadding((12*d).toInt(), 0, (12*d).toInt(), 0)
+            (drawerBtn.layoutParams as LinearLayout.LayoutParams).apply {
+                marginStart = (8*d).toInt(); topMargin = 0
+            }.also { drawerBtn.layoutParams = it }
+            indicator.isVisible = true
+        }
     }
 
     private fun setupGrid() {
@@ -461,7 +532,7 @@ class MainActivity : AppCompatActivity() {
         bindSeek(findViewById(R.id.closeDurationSeek), prefs.closeDuration, 100, 700) { prefs.closeDuration = it }
         bindSeek(findViewById(R.id.openScaleSeek), (prefs.openScale * 100).toInt(), 20, 100) { prefs.openScale = it / 100f }
         bindSeek(findViewById(R.id.closeScaleSeek), (prefs.closeScale * 100).toInt(), 20, 100) { prefs.closeScale = it / 100f }
-        bindSeek(findViewById(R.id.closeTySeek), (prefs.closeTranslateY + 100).toInt(), 0, 200) { prefs.closeTranslateY = (it - 100).toFloat() }
+        bindSeek(findViewById(R.id.closeTySeek), prefs.closeArcHeight.toInt(), 0, 600) { prefs.closeArcHeight = it.toFloat() }
         bindSeek(findViewById(R.id.overshootSeek), (prefs.openOvershoot * 100).toInt(), 0, 150) {
             prefs.openOvershoot = it / 100f
             prefs.closeOvershoot = it / 120f
@@ -491,14 +562,22 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.drawerStyleBtn).setOnClickListener { showDrawerStylePicker() }
         updateDrawerLayoutLabel()
         findViewById<Button>(R.id.drawerLayoutBtn).setOnClickListener { showDrawerLayoutPicker() }
+        updateLandDockLabel()
+        findViewById<Button>(R.id.landDockBtn).setOnClickListener { showLandDockPicker() }
+        bindSeek(findViewById(R.id.portColsSeek), prefs.portraitGridCols - 3, 0, 3) { prefs.portraitGridCols = it + 3; applyOrientationLayout(); renderCurrentPage() }
+        bindSeek(findViewById(R.id.portPadSeek), prefs.portraitGridPadding, 0, 40) { prefs.portraitGridPadding = it; applyOrientationLayout() }
+        bindSeek(findViewById(R.id.landColsSeek), prefs.landscapeGridCols - 4, 0, 4) { prefs.landscapeGridCols = it + 4; applyOrientationLayout(); renderCurrentPage() }
+        bindSeek(findViewById(R.id.landPadSeek), prefs.landscapeGridPadding, 0, 40) { prefs.landscapeGridPadding = it; applyOrientationLayout() }
+        bindSeek(findViewById(R.id.landScaleSeek), prefs.landscapeIconScale - 60, 0, 60) { prefs.landscapeIconScale = it + 60; applyOrientationLayout() }
 
         settingsButton.setOnClickListener {
+            showSettingsMain()
             settingsOverlay.isVisible = true
             quickPanel.isVisible = false; settingsButton.isVisible = false
-            quickPanel.isVisible = false
         }
+        setupSettingsNavigation()
         findViewById<View>(R.id.quickWallpaper).setOnClickListener { quickPanel.isVisible = false; openWallpaperPicker() }
-        findViewById<View>(R.id.quickSettings).setOnClickListener { quickPanel.isVisible = false; settingsOverlay.isVisible = true }
+        findViewById<View>(R.id.quickSettings).setOnClickListener { quickPanel.isVisible = false; showSettingsMain(); settingsOverlay.isVisible = true }
         findViewById<View>(R.id.quickIcons).setOnClickListener { quickPanel.isVisible = false; showIconShapePicker() }
         findViewById<View>(R.id.quickWidgets).setOnClickListener { quickPanel.isVisible = false; android.widget.Toast.makeText(this, "Виджеты скоро будут добавлены", android.widget.Toast.LENGTH_SHORT).show() }
         settingsOverlay.setOnClickListener { settingsOverlay.isVisible = false }
@@ -661,6 +740,23 @@ class MainActivity : AppCompatActivity() {
         drawerRecycler.adapter = drawerAdapter
     }
 
+    private fun updateLandDockLabel() {
+        val label = if (prefs.landscapeDockSide == "bottom") "Снизу" else "Справа"
+        findViewById<TextView>(R.id.landDockLabel).text = "Док в горизонтали: $label"
+    }
+
+    private fun showLandDockPicker() {
+        val opts = listOf("right" to "Справа", "bottom" to "Снизу")
+        AlertDialog.Builder(this).setTitle("Док в горизонтальном режиме")
+            .setItems(opts.map { it.second }.toTypedArray()) { _, which ->
+                prefs.landscapeDockSide = opts[which].first
+                updateLandDockLabel()
+                applyOrientationLayout()
+                renderDock()
+                renderCurrentPage()
+            }.show()
+    }
+
     private fun applyAccent() {
         try {
             val c = prefs.accentColor
@@ -700,6 +796,37 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var globalDetector: GestureDetector
+
+    private fun setupSettingsNavigation() {
+        findViewById<View>(R.id.settingsBackBtn).setOnClickListener { showSettingsMain() }
+        findViewById<View>(R.id.catRowAppearance).setOnClickListener { showSettingsCategory("appearance") }
+        findViewById<View>(R.id.catRowAnimations).setOnClickListener { showSettingsCategory("animations") }
+        findViewById<View>(R.id.catRowHome).setOnClickListener { showSettingsCategory("home") }
+        findViewById<View>(R.id.catRowDrawer).setOnClickListener { showSettingsCategory("drawer") }
+        findViewById<View>(R.id.catRowAbout).setOnClickListener { showSettingsCategory("about") }
+    }
+
+    private fun showSettingsMain() {
+        findViewById<View>(R.id.settingsMain).isVisible = true
+        findViewById<View>(R.id.settingsDetail).isVisible = false
+        listOf(R.id.catAppearance, R.id.catAnimations, R.id.catHome, R.id.catDrawer, R.id.catAbout).forEach {
+            findViewById<View>(it).isVisible = false
+        }
+    }
+
+    private fun showSettingsCategory(cat: String) {
+        findViewById<View>(R.id.settingsMain).isVisible = false
+        findViewById<View>(R.id.settingsDetail).isVisible = true
+        val map = mapOf(
+            "appearance" to (R.id.catAppearance to "Внешний вид"),
+            "animations" to (R.id.catAnimations to "Анимации"),
+            "home" to (R.id.catHome to "Рабочий стол и экран"),
+            "drawer" to (R.id.catDrawer to "Меню приложений"),
+            "about" to (R.id.catAbout to "О лаунчере")
+        )
+        map.forEach { (k, v) -> findViewById<View>(v.first).isVisible = k == cat }
+        findViewById<TextView>(R.id.settingsDetailTitle).text = map[cat]?.second ?: "Настройки"
+    }
 
     private fun setupGestures() {
         globalDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
@@ -824,7 +951,10 @@ class MainActivity : AppCompatActivity() {
                 when {
                     findViewById<View>(R.id.devOverlay).isVisible -> findViewById<View>(R.id.devOverlay).isVisible = false
                     findViewById<View>(R.id.aboutOverlay).isVisible -> findViewById<View>(R.id.aboutOverlay).isVisible = false
-                    settingsOverlay.isVisible -> settingsOverlay.isVisible = false
+                    settingsOverlay.isVisible -> {
+                        val detail = findViewById<View>(R.id.settingsDetail)
+                        if (detail.isVisible) showSettingsMain() else settingsOverlay.isVisible = false
+                    }
                     quickPanel.isVisible -> quickPanel.isVisible = false
                     settingsButton.isVisible -> settingsButton.isVisible = false
                     appDrawer.isVisible -> closeDrawer()
@@ -1300,14 +1430,20 @@ class MainActivity : AppCompatActivity() {
     private fun renderDock() {
         dockBar.removeAllViews()
         val density = resources.displayMetrics.density
-        val itemWidth = ((resources.displayMetrics.widthPixels - density * 56) / 4).toInt()
+        val vertical = dockBar.orientation == LinearLayout.VERTICAL
         for (i in 0 until 4) {
             val app = dockApps[i]
             val item = layoutInflater.inflate(R.layout.item_app, dockBar, false)
             val icon = item.findViewById<ImageView>(R.id.appIcon)
             val label = item.findViewById<TextView>(R.id.appLabel)
             label.visibility = View.GONE
-            item.layoutParams = LinearLayout.LayoutParams(itemWidth, LinearLayout.LayoutParams.MATCH_PARENT)
+            val lp = if (vertical) {
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+            } else {
+                val itemWidth = ((resources.displayMetrics.widthPixels - density * 56) / 4).toInt()
+                LinearLayout.LayoutParams(itemWidth, LinearLayout.LayoutParams.MATCH_PARENT)
+            }
+            item.layoutParams = lp
             if (app != null) {
                 icon.setImageDrawable(app.icon)
                 label.text = app.label
@@ -1706,6 +1842,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun playOpenAnimation(fromDrawer: Boolean, bounds: IntArray, color: Int, onEnd: () -> Unit) {
         openAnimating = true
+        closeAnimator?.cancel(); closeAnimator = null
         applyBlur(true)
         scaleHomeForOpen(true)
 
@@ -1755,6 +1892,8 @@ class MainActivity : AppCompatActivity() {
         val overlay = animationOverlay
         val wasOpenAnimating = openAnimating
         openAnimating = false
+        closeAnimator?.cancel()
+        closeAnimator = null
 
         val screenW = root.width.toFloat().coerceAtLeast(1f)
         val screenH = root.height.toFloat().coerceAtLeast(1f)
@@ -1766,7 +1905,7 @@ class MainActivity : AppCompatActivity() {
         val startCy = screenH / 2f
 
         val tX = endCx - startCx + prefs.closeTranslateX
-        val tY = endCy - startCy + prefs.closeTranslateY
+        val tY = endCy - startCy
         val sX = (endW / screenW).coerceAtLeast(0.08f)
         val sY = (endH / screenH).coerceAtLeast(0.08f)
 
@@ -1790,44 +1929,66 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val dur = prefs.closeDuration.toLong()
+        val dur = prefs.closeDuration.toLong().coerceAtLeast(120L)
         scaleHomeForOpen(false, dur)
         val app = lastLaunchKey?.let { findApp(it) }
-        // Morph to icon halfway
-        root.postDelayed({
-            try {
-                if (app != null) {
-                    overlay.background = app.icon.constantState?.newDrawable()?.mutate() ?: app.icon
-                    overlay.outlineProvider = object : ViewOutlineProvider() {
-                        override fun getOutline(view: View, outline: Outline) {
-                            val r = minOf(view.width, view.height) * 0.22f
-                            outline.setRoundRect(0, 0, view.width, view.height, r)
-                        }
-                    }
-                    overlay.invalidateOutline()
-                }
-            } catch (_: Exception) {}
-        }, dur / 2)
 
-        overlay.animate()
-            .scaleX(sX).scaleY(sY)
-            .translationX(tX).translationY(tY)
-            .alpha(1f)
-            .setDuration(dur)
-            .setInterpolator(DecelerateInterpolator(1.6f))
-            .withEndAction {
-                overlay.isVisible = false
-                overlay.alpha = 1f
-                overlay.scaleX = 1f
-                overlay.scaleY = 1f
-                overlay.translationX = 0f
-                overlay.translationY = 0f
-                overlay.clipToOutline = false
-                clearBlur()
-                targetView?.alpha = 1f
-                bounceTargetIcon(lastLaunchKey)
+        val startTX = overlay.translationX
+        val startTY = overlay.translationY
+        val startSX = overlay.scaleX
+        val startSY = overlay.scaleY
+        val startAlpha = overlay.alpha
+        val arcH = prefs.closeArcHeight.coerceIn(0f, 900f)
+        var morphed = false
+
+        closeAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = dur
+            interpolator = android.view.animation.LinearInterpolator()
+            addUpdateListener { va ->
+                val raw = va.animatedValue as Float
+                // ease: fast start, smooth landing
+                val p = 1f - (1f - raw) * (1f - raw)
+                val arc = -arcH * kotlin.math.sin(raw * Math.PI.toFloat())
+                overlay.translationX = startTX + (tX - startTX) * p
+                overlay.translationY = startTY + (tY - startTY) * p + arc
+                overlay.scaleX = startSX + (sX - startSX) * p
+                overlay.scaleY = startSY + (sY - startSY) * p
+                overlay.alpha = startAlpha + (1f - startAlpha) * p
+                if (!morphed && raw >= 0.45f) {
+                    morphed = true
+                    try {
+                        if (app != null) {
+                            overlay.background = app.icon.constantState?.newDrawable()?.mutate() ?: app.icon
+                            overlay.outlineProvider = object : ViewOutlineProvider() {
+                                override fun getOutline(view: View, outline: Outline) {
+                                    val r = minOf(view.width, view.height) * 0.22f
+                                    outline.setRoundRect(0, 0, view.width, view.height, r)
+                                }
+                            }
+                            overlay.invalidateOutline()
+                        }
+                    } catch (_: Exception) {}
+                }
             }
-            .start()
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    overlay.isVisible = false
+                    overlay.alpha = 1f
+                    overlay.scaleX = 1f
+                    overlay.scaleY = 1f
+                    overlay.translationX = 0f
+                    overlay.translationY = 0f
+                    overlay.clipToOutline = false
+                    clearBlur()
+                    targetView?.alpha = 1f
+                    bounceTargetIcon(lastLaunchKey)
+                }
+                override fun onAnimationCancel(animation: android.animation.Animator) {
+                    // keep state for interruptible transition
+                }
+            })
+        }
+        closeAnimator?.start()
     }
 
     private fun bounceTargetIcon(key: String?) {
