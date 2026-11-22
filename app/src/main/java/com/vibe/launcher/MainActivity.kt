@@ -2115,6 +2115,7 @@ class MainActivity : AppCompatActivity() {
     private fun playOpenAnimation(fromDrawer: Boolean, bounds: IntArray, color: Int, onEnd: () -> Unit) {
         openAnimating = true
         closeAnimator?.cancel(); closeAnimator = null
+        lastLaunchKey?.let { findIconViewByKey(it)?.alpha = 1f }
         applyBlur(true)
         scaleHomeForOpen(true)
 
@@ -2236,81 +2237,81 @@ class MainActivity : AppCompatActivity() {
         val startTY = overlay.translationY
         val startSX = overlay.scaleX
         val startSY = overlay.scaleY
-        val startAlpha = overlay.alpha
         val arcH = prefs.closeArcHeight.coerceIn(0f, 900f)
-        var morphed = false
+        val tilt = prefs.tiltAnimation && !prefs.powerSaving
 
-        closeAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = dur
-            interpolator = android.view.animation.LinearInterpolator()
-            addUpdateListener { va ->
-                val raw = va.animatedValue as Float
-                // ease: fast start, smooth landing
-                val p = 1f - (1f - raw) * (1f - raw)
-                val arc = -arcH * kotlin.math.sin(raw * Math.PI.toFloat())
-                overlay.translationX = startTX + (tX - startTX) * p
-                overlay.translationY = startTY + (tY - startTY) * p + arc
-                overlay.scaleX = startSX + (sX - startSX) * p
-                overlay.scaleY = startSY + (sY - startSY) * p
-                overlay.alpha = startAlpha + (1f - startAlpha) * p
-                if (prefs.tiltAnimation && !prefs.powerSaving) {
-                    overlay.rotationX = -10f * kotlin.math.sin(raw * Math.PI.toFloat())
-                    overlay.rotationY = 4f * raw
-                }
-                if (!morphed && raw >= 0.45f) {
-                    morphed = true
-                    try {
-                        if (app != null) {
-                            overlay.background = app.icon.constantState?.newDrawable()?.mutate() ?: app.icon
-                            val shape = prefs.iconShape
-                            val radii = currentCornerRadii()
-                            overlay.outlineProvider = object : ViewOutlineProvider() {
-                                override fun getOutline(view: View, outline: Outline) {
-                                    val w = view.width; val h = view.height
-                                    if (w <= 0 || h <= 0) return
-                                    if (radii != null && radii.size == 8) {
-                                        val path = android.graphics.Path()
-                                        path.addRoundRect(android.graphics.RectF(0f,0f,w.toFloat(),h.toFloat()), radii, android.graphics.Path.Direction.CW)
-                                        if (Build.VERSION.SDK_INT >= 30) outline.setPath(path) else @Suppress("DEPRECATION") outline.setConvexPath(path)
-                                        return
-                                    }
-                                    val r = when (shape) {
-                                        "circle" -> minOf(w,h)/2f
-                                        "rounded" -> minOf(w,h)*0.22f
-                                        "squircle" -> minOf(w,h)*0.32f
-                                        else -> 0f
-                                    }
-                                    if (r <= 0f) outline.setRect(0,0,w,h) else outline.setRoundRect(0,0,w,h,r)
-                                }
-                            }
-                            overlay.invalidateOutline()
-                        }
-                    } catch (_: Exception) {}
-                }
-            }
-            addListener(object : android.animation.AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: android.animation.Animator) {
-                    if (closeAnimator === animation) closeAnimator = null
-                    overlay.isVisible = false
-                    overlay.alpha = 1f
-                    overlay.scaleX = 1f
-                    overlay.scaleY = 1f
-                    overlay.translationX = 0f
-                    overlay.translationY = 0f
-                    overlay.rotationX = 0f
-                    overlay.rotationY = 0f
-                    overlay.clipToOutline = false
-                    clearBlur()
-                    targetView?.alpha = 1f
-                    bounceTargetIcon(lastLaunchKey)
-                }
-                override fun onAnimationCancel(animation: android.animation.Animator) {
-                    if (closeAnimator === animation) closeAnimator = null
-                    targetView?.alpha = 1f
-                }
-            })
+        val upDur = (dur * 0.38f).toLong().coerceAtLeast(60L)
+        val downDur = (dur - upDur).coerceAtLeast(60L)
+        val midTX = startTX + (tX - startTX) * 0.45f
+        val midTY = startTY + (tY - startTY) * 0.35f - arcH
+        val midSX = startSX + (sX - startSX) * 0.45f
+        val midSY = startSY + (sY - startSY) * 0.45f
+
+        fun finishClose() {
+            overlay.isVisible = false
+            overlay.alpha = 1f
+            overlay.scaleX = 1f
+            overlay.scaleY = 1f
+            overlay.translationX = 0f
+            overlay.translationY = 0f
+            overlay.rotationX = 0f
+            overlay.rotationY = 0f
+            overlay.clipToOutline = false
+            clearBlur()
+            targetView?.alpha = 1f
+            bounceTargetIcon(lastLaunchKey)
         }
-        closeAnimator?.start()
+
+        fun morphToIcon() {
+            try {
+                if (app != null) {
+                    overlay.background = app.icon.constantState?.newDrawable()?.mutate() ?: app.icon
+                    val shape = prefs.iconShape
+                    val radii = currentCornerRadii()
+                    overlay.outlineProvider = object : ViewOutlineProvider() {
+                        override fun getOutline(view: View, outline: Outline) {
+                            val w = view.width; val h = view.height
+                            if (w <= 0 || h <= 0) return
+                            if (radii != null && radii.size == 8) {
+                                val path = android.graphics.Path()
+                                path.addRoundRect(android.graphics.RectF(0f,0f,w.toFloat(),h.toFloat()), radii, android.graphics.Path.Direction.CW)
+                                if (Build.VERSION.SDK_INT >= 30) outline.setPath(path) else @Suppress("DEPRECATION") outline.setConvexPath(path)
+                                return
+                            }
+                            val r = when (shape) {
+                                "circle" -> minOf(w,h)/2f
+                                "rounded" -> minOf(w,h)*0.22f
+                                "squircle" -> minOf(w,h)*0.32f
+                                else -> 0f
+                            }
+                            if (r <= 0f) outline.setRect(0,0,w,h) else outline.setRoundRect(0,0,w,h,r)
+                        }
+                    }
+                    overlay.invalidateOutline()
+                }
+            } catch (_: Exception) {}
+        }
+
+        overlay.animate().cancel()
+        overlay.animate()
+            .translationX(midTX).translationY(midTY)
+            .scaleX(midSX).scaleY(midSY)
+            .rotationX(if (tilt) -8f else 0f).rotationY(if (tilt) 3f else 0f)
+            .setDuration(upDur)
+            .setInterpolator(DecelerateInterpolator(1.2f))
+            .withEndAction {
+                morphToIcon()
+                overlay.animate().cancel()
+                overlay.animate()
+                    .translationX(tX).translationY(tY)
+                    .scaleX(sX).scaleY(sY)
+                    .rotationX(0f).rotationY(0f)
+                    .setDuration(downDur)
+                    .setInterpolator(DecelerateInterpolator(1.8f))
+                    .withEndAction { finishClose() }
+                    .start()
+            }
+            .start()
     }
 
     private fun bounceTargetIcon(key: String?) {
