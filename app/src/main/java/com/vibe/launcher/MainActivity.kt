@@ -294,11 +294,12 @@ class MainActivity : AppCompatActivity() {
             (workspace.layoutParams as LinearLayout.LayoutParams).apply { width = 0; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 1f; bottomMargin = 0; marginEnd = (8*d).toInt(); marginStart = if (dockPos=="left") (8*d).toInt() else 0 }.also { workspace.layoutParams = it }
             (indicator.layoutParams as LinearLayout.LayoutParams).apply { width = 0; height = 0; weight = 0f }.also { indicator.layoutParams = it }
             indicator.isVisible = false
-            (dockContainer.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.WRAP_CONTENT; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 0f; topMargin = 0; marginEnd = 0; marginStart = 0 }.also { dockContainer.layoutParams = it }
+            val foldPortrait = !landscape && prefs.dockStyle == "fold_right"
+            (dockContainer.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.WRAP_CONTENT; height = if (foldPortrait) LinearLayout.LayoutParams.WRAP_CONTENT else LinearLayout.LayoutParams.MATCH_PARENT; weight = 0f; topMargin = 0; marginEnd = 0; marginStart = 0 }.also { dockContainer.layoutParams = it }
             dockContainer.orientation = LinearLayout.VERTICAL
             dockContainer.gravity = android.view.Gravity.CENTER
-            val sideW = if (!landscape && prefs.dockStyle == "fold_right") 84 else 88
-            (dockBar.layoutParams as LinearLayout.LayoutParams).apply { width = (sideW * d).toInt(); height = 0; weight = 1f }.also { dockBar.layoutParams = it }
+            val sideW = if (foldPortrait) 76 else 88
+            (dockBar.layoutParams as LinearLayout.LayoutParams).apply { width = (sideW * d).toInt(); height = if (foldPortrait) LinearLayout.LayoutParams.WRAP_CONTENT else 0; weight = if (foldPortrait) 0f else 1f }.also { dockBar.layoutParams = it }
             dockBar.orientation = LinearLayout.VERTICAL
             val pad = ((if (landscape) prefs.landscapeDockPadding else 8) * d).toInt()
             dockBar.setPadding(pad, pad, pad, pad)
@@ -944,9 +945,20 @@ class MainActivity : AppCompatActivity() {
 
         // Dock category
         val dockStyleLabel2 = findViewById<TextView>(R.id.dockStyleLabel)
+        val dockScaleSeek2 = findViewById<SeekBar>(R.id.dockScaleSeek2)
+        val dockRadiusSeek = findViewById<SeekBar>(R.id.dockRadiusSeek)
+        val dockOffsetXSeek = findViewById<SeekBar>(R.id.dockOffsetXSeek)
+        val dockOffsetYSeek = findViewById<SeekBar>(R.id.dockOffsetYSeek)
+        fun refreshDockSeekbars() {
+            dockScaleSeek2.progress = (prefs.dockScale - 70).coerceIn(0,70)
+            dockRadiusSeek.progress = prefs.dockRadius.coerceIn(0,50)
+            dockOffsetXSeek.progress = (prefs.dockXOffset + 200).coerceIn(0,400)
+            dockOffsetYSeek.progress = (prefs.dockYOffset + 200).coerceIn(0,400)
+        }
         updDockStyle2 = {
             val n = when (prefs.dockStyle) { "macos" -> "macOS (снизу, компактный)"; "fold_right" -> "iPhone Fold (справа)"; "glass" -> "Стекло"; "solid" -> "Сплошной"; "transparent" -> "Прозрачный"; else -> "Стандарт (размытие)" }
             dockStyleLabel2.text = "Стиль дока: $n"
+            refreshDockSeekbars()
             updateDockPreview()
         }
         updDockStyle2()
@@ -958,10 +970,10 @@ class MainActivity : AppCompatActivity() {
                 updDockStyle2(); applyDockStyle(); applyOrientationLayout(); renderDock()
             }.show()
         }
-        bindSeek(findViewById(R.id.dockScaleSeek2), (prefs.dockScale - 70).coerceIn(0,70), 0, 70) { prefs.dockScale = it + 70; applyOrientationLayout(); renderDock(); updateDockPreview() }
-        bindSeek(findViewById(R.id.dockRadiusSeek), prefs.dockRadius.coerceIn(0,50), 0, 50) { prefs.dockRadius = it; applyDockStyle(); updateDockPreview() }
-        bindSeek(findViewById(R.id.dockOffsetXSeek), (prefs.dockXOffset + 200).coerceIn(0,400), 0, 400) { prefs.dockXOffset = it - 200; applyOrientationLayout(); renderDock(); updateDockPreview() }
-        bindSeek(findViewById(R.id.dockOffsetYSeek), (prefs.dockYOffset + 200).coerceIn(0,400), 0, 400) { prefs.dockYOffset = it - 200; applyOrientationLayout(); renderDock(); updateDockPreview() }
+        bindSeek(dockScaleSeek2, (prefs.dockScale - 70).coerceIn(0,70), 0, 70) { prefs.dockScale = it + 70; applyOrientationLayout(); renderDock(); updateDockPreview() }
+        bindSeek(dockRadiusSeek, prefs.dockRadius.coerceIn(0,50), 0, 50) { prefs.dockRadius = it; applyDockStyle(); updateDockPreview() }
+        bindSeek(dockOffsetXSeek, (prefs.dockXOffset + 200).coerceIn(0,400), 0, 400) { prefs.dockXOffset = it - 200; applyOrientationLayout(); renderDock(); updateDockPreview() }
+        bindSeek(dockOffsetYSeek, (prefs.dockYOffset + 200).coerceIn(0,400), 0, 400) { prefs.dockYOffset = it - 200; applyOrientationLayout(); renderDock(); updateDockPreview() }
 
         settingsButton.setOnClickListener {
             showSettingsMain()
@@ -969,6 +981,10 @@ class MainActivity : AppCompatActivity() {
             quickPanel.isVisible = false; settingsButton.isVisible = false
         }
         setupSettingsNavigation()
+        findViewById<Button>(R.id.uninstallLauncherBtn).setOnClickListener {
+            try { startActivity(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$packageName"))) }
+            catch (_: Exception) { try { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) {} }
+        }
         findViewById<View>(R.id.quickWallpaper).setOnClickListener { quickPanel.isVisible = false; openWallpaperPicker() }
         findViewById<View>(R.id.quickSettings).setOnClickListener { quickPanel.isVisible = false; showSettingsMain(); settingsOverlay.isVisible = true }
         findViewById<View>(R.id.quickIcons).setOnClickListener { quickPanel.isVisible = false; showIconShapePicker() }
@@ -2532,13 +2548,15 @@ class MainActivity : AppCompatActivity() {
         val compactBottom = !vertical && (dockPos == "bottom-left" || dockPos == "bottom-right")
         val ipad = prefs.drawerIpadMode || (landscape && prefs.desktopMode)
         val slots = if (ipad) 5 else 4
+        val foldPortraitSide = vertical && !landscape && prefs.dockStyle == "fold_right"
         for (i in 0 until slots) {
             val item = layoutInflater.inflate(R.layout.item_app, dockBar, false)
             val icon = item.findViewById<ImageView>(R.id.appIcon)
             val label = item.findViewById<TextView>(R.id.appLabel)
             label.visibility = View.GONE
             val lp = if (vertical) {
-                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+                if (foldPortraitSide) LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (72 * density).toInt())
+                else LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
             } else if (compactBottom) {
                 LinearLayout.LayoutParams((64 * density).toInt(), (80 * density).toInt())
             } else {
@@ -2573,6 +2591,18 @@ class MainActivity : AppCompatActivity() {
                 item.setOnDragListener { _, event -> handleDockSlotDrag(i, event) }
             }
             dockBar.addView(item)
+        }
+        val isEmptyDock = dockApps.all { it == null }
+        if (isEmptyDock && (foldPortraitSide || compactBottom || prefs.dockStyle == "fold_right")) {
+            val ph = TextView(this).apply {
+                text = "+"; setTextColor(0x88FFFFFF.toInt()); textSize = 22f; gravity = android.view.Gravity.CENTER
+                background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = 16f * density; setColor(0x22FFFFFF); setStroke((1*density).toInt(), 0x55FFFFFF) }
+            }
+            val sz = (56 * density).toInt()
+            val lp2 = if (vertical) LinearLayout.LayoutParams((56*density).toInt(), sz) else LinearLayout.LayoutParams(sz, sz)
+            lp2.gravity = android.view.Gravity.CENTER
+            ph.layoutParams = lp2
+            dockBar.addView(ph, 0)
         }
         val drawerBtn = findViewById<ImageButton>(R.id.drawerBtn)
         drawerBtn.isVisible = prefs.drawerStyle == "button" && !ipad
