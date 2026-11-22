@@ -76,6 +76,7 @@ class MainActivity : AppCompatActivity() {
     private val pages = mutableListOf<MutableList<AppEntry?>>()
     private var currentPageIndex = 0
     private var pageSize = 24
+    private var lastLayoutMode: String = "portrait"
 
     private var draggedKey: String? = null
     private var draggedFromDock: Int? = null
@@ -208,6 +209,22 @@ class MainActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         try {
+            val newMode = layoutMode()
+            val modeChanged = newMode != lastLayoutMode && allApps.isNotEmpty()
+            if (modeChanged) {
+                persistLayoutForMode(lastLayoutMode)
+                loadLayoutForMode(newMode)
+                lastLayoutMode = newMode
+                val flash = View(this)
+                flash.setBackgroundColor(0xFF000000.toInt())
+                flash.alpha = 0f
+                root.addView(flash, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+                flash.animate().alpha(1f).setDuration(120).withEndAction {
+                    applyOrientationLayout(); renderDock(); renderCurrentPage(); applyVisualStyle()
+                    flash.animate().alpha(0f).setDuration(220).withEndAction { try { root.removeView(flash) } catch (_: Exception) {} }.start()
+                }.start()
+                return
+            }
             applyOrientationLayout()
             renderDock()
             renderCurrentPage()
@@ -285,6 +302,8 @@ class MainActivity : AppCompatActivity() {
         homeContent.pivotY = homeContent.height / 2f
         homeContent.scaleX = bs
         homeContent.scaleY = bs
+        val ds = prefs.dockScale.coerceIn(70,140) / 100f
+        dockContainer.scaleX = ds; dockContainer.scaleY = ds
     }
 
     private fun setupGrid() {
@@ -341,6 +360,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupDock() {
         dockBar.setOnDragListener { _, event -> handleDockDrag(event) }
+        dockContainer.setOnLongClickListener { showLandDockPicker(); true }
         renderDock()
     }
 
@@ -731,6 +751,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<SwitchMaterial>(R.id.desktopModeSwitch).apply { isChecked = prefs.desktopMode; setOnCheckedChangeListener { _, c -> prefs.desktopMode = c; updateLandDockLabel(); applyOrientationLayout(); renderDock(); renderCurrentPage() } }
         updateLandDockLabel()
         findViewById<Button>(R.id.landDockBtn).setOnClickListener { showLandDockPicker() }
+        bindSeek(findViewById(R.id.dockScaleSeek), (prefs.dockScale - 70).coerceIn(0,70), 0, 70) { prefs.dockScale = it + 70; applyOrientationLayout(); renderDock() }
         bindSeek(findViewById(R.id.gridRowsSeek), prefs.homeGridRows - 4, 0, 4) { prefs.homeGridRows = it + 4; applyOrientationLayout(); renderCurrentPage(); persistLayout() }
         bindSeek(findViewById(R.id.portColsSeek), prefs.portraitGridCols - 3, 0, 3) { prefs.portraitGridCols = it + 3; applyOrientationLayout(); renderCurrentPage() }
         bindSeek(findViewById(R.id.portPadSeek), prefs.portraitGridPadding, 0, 40) { prefs.portraitGridPadding = it; applyOrientationLayout() }
@@ -1779,10 +1800,11 @@ class MainActivity : AppCompatActivity() {
                         allApps.addAll(apps)
                         val byKey = apps.associateBy { it.key }
                         if (prefs.layoutInitialized) {
-                            val savedDock = prefs.loadDockOrder().mapNotNull { byKey[it] }.distinctBy { it.key }.take(4)
+                            val mode = layoutMode()
+                            val savedDock = prefs.loadDockOrder(mode).mapNotNull { byKey[it] }.distinctBy { it.key }.take(4)
                             for (i in 0 until 4) dockApps[i] = savedDock.getOrNull(i)
                             val used = dockApps.filterNotNull().map { it.key }.toMutableSet()
-                            val savedPages = prefs.loadPages()
+                            val savedPages = prefs.loadPages(mode)
                             pages.clear()
                             if (savedPages.isNotEmpty()) {
                                 savedPages.forEach { pageKeys ->
@@ -1815,6 +1837,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         drawerAdapter.submit(allApps)
                         renderDock()
+                        lastLayoutMode = layoutMode()
                         if (prefs.layoutInitialized) persistLayout()
                     } catch (_: Exception) { }
                 }
@@ -2641,17 +2664,53 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun persistLayout() {
+    private fun layoutMode(): String {
+        val landscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        return when { !landscape -> "portrait"; prefs.desktopMode -> "desktop"; else -> "landscape" }
+    }
+
+    private fun persistLayout() { persistLayoutForMode(layoutMode()) }
+
+    private fun persistLayoutForMode(mode: String) {
         ensurePages()
         pages[currentPageIndex] = gridAdapter.allSlots().toMutableList()
         while (pages.size > 1 && pages.last().all { it == null }) pages.removeAt(pages.lastIndex)
         val clamped = currentPageIndex.coerceIn(0, pages.lastIndex)
         val changed = clamped != currentPageIndex
         currentPageIndex = clamped
-        prefs.savePages(pages.map { p -> p.map { it?.key } })
+        prefs.savePages(pages.map { p -> p.map { it?.key } }, mode)
         prefs.currentPage = currentPageIndex
-        prefs.saveDockOrder(dockApps.mapNotNull { it?.key })
+        prefs.saveDockOrder(dockApps.mapNotNull { it?.key }, mode)
         if (changed) renderCurrentPage() else updatePageIndicator()
+    }
+
+    private fun loadLayoutForMode(mode: String) {
+        val byKey = allApps.associateBy { it.key }
+        val savedDock = prefs.loadDockOrder(mode).mapNotNull { byKey[it] }.distinctBy { it.key }.take(4)
+        for (i in 0 until 4) dockApps[i] = savedDock.getOrNull(i)
+        val used = dockApps.filterNotNull().map { it.key }.toMutableSet()
+        val savedPages = prefs.loadPages(mode)
+        pages.clear()
+        if (savedPages.isNotEmpty()) {
+            savedPages.forEach { pageKeys ->
+                val page = MutableList<AppEntry?>(pageSize) { null }
+                for (i in 0 until pageSize) {
+                    val k = pageKeys.getOrNull(i)
+                    val app = when {
+                        k == null -> null
+                        isFolderKey(k) -> buildFolderEntry(folderIdFromKey(k))
+                        else -> byKey[k]
+                    }
+                    if (app != null && app.key !in used) { page[i] = app; used.add(app.key) }
+                }
+                pages.add(page)
+            }
+        }
+        if (pages.isEmpty()) pages.add(newPage())
+        while (pages.size > 1 && pages.last().all { it == null }) pages.removeAt(pages.lastIndex)
+        currentPageIndex = prefs.currentPage.coerceIn(0, pages.lastIndex)
+        renderCurrentPage()
+        renderDock()
     }
 
     private fun launchApp(app: AppEntry, iconView: View, fromDrawer: Boolean) {
