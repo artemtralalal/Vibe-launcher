@@ -56,7 +56,7 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getInt("land_grid_pad", 12)
         set(v) = prefs.edit().putInt("land_grid_pad", v).apply()
     var portraitGridCols: Int
-        get() = prefs.getInt("port_cols", 4)
+        get() = prefs.getInt("port_cols", 5)
         set(v) = prefs.edit().putInt("port_cols", v).apply()
     var portraitGridPadding: Int
         get() = prefs.getInt("port_grid_pad", 16)
@@ -127,6 +127,13 @@ class LauncherPrefs(context: Context) {
     var drawerLayout: String
         get() = prefs.getString("drawer_layout", "grid") ?: "grid"
         set(v) = prefs.edit().putString("drawer_layout", v).apply()
+
+    var drawerIpadMode: Boolean
+        get() = prefs.getBoolean("drawer_ipad", false)
+        set(v) = prefs.edit().putBoolean("drawer_ipad", v).apply()
+
+    fun saveFolders(json: String) { prefs.edit().putString("folders_json", json).apply() }
+    fun loadFolders(): String = prefs.getString("folders_json", "[]") ?: "[]"
 
     var accentColor: Int
         get() = prefs.getInt("accent_color", 0xFF7C4DFF.toInt())
