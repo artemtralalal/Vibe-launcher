@@ -124,6 +124,14 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getString("land_dock_pos", "right") ?: "right" // right | left | bottom
         set(v) = prefs.edit().putString("land_dock_pos", v).apply()
 
+    var screenScale: Int
+        get() = prefs.getInt("screen_scale", 100)
+        set(v) = prefs.edit().putInt("screen_scale", v.coerceIn(50, 200)).apply()
+
+    var refreshRatePref: Int
+        get() = prefs.getInt("refresh_rate_pref", 0) // 0 auto
+        set(v) = prefs.edit().putInt("refresh_rate_pref", v).apply()
+
     var powerSaving: Boolean
         get() = prefs.getBoolean("power_saving", false)
         set(v) = prefs.edit().putBoolean("power_saving", v).apply()
