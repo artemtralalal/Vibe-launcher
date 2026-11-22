@@ -2603,11 +2603,11 @@ class MainActivity : AppCompatActivity() {
         overlay.translationY = tY
         if (prefs.tiltAnimation && !prefs.powerSaving) {
             val ti = prefs.tiltIntensity.coerceIn(0, 100) / 50f
-            overlay.cameraDistance = resources.displayMetrics.density * 6000f
-            overlay.pivotY = overlay.height * 0.85f
+            overlay.cameraDistance = resources.displayMetrics.density * 7000f
             overlay.pivotX = overlay.width / 2f
-            overlay.rotationX = 18f * ti
-            overlay.rotationY = (if (tX < 0) 8f else -8f) * ti
+            overlay.pivotY = overlay.height / 2f
+            overlay.rotationX = 10f * ti
+            overlay.rotationY = (if (tX < 0) 6f else -6f) * ti
         } else {
             overlay.rotationX = 0f; overlay.rotationY = 0f; overlay.pivotX = overlay.width / 2f; overlay.pivotY = overlay.height / 2f
         }
@@ -2615,15 +2615,18 @@ class MainActivity : AppCompatActivity() {
         overlay.animate().cancel()
         if (musicMode && !prefs.powerSaving) {
             overlay.animate()
-                .scaleX(0.35f).scaleY(0.35f)
-                .translationY(-root.height * 0.8f)
+                .scaleX(0.25f).scaleY(0.25f)
+                .translationY(-root.height * 0.9f)
                 .translationX(prefs.openTranslateX)
-                .rotationX(8f).rotationY(-6f)
-                .alpha(0.2f)
-                .setDuration(prefs.openDuration.toLong().coerceAtLeast(260L))
-                .setInterpolator(DecelerateInterpolator(1.2f))
+                .rotationX(6f).rotationY(-4f)
+                .alpha(0f)
+                .setDuration(prefs.openDuration.toLong().coerceAtLeast(320L))
+                .setInterpolator(DecelerateInterpolator(1.1f))
                 .withEndAction {
-                    overlay.alpha = 1f; overlay.rotationX = 0f; overlay.rotationY = 0f
+                    overlay.alpha = 1f; overlay.scaleX = 1f; overlay.scaleY = 1f
+                    overlay.translationX = 0f; overlay.translationY = 0f
+                    overlay.rotationX = 0f; overlay.rotationY = 0f
+                    overlay.isVisible = false
                     if (openAnimating) { openAnimating = false; onEnd() }
                 }.start()
             return
@@ -2719,9 +2722,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
         if (prefs.tiltAnimation && !prefs.powerSaving) {
-            overlay.cameraDistance = resources.displayMetrics.density * 6000f
-            overlay.pivotY = overlay.height * 0.85f
+            overlay.cameraDistance = resources.displayMetrics.density * 7000f
             overlay.pivotX = overlay.width / 2f
+            overlay.pivotY = overlay.height / 2f
         } else {
             overlay.pivotX = overlay.width / 2f; overlay.pivotY = overlay.height / 2f
         }
