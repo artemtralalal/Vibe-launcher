@@ -172,6 +172,7 @@ class MainActivity : AppCompatActivity() {
         loadApps()
         setupWelcome()
         applyPowerSavingMode()
+        applyVisualStyle()
         try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
         try { registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) } catch (_: Exception) {}
     }
@@ -224,6 +225,7 @@ class MainActivity : AppCompatActivity() {
         val newPageSize = (cols * rows).coerceIn(8, 48)
         val gridPad = if (landscape) prefs.landscapeGridPadding else prefs.portraitGridPadding
         val iconScale = if (landscape) prefs.landscapeIconScale.coerceIn(60, 120) / 100f else 1f
+        val sideMargin = ((if (landscape) prefs.landscapeGridPadding else prefs.gridSideMargin) * d).toInt()
 
         if (newPageSize != pageSize) {
             pageSize = newPageSize
@@ -231,6 +233,7 @@ class MainActivity : AppCompatActivity() {
             normalizePages()
         }
 
+        homeContent.setPadding(sideMargin, (24 * d).toInt(), sideMargin, (20 * d).toInt())
         gridRecycler.setPadding((gridPad * d).toInt(), 0, (gridPad * d).toInt(), (8 * d).toInt())
         val lm = gridRecycler.layoutManager
         if (lm is GridLayoutManager) {
@@ -293,9 +296,10 @@ class MainActivity : AppCompatActivity() {
             onEmptyLongPress = { showSettingsButton() },
             shape = { prefs.iconShape },
             showLabels = { prefs.showLabels },
-            cornerRadii = { currentCornerRadii() }
+            cornerRadii = { currentCornerRadii() },
+            iconScale = { prefs.iconScale }
         )
-        gridRecycler.layoutManager = GridLayoutManager(this, 4)
+        gridRecycler.layoutManager = GridLayoutManager(this, prefs.portraitGridCols.coerceIn(3, 7))
         gridRecycler.adapter = gridAdapter
         gridRecycler.setOnDragListener { _, event -> handleGridDrag(event) }
 
@@ -391,9 +395,70 @@ class MainActivity : AppCompatActivity() {
             bg.shape = android.graphics.drawable.GradientDrawable.OVAL
             bg.setColor(if (i == currentPageIndex) prefs.accentColor else 0x66FFFFFF)
             dot.background = bg
+            val pageIndex = i
+            dot.setOnClickListener { showPageManager() }
+            dot.setOnLongClickListener { showPageManager(); true }
             pageIndicator.addView(dot)
         }
-        pageIndicator.isVisible = count > 1
+        pageIndicator.isVisible = true
+        pageIndicator.setOnClickListener { showPageManager() }
+        pageIndicator.setOnLongClickListener { showPageManager(); true }
+    }
+
+    private fun showPageManager(moveKey: String? = null) {
+        ensurePages()
+        val names = pages.indices.map { "Страница ${it + 1}${if (it == currentPageIndex) " (текущая)" else ""}" }.toMutableList()
+        names.add("＋ Создать страницу")
+        if (moveKey == null && pages.size > 1) names.add("Удалить текущую страницу")
+        AlertDialog.Builder(this)
+            .setTitle(if (moveKey != null) "Переместить на страницу" else "Страницы")
+            .setItems(names.toTypedArray()) { _, which ->
+                when {
+                    which < pages.size -> {
+                        if (moveKey != null) moveAppToPage(moveKey, which) else { currentPageIndex = which; renderCurrentPage(); persistLayout() }
+                    }
+                    names[which].startsWith("＋") -> {
+                        pages.add(newPage())
+                        if (moveKey != null) moveAppToPage(moveKey, pages.lastIndex) else { currentPageIndex = pages.lastIndex; renderCurrentPage(); persistLayout() }
+                    }
+                    names[which].startsWith("Удалить") -> deleteCurrentPage()
+                }
+            }.show()
+    }
+
+    private fun moveAppToPage(key: String, targetPage: Int) {
+        ensurePages()
+        if (targetPage !in pages.indices) return
+        var app: AppEntry? = dockApps.firstOrNull { it?.key == key }
+        if (app == null) {
+            for (p in pages) { app = p.firstOrNull { it?.key == key }; if (app != null) break }
+        }
+        if (app == null) app = findApp(key)
+        if (app == null) return
+        for (p in pages.indices) { pages[p] = pages[p].map { if (it?.key == key) null else it }.toMutableList() }
+        for (i in dockApps.indices) if (dockApps[i]?.key == key) dockApps[i] = null
+        val slot = pages[targetPage].indexOfFirst { it == null }
+        if (slot >= 0) pages[targetPage][slot] = app else {
+            val empty = pages[targetPage].indexOfFirst { it == null }
+            if (empty >= 0) pages[targetPage][empty] = app
+        }
+        while (pages[targetPage].size < pageSize) pages[targetPage].add(null)
+        if (pages[targetPage].size > pageSize) pages[targetPage] = pages[targetPage].take(pageSize).toMutableList()
+        currentPageIndex = targetPage
+        renderCurrentPage(); renderDock(); persistLayout()
+    }
+
+    private fun deleteCurrentPage() {
+        ensurePages()
+        if (pages.size <= 1) return
+        val removed = pages.removeAt(currentPageIndex)
+        currentPageIndex = currentPageIndex.coerceIn(0, pages.lastIndex)
+        // move apps from removed page to current page empty slots
+        for (app in removed.filterNotNull()) {
+            val slot = pages[currentPageIndex].indexOfFirst { it == null }
+            if (slot >= 0) pages[currentPageIndex][slot] = app
+        }
+        renderCurrentPage(); persistLayout()
     }
 
     private fun switchPage(delta: Int, fromDrag: Boolean = false) {
@@ -599,6 +664,30 @@ class MainActivity : AppCompatActivity() {
         val labelsSwitch = findViewById<SwitchMaterial>(R.id.labelsSwitch)
         labelsSwitch.isChecked = prefs.showLabels
         labelsSwitch.setOnCheckedChangeListener { _, c -> prefs.showLabels = c; gridAdapter.notifyDataSetChanged() }
+        findViewById<SwitchMaterial>(R.id.lightModeSwitch).apply { isChecked = prefs.lightMode; setOnCheckedChangeListener { _, c -> prefs.lightMode = c; applyVisualStyle(); applyAccent() } }
+        findViewById<SwitchMaterial>(R.id.liquidGlassSwitch).apply { isChecked = prefs.liquidGlass; setOnCheckedChangeListener { _, c -> prefs.liquidGlass = c; applyVisualStyle() } }
+        findViewById<SwitchMaterial>(R.id.liquidWobbleSwitch).apply { isChecked = prefs.liquidWobble; setOnCheckedChangeListener { _, c -> prefs.liquidWobble = c } }
+        bindSeek(findViewById(R.id.liquidWobbleSeek), prefs.liquidWobbleIntensity, 0, 100) { prefs.liquidWobbleIntensity = it }
+        val animPresetBtn = findViewById<Button>(R.id.animPresetBtn)
+        fun updateAnimPresetLabel() { animPresetBtn.text = "Пресет анимации: ${if (prefs.animPreset == "genie") "Джин (macOS)" else "Пользовательская"}" }
+        updateAnimPresetLabel()
+        animPresetBtn.setOnClickListener {
+            val opts = arrayOf("Пользовательская", "Джин (macOS)")
+            AlertDialog.Builder(this).setTitle("Пресет анимации").setItems(opts) { _, w ->
+                prefs.animPreset = if (w == 1) "genie" else "custom"; updateAnimPresetLabel()
+            }.show()
+        }
+        val dockStyleBtn = findViewById<Button>(R.id.dockStyleBtn)
+        fun updateDockStyleLabel() { dockStyleBtn.text = "Стиль дока: ${when(prefs.dockStyle){ "glass"->"Стекло"; "solid"->"Сплошной"; "transparent"->"Прозрачный"; else->"Размытие" }}" }
+        updateDockStyleLabel()
+        dockStyleBtn.setOnClickListener {
+            val opts = listOf("blur" to "Размытие", "glass" to "Стекло", "solid" to "Сплошной", "transparent" to "Прозрачный")
+            AlertDialog.Builder(this).setTitle("Стиль дока").setItems(opts.map{it.second}.toTypedArray()) { _, w ->
+                prefs.dockStyle = opts[w].first; updateDockStyleLabel(); applyDockStyle()
+            }.show()
+        }
+        bindSeek(findViewById(R.id.iconScaleSeek), (prefs.iconScale - 60).coerceIn(0,80), 0, 80) { prefs.iconScale = it + 60; gridAdapter.notifyDataSetChanged(); drawerAdapter.notifyDataSetChanged(); renderDock() }
+        bindSeek(findViewById(R.id.gridSideMarginSeek), prefs.gridSideMargin.coerceIn(0,64), 0, 64) { prefs.gridSideMargin = it; applyOrientationLayout() }
 
         bindSeek(findViewById(R.id.openDurationSeek), prefs.openDuration, 100, 700) { prefs.openDuration = it }
         bindSeek(findViewById(R.id.closeDurationSeek), prefs.closeDuration, 100, 700) { prefs.closeDuration = it }
@@ -2038,6 +2127,7 @@ class MainActivity : AppCompatActivity() {
             addOption("Открыть") { openFolder(fid) }
             addOption("Переименовать") { renameFolderDialog(fid) }
             addOption("Размер / вид папки") { showFolderTypePicker(fid) }
+            addOption("На страницу...") { showPageManager(app.key) }
             addOption("Удалить папку", danger = true) {
                 val keys = folders[fid].orEmpty()
                 folders.remove(fid); folderNames.remove(fid); folderTypes.remove(fid); saveFoldersToPrefs()
@@ -2056,6 +2146,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 android.widget.Toast.makeText(this, "Перетащите иконку", android.widget.Toast.LENGTH_SHORT).show()
             }
+            addOption("На страницу...") { showPageManager(app.key) }
             addOption("Изменить иконку") { showIconEditDialog(app) }
             if (!fromDrawer) {
                 addOption("Убрать с рабочего стола") {
@@ -2587,20 +2678,29 @@ class MainActivity : AppCompatActivity() {
         }
 
         overlay.animate().cancel()
-        overlay.animate()
-            .scaleX(1f).scaleY(1f)
-            .translationX(prefs.openTranslateX)
-            .translationY(prefs.openTranslateY)
-            .rotationX(0f).rotationY(0f)
-            .setDuration(prefs.openDuration.toLong())
-            .setInterpolator(DecelerateInterpolator(1.4f))
-            .withEndAction {
-                if (openAnimating) {
-                    openAnimating = false
-                    onEnd()
-                }
-            }
-            .start()
+        if (prefs.animPreset == "genie") {
+            overlay.pivotX = overlay.width / 2f
+            overlay.pivotY = overlay.height.toFloat()
+            overlay.animate()
+                .scaleX(1f).scaleY(1f)
+                .translationX(prefs.openTranslateX)
+                .translationY(prefs.openTranslateY)
+                .rotationX(0f).rotationY(0f)
+                .setDuration(prefs.openDuration.toLong())
+                .setInterpolator(DecelerateInterpolator(1.8f))
+                .withEndAction { if (openAnimating) { openAnimating = false; onEnd() } }
+                .start()
+        } else {
+            overlay.animate()
+                .scaleX(1f).scaleY(1f)
+                .translationX(prefs.openTranslateX)
+                .translationY(prefs.openTranslateY)
+                .rotationX(0f).rotationY(0f)
+                .setDuration(prefs.openDuration.toLong())
+                .setInterpolator(DecelerateInterpolator(1.4f))
+                .withEndAction { if (openAnimating) { openAnimating = false; onEnd() } }
+                .start()
+        }
     }
 
     private fun playCloseAnimation() {
@@ -2763,25 +2863,39 @@ class MainActivity : AppCompatActivity() {
         }
 
         overlay.animate().cancel()
-        overlay.animate()
-            .translationX(midTX).translationY(midTY)
-            .scaleX(midSX).scaleY(midSY)
-            .rotationX(if (tilt) -10f * ti else 0f).rotationY(if (tilt) 4f * ti else 0f)
-            .setDuration(upDur)
-            .setInterpolator(DecelerateInterpolator(1.2f))
-            .withEndAction {
-                morphToIcon()
-                overlay.animate().cancel()
-                overlay.animate()
-                    .translationX(tX).translationY(tY)
-                    .scaleX(sX).scaleY(sY)
-                    .rotationX(0f).rotationY(0f)
-                    .setDuration(downDur)
-                    .setInterpolator(DecelerateInterpolator(1.8f))
-                    .withEndAction { finishClose() }
-                    .start()
-            }
-            .start()
+        if (prefs.animPreset == "genie") {
+            // Simple genie-like suction to target
+            overlay.pivotX = overlay.width / 2f
+            overlay.pivotY = overlay.height.toFloat()
+            overlay.animate()
+                .translationX(tX).translationY(tY)
+                .scaleX(sX.coerceAtLeast(0.05f)).scaleY(sY.coerceAtLeast(0.02f))
+                .rotationX(0f).rotationY(0f)
+                .setDuration(dur)
+                .setInterpolator(DecelerateInterpolator(2.0f))
+                .withEndAction { finishClose() }
+                .start()
+        } else {
+            overlay.animate()
+                .translationX(midTX).translationY(midTY)
+                .scaleX(midSX).scaleY(midSY)
+                .rotationX(if (tilt) -10f * ti else 0f).rotationY(if (tilt) 4f * ti else 0f)
+                .setDuration(upDur)
+                .setInterpolator(DecelerateInterpolator(1.2f))
+                .withEndAction {
+                    morphToIcon()
+                    overlay.animate().cancel()
+                    overlay.animate()
+                        .translationX(tX).translationY(tY)
+                        .scaleX(sX).scaleY(sY)
+                        .rotationX(0f).rotationY(0f)
+                        .setDuration(downDur)
+                        .setInterpolator(DecelerateInterpolator(1.8f))
+                        .withEndAction { finishClose() }
+                        .start()
+                }
+                .start()
+        }
     }
 
     private fun bounceTargetIcon(key: String?) {
@@ -2791,17 +2905,31 @@ class MainActivity : AppCompatActivity() {
         val arcOn = prefs.closeArcHeight > 10f
         view.animate().cancel()
         view.translationY = 0f
+        fun jellyWobble() {
+            if (!prefs.liquidWobble || prefs.powerSaving) return
+            val i = (prefs.liquidWobbleIntensity.coerceIn(0,100) / 100f)
+            val amp = 0.06f * i
+            view.scaleX = 1f + amp; view.scaleY = 1f - amp
+            view.animate().scaleX(1f - amp*0.6f).scaleY(1f + amp*0.6f).setDuration(90)
+                .withEndAction {
+                    view.animate().scaleX(1f + amp*0.25f).scaleY(1f - amp*0.25f).setDuration(80)
+                        .withEndAction { view.animate().scaleX(1f).scaleY(1f).setDuration(70).start() }
+                        .start()
+                }.start()
+        }
         if (arcOn && overshoot > 0.01f) {
             val drop = (4f + overshoot * 10f) * resources.displayMetrics.density
             view.scaleX = 0.92f
             view.scaleY = 0.92f
             view.translationY = drop
             view.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(280)
-                .setInterpolator(OvershootInterpolator(1.0f + overshoot * 0.8f)).start()
+                .setInterpolator(OvershootInterpolator(1.0f + overshoot * 0.8f))
+                .withEndAction { jellyWobble() }.start()
         } else {
             view.scaleX = 0.94f; view.scaleY = 0.94f
             view.animate().scaleX(1f).scaleY(1f).setDuration(160)
-                .setInterpolator(DecelerateInterpolator(1.5f)).start()
+                .setInterpolator(DecelerateInterpolator(1.5f))
+                .withEndAction { jellyWobble() }.start()
         }
     }
 
@@ -2840,6 +2968,50 @@ class MainActivity : AppCompatActivity() {
         } else {
             homeContent.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(duration).start()
         }
+    }
+
+    private fun glassBg(radiusDp: Float = 20f, alpha: Int = 0x55, light: Boolean = prefs.lightMode): Drawable {
+        val d = android.graphics.drawable.GradientDrawable()
+        d.shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+        d.cornerRadius = radiusDp * resources.displayMetrics.density
+        val base = if (light) 0xFFFFFF else 0x000000
+        d.setColor((alpha shl 24) or base)
+        d.setStroke((1 * resources.displayMetrics.density).toInt(), if (light) 0x33000000 else 0x55FFFFFF)
+        return d
+    }
+
+    private fun applyDockStyle() {
+        try {
+            val r = prefs.dockRadius.coerceIn(0, 50) * resources.displayMetrics.density
+            val d = android.graphics.drawable.GradientDrawable()
+            d.cornerRadius = r
+            when {
+                prefs.dockStyle == "transparent" -> { d.setColor(0x00000000); d.setStroke(0, 0) }
+                prefs.dockStyle == "solid" -> { d.setColor(if (prefs.lightMode) 0xCCFFFFFF.toInt() else 0xCC222222.toInt()) }
+                prefs.liquidGlass || prefs.dockStyle == "glass" -> {
+                    d.setColor(if (prefs.lightMode) 0x55FFFFFF else 0x44FFFFFF)
+                    d.setStroke((1 * resources.displayMetrics.density).toInt(), 0x66FFFFFF)
+                }
+                else -> { d.setColor(if (prefs.lightMode) 0x66FFFFFF else 0x66000000); d.setStroke((1 * resources.displayMetrics.density).toInt(), 0x33FFFFFF) }
+            }
+            dockBar.background = d
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && prefs.blurEnabled && !prefs.powerSaving && prefs.dockStyle != "transparent" && prefs.dockStyle != "solid") {
+                dockBar.setRenderEffect(RenderEffect.createBlurEffect(18f, 18f, Shader.TileMode.CLAMP))
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                dockBar.setRenderEffect(null)
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun applyVisualStyle() {
+        applyDockStyle()
+        val cardBg = if (prefs.liquidGlass) glassBg(24f, if (prefs.lightMode) 0x66 else 0x44, prefs.lightMode) else getDrawable(R.drawable.bg_settings_panel)
+        try { findViewById<View>(R.id.iconMenuCard).background = cardBg } catch (_: Exception) {}
+        try { findViewById<View>(R.id.folderCard).background = cardBg } catch (_: Exception) {}
+        try { findViewById<View>(R.id.settingsPanel).background = cardBg } catch (_: Exception) {}
+        try { findViewById<View>(R.id.quickPanel).background = cardBg } catch (_: Exception) {}
+        val textColor = if (prefs.lightMode) 0xFF111111.toInt() else 0xFFFFFFFF.toInt()
+        try { findViewById<TextView>(R.id.folderTitle).setTextColor(textColor) } catch (_: Exception) {}
     }
 
     private fun roundedBg(color: Int): Drawable {
