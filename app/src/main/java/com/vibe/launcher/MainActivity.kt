@@ -2908,12 +2908,12 @@ class MainActivity : AppCompatActivity() {
         fun jellyWobble() {
             if (!prefs.liquidWobble || prefs.powerSaving) return
             val i = (prefs.liquidWobbleIntensity.coerceIn(0,100) / 100f)
-            val amp = 0.06f * i
+            val amp = 0.10f * (0.4f + 0.6f * i)
             view.scaleX = 1f + amp; view.scaleY = 1f - amp
-            view.animate().scaleX(1f - amp*0.6f).scaleY(1f + amp*0.6f).setDuration(90)
+            view.animate().scaleX(1f - amp*0.7f).scaleY(1f + amp*0.7f).setDuration(110)
                 .withEndAction {
-                    view.animate().scaleX(1f + amp*0.25f).scaleY(1f - amp*0.25f).setDuration(80)
-                        .withEndAction { view.animate().scaleX(1f).scaleY(1f).setDuration(70).start() }
+                    view.animate().scaleX(1f + amp*0.35f).scaleY(1f - amp*0.35f).setDuration(90)
+                        .withEndAction { view.animate().scaleX(1f).scaleY(1f).setDuration(80).start() }
                         .start()
                 }.start()
         }
@@ -2995,20 +2995,17 @@ class MainActivity : AppCompatActivity() {
                 else -> { d.setColor(if (prefs.lightMode) 0x66FFFFFF else 0x66000000); d.setStroke((1 * resources.displayMetrics.density).toInt(), 0x33FFFFFF) }
             }
             dockBar.background = d
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && prefs.blurEnabled && !prefs.powerSaving && prefs.dockStyle != "transparent" && prefs.dockStyle != "solid") {
-                dockBar.setRenderEffect(RenderEffect.createBlurEffect(18f, 18f, Shader.TileMode.CLAMP))
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                dockBar.setRenderEffect(null)
-            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) dockBar.setRenderEffect(null)
         } catch (_: Exception) {}
     }
 
     private fun applyVisualStyle() {
         applyDockStyle()
-        val cardBg = if (prefs.liquidGlass) glassBg(24f, if (prefs.lightMode) 0x66 else 0x44, prefs.lightMode) else getDrawable(R.drawable.bg_settings_panel)
+        val glass = prefs.liquidGlass || prefs.blurEnabled
+        val cardBg = if (glass) glassBg(24f, if (prefs.lightMode) 0x66 else 0x44, prefs.lightMode) else getDrawable(R.drawable.bg_settings_panel)
         try { findViewById<View>(R.id.iconMenuCard).background = cardBg } catch (_: Exception) {}
         try { findViewById<View>(R.id.folderCard).background = cardBg } catch (_: Exception) {}
-        try { findViewById<View>(R.id.quickPanel).background = cardBg } catch (_: Exception) {}
+        try { findViewById<View>(R.id.quickPanel).background = if (glass) glassBg(28f, if (prefs.lightMode) 0x55 else 0x33, prefs.lightMode) else getDrawable(R.drawable.bg_settings_panel) } catch (_: Exception) {}
         val textColor = if (prefs.lightMode) 0xFF111111.toInt() else 0xFFFFFFFF.toInt()
         try { findViewById<TextView>(R.id.folderTitle).setTextColor(textColor) } catch (_: Exception) {}
     }
