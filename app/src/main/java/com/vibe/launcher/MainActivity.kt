@@ -101,7 +101,19 @@ class MainActivity : AppCompatActivity() {
 
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == Intent.ACTION_USER_PRESENT) playUnlockAnimation()
+            if (intent?.action == Intent.ACTION_USER_PRESENT) {
+                stopAodOverlay()
+                playUnlockAnimation()
+            }
+        }
+    }
+    private val screenOffReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF && prefs.aodEnabled) {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this@MainActivity)) {
+                    startAodOverlay()
+                }
+            }
         }
     }
 
@@ -181,11 +193,13 @@ class MainActivity : AppCompatActivity() {
         applyRefreshRatePref()
         applyFullscreenMode()
         try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
+        try { registerReceiver(screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF)) } catch (_: Exception) {}
         try { registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) } catch (_: Exception) {}
     }
 
     override fun onDestroy() {
         try { unregisterReceiver(unlockReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(screenOffReceiver) } catch (_: Exception) {}
         try { unregisterReceiver(volumeReceiver) } catch (_: Exception) {}
         try { unlockPlayer?.release() } catch (_: Exception) {}
         super.onDestroy()
@@ -998,89 +1012,150 @@ class MainActivity : AppCompatActivity() {
 
     private fun playLockAnimationThenLock() {
         try {
-            val overlay = View(this)
-            overlay.setBackgroundColor(Color.BLACK)
-            overlay.alpha = 0f
-            overlay.isClickable = true
-            overlay.isFocusable = true
-            root.addView(overlay, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-            // dim status/nav bars
+            val w = root.width.coerceAtLeast(1).toFloat()
+            val h = root.height.coerceAtLeast(1).toFloat()
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
             val anim = prefs.lockAnimation
-            val dur = 420L
-            val endAction = Runnable {
-                val locked = LockAccessibilityService.lock()
-                if (!locked) {
-                    try {
-                        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
-                        if (dpm.isAdminActive(ComponentName(this, LockAdminReceiver::class.java))) dpm.lockNow()
-                    } catch (_: Exception) {}
-                }
-                overlay.postDelayed({
-                    try { root.removeView(overlay) } catch (_: Exception) {}
-                    if (!prefs.fullscreenMode) window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
-                    homeContent.alpha = 1f; homeContent.scaleX = (prefs.screenScale.coerceIn(50,200)/100f); homeContent.scaleY = homeContent.scaleX
-                }, 500)
+            val extras = mutableListOf<View>()
+            fun addOverlay(color: Int = Color.BLACK, alpha: Float = 0f): View {
+                val v = View(this).apply { setBackgroundColor(color); this.alpha = alpha; isClickable = true; isFocusable = true }
+                root.addView(v, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+                extras.add(v); return v
             }
+            val overlay = addOverlay(Color.BLACK, 0f)
+            val bs = (prefs.screenScale.coerceIn(50,200) / 100f)
+            val cleanup = Runnable {
+                val locked = LockAccessibilityService.lock()
+                if (!locked) try {
+                    val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+                    if (dpm.isAdminActive(ComponentName(this, LockAdminReceiver::class.java))) dpm.lockNow()
+                } catch (_: Exception) {}
+                overlay.postDelayed({
+                    extras.forEach { v -> try { root.removeView(v) } catch (_: Exception) {} }
+                    if (!prefs.fullscreenMode) window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                    homeContent.animate().cancel()
+                    homeContent.alpha = 1f; homeContent.translationX = 0f; homeContent.translationY = 0f
+                    homeContent.scaleX = bs; homeContent.scaleY = bs; homeContent.rotation = 0f
+                }, 450)
+            }
+
             when (anim) {
-                "pixel" -> { // shrink into power button top-right
-                    overlay.alpha = 0f
-                    homeContent.animate().scaleX(0.85f).scaleY(0.85f).alpha(0.4f).setDuration(dur).start()
-                    overlay.animate().alpha(1f).setDuration(dur).withEndAction(endAction).start()
+                "pixel" -> { // shrink into power button (top-right) with darkening
+                    homeContent.pivotX = w; homeContent.pivotY = 0f
+                    homeContent.animate().scaleX(bs * 0.15f).scaleY(bs * 0.15f).alpha(0f).setDuration(420)
+                        .setInterpolator(DecelerateInterpolator(2f)).start()
+                    overlay.animate().alpha(1f).setDuration(380).setStartDelay(60).withEndAction(cleanup).start()
                 }
-                "xiaomi" -> overlay.animate().alpha(1f).setDuration(450).withEndAction(endAction).start()
-                "oneplus" -> {
-                    homeContent.animate().scaleX(0.92f).scaleY(0.92f).alpha(0.5f).setDuration(300).start()
-                    overlay.animate().alpha(1f).setDuration(450).withEndAction(endAction).start()
+                "xiaomi" -> { // smooth calm fade, no motion
+                    overlay.animate().alpha(1f).setDuration(520).setInterpolator(DecelerateInterpolator(1.2f)).withEndAction(cleanup).start()
                 }
-                "oukitel" -> {
-                    overlay.animate().alpha(0.35f).setDuration(200).withEndAction {
-                        overlay.postDelayed({ overlay.animate().alpha(1f).setDuration(250).withEndAction(endAction).start() }, 500)
+                "oneplus" -> { // quick scale down + white flash + black
+                    val flash = addOverlay(Color.WHITE, 0f)
+                    homeContent.animate().scaleX(bs * 0.88f).scaleY(bs * 0.88f).setDuration(180).start()
+                    flash.animate().alpha(0.35f).setDuration(120).withEndAction {
+                        flash.animate().alpha(0f).setDuration(180).start()
+                        overlay.animate().alpha(1f).setDuration(260).withEndAction(cleanup).start()
                     }.start()
                 }
-                "samsung" -> {
-                    val h = root.height.toFloat().coerceAtLeast(1f)
-                    overlay.pivotY = h; overlay.scaleY = 0f; overlay.alpha = 1f
-                    overlay.animate().scaleY(1f).setDuration(500).withEndAction(endAction).start()
-                }
-                "wave" -> {
-                    overlay.alpha = 0f
-                    overlay.animate().alpha(1f).setDuration(500).withEndAction(endAction).start()
-                    homeContent.animate().translationYBy(30f).setDuration(180).withEndAction { homeContent.animate().translationY(0f).setDuration(220).start() }.start()
-                }
-                "fire" -> {
-                    overlay.setBackgroundColor(0xFFFF5722.toInt())
-                    overlay.alpha = 0f
-                    overlay.animate().alpha(0.8f).setDuration(220).withEndAction {
-                        overlay.animate().alpha(1f).setDuration(220).withEndAction(endAction).start()
-                        overlay.setBackgroundColor(Color.BLACK)
+                "oukitel" -> { // dim, wait 0.5s, off
+                    overlay.animate().alpha(0.35f).setDuration(180).withEndAction {
+                        overlay.postDelayed({
+                            overlay.animate().alpha(1f).setDuration(220).withEndAction(cleanup).start()
+                        }, 500)
                     }.start()
                 }
-                "ice" -> {
-                    overlay.setBackgroundColor(0xFFB3E5FC.toInt()); overlay.alpha = 0f
-                    overlay.animate().alpha(0.7f).setDuration(260).withEndAction {
-                        overlay.setBackgroundColor(Color.BLACK)
-                        overlay.animate().alpha(1f).setDuration(260).withEndAction(endAction).start()
+                "samsung" -> { // bottom-to-top curtain
+                    val curtain = addOverlay(Color.BLACK, 1f)
+                    curtain.pivotY = h; curtain.scaleY = 0f
+                    curtain.animate().scaleY(1f).setDuration(480).setInterpolator(DecelerateInterpolator(1.5f)).withEndAction(cleanup).start()
+                    overlay.alpha = 0f
+                }
+                "wave" -> { // dark band sweeps top to bottom
+                    val band = addOverlay(Color.BLACK, 1f)
+                    band.translationY = -h
+                    band.animate().translationY(0f).setDuration(520).setInterpolator(DecelerateInterpolator(1.3f)).withEndAction(cleanup).start()
+                    homeContent.animate().translationY(bs * 12f).setDuration(200).withEndAction {
+                        homeContent.animate().translationY(0f).setDuration(280).start()
+                    }.start()
+                    overlay.alpha = 0f
+                }
+                "fire" -> { // orange-red sweep then black
+                    val fire = addOverlay(0xFFFF3D00.toInt(), 1f)
+                    fire.translationY = -h
+                    fire.animate().translationY(0f).setDuration(420).setInterpolator(DecelerateInterpolator(1.4f)).withEndAction {
+                        overlay.alpha = 1f
+                        fire.animate().alpha(0f).setDuration(200).withEndAction(cleanup).start()
+                    }.start()
+                    overlay.alpha = 0f
+                }
+                "ice" -> { // frost white-blue then freeze to black
+                    val frost = addOverlay(0xFFE0F7FA.toInt(), 0f)
+                    frost.animate().alpha(0.75f).setDuration(260).withEndAction {
+                        overlay.alpha = 0.6f
+                        overlay.animate().alpha(1f).setDuration(320).start()
+                        frost.animate().alpha(0f).setDuration(320).withEndAction(cleanup).start()
                     }.start()
                 }
-                "nothing" -> {
-                    overlay.setBackgroundColor(0xFF101010.toInt()); overlay.alpha = 0f
-                    overlay.animate().alpha(1f).setDuration(550).withEndAction(endAction).start()
+                "nothing" -> { // dot grid appears
+                    overlay.setBackgroundColor(0xFF000000.toInt())
+                    overlay.animate().alpha(0.55f).setDuration(200).start()
+                    val dots = FrameLayout(this)
+                    root.addView(dots, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+                    extras.add(dots)
+                    val dotSize = (4 * resources.displayMetrics.density).toInt()
+                    val step = (28 * resources.displayMetrics.density).toInt()
+                    val cols = (w / step).toInt() + 1
+                    val rows = (h / step).toInt() + 1
+                    for (r in 0..rows) for (c in 0..cols) {
+                        if ((r + c) % 3 != 0) continue
+                        val dot = View(this)
+                        val gd = android.graphics.drawable.GradientDrawable()
+                        gd.shape = android.graphics.drawable.GradientDrawable.OVAL
+                        gd.setColor(0xFFFFFFFF.toInt())
+                        dot.background = gd; dot.alpha = 0f
+                        val lp = FrameLayout.LayoutParams(dotSize, dotSize)
+                        lp.leftMargin = c * step; lp.topMargin = r * step
+                        dots.addView(dot, lp)
+                        dot.animate().alpha(0.9f).setStartDelay((r * 18 + c * 8).toLong()).setDuration(180).start()
+                    }
+                    overlay.postDelayed({ overlay.animate().alpha(1f).setDuration(220).withEndAction(cleanup).start() }, 520)
                 }
-                "miui13" -> overlay.animate().alpha(1f).setDuration(380).setInterpolator(DecelerateInterpolator()).withEndAction(endAction).start()
-                "hyperos" -> {
+                "miui13" -> { // smooth slow dim, MIUI-like curve
+                    homeContent.animate().scaleX(bs * 0.97f).scaleY(bs * 0.97f).setDuration(380).setInterpolator(DecelerateInterpolator(1.5f)).start()
+                    overlay.animate().alpha(1f).setDuration(460).setInterpolator(DecelerateInterpolator(1.8f)).withEndAction(cleanup).start()
+                }
+                "hyperos" -> { // quick fade + clock appears
+                    overlay.animate().alpha(1f).setDuration(260).start()
+                    val clock = TextView(this).apply {
+                        text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+                        setTextColor(Color.WHITE); textSize = 56f; typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
+                        alpha = 0f
+                    }
+                    val lp = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT)
+                    lp.gravity = android.view.Gravity.CENTER
+                    root.addView(clock, lp); extras.add(clock)
+                    clock.animate().alpha(1f).setDuration(220).setStartDelay(100).withEndAction {
+                        clock.postDelayed({ cleanup.run() }, 350)
+                    }.start()
+                }
+                "iphone" -> { // iOS-like shrink and fade
+                    homeContent.pivotX = w / 2f; homeContent.pivotY = h / 2f
+                    homeContent.animate().scaleX(bs * 0.92f).scaleY(bs * 0.92f).alpha(0f).setDuration(420)
+                        .setInterpolator(DecelerateInterpolator(1.6f)).start()
+                    overlay.animate().alpha(1f).setDuration(360).setStartDelay(80).withEndAction(cleanup).start()
+                }
+                "pixel2" -> { // top and bottom curtains closing
+                    val top = addOverlay(Color.BLACK, 1f)
+                    val bottom = addOverlay(Color.BLACK, 1f)
+                    top.pivotY = 0f; top.scaleY = 0f
+                    bottom.pivotY = h; bottom.scaleY = 0f
+                    val a1 = top.animate().scaleY(0.55f).setDuration(420).setInterpolator(DecelerateInterpolator(1.4f))
+                    val a2 = bottom.animate().scaleY(0.55f).setDuration(420).setInterpolator(DecelerateInterpolator(1.4f))
+                    a2.withEndAction { overlay.alpha = 1f; cleanup.run() }
+                    a1.start(); a2.start()
                     overlay.alpha = 0f
-                    overlay.animate().alpha(1f).setDuration(280).withEndAction(endAction).start()
                 }
-                "iphone" -> {
-                    homeContent.animate().scaleX(0.96f).scaleY(0.96f).alpha(0.3f).setDuration(350).start()
-                    overlay.animate().alpha(1f).setDuration(350).withEndAction(endAction).start()
-                }
-                "pixel2" -> {
-                    overlay.alpha = 0f
-                    overlay.animate().alpha(1f).setDuration(460).withEndAction(endAction).start()
-                }
-                else -> overlay.animate().alpha(1f).setDuration(dur).withEndAction(endAction).start()
+                else -> overlay.animate().alpha(1f).setDuration(420).withEndAction(cleanup).start()
             }
         } catch (_: Exception) {
             try { LockAccessibilityService.lock() } catch (_: Exception) {}
@@ -1102,7 +1177,98 @@ class MainActivity : AppCompatActivity() {
         startAodOverlay()
     }
 
+    // ---- AOD ----
     private var aodView: View? = null
+    private var aodConfigView: View? = null
+    private var aodTapCount = 0
+    private var aodLastTap = 0L
+
+    private fun buildAodContent(preview: Boolean): FrameLayout {
+        val container = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        val clock = TextView(this).apply {
+            val style = prefs.aodStyle
+            val now = java.util.Date()
+            text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(now)
+            setTextColor(Color.WHITE)
+            textSize = prefs.aodClockSize.toFloat()
+            typeface = if (prefs.aodFontBold) android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
+                       else android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL)
+            if (style == "nothing") {
+                typeface = android.graphics.Typeface.MONOSPACE
+                letterSpacing = 0.08f
+            }
+        }
+        val date = TextView(this).apply {
+            val now = java.util.Date()
+            val style = prefs.aodStyle
+            text = when (style) {
+                "miui13" -> java.text.SimpleDateFormat("dd.MM  EEEE", java.util.Locale("ru")).format(now)
+                else -> java.text.SimpleDateFormat("EEE, dd MMM", java.util.Locale.getDefault()).format(now)
+            }
+            setTextColor(0xCCFFFFFF.toInt())
+            textSize = if (prefs.aodStyle == "miui13") 14f else 16f
+            isVisible = prefs.aodShowDate
+        }
+        val weather = TextView(this).apply {
+            text = "22°C  Облачно"
+            setTextColor(0x99FFFFFF.toInt()); textSize = 13f
+            isVisible = prefs.aodStyle == "miui13"
+        }
+
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val g = when (prefs.aodStyle) {
+                "miui13" -> android.view.Gravity.START
+                else -> android.view.Gravity.CENTER_HORIZONTAL
+            }
+            gravity = g
+            addView(clock)
+            addView(date)
+            addView(weather)
+        }
+        val lp = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT)
+        // position by percent
+        container.post {
+            val pw = container.width.coerceAtLeast(1)
+            val ph = container.height.coerceAtLeast(1)
+            lp.leftMargin = ((prefs.aodClockX / 100f) * pw - col.measuredWidth / 2f).toInt().coerceIn(0, (pw - col.measuredWidth).coerceAtLeast(0))
+            lp.topMargin = ((prefs.aodClockY / 100f) * ph - col.measuredHeight / 2f).toInt().coerceIn(0, (ph - col.measuredHeight).coerceAtLeast(0))
+            col.layoutParams = lp
+        }
+        container.addView(col, lp)
+
+        // fingerprint icon
+        if (prefs.aodFpEnabled) {
+            val fp = TextView(this).apply {
+                text = "◉"
+                textSize = 28f
+                setTextColor(when (prefs.aodFpStyle) { "fire" -> 0xFFFF5722.toInt(); "ice" -> 0xFF80DEEA.toInt(); "samsung" -> 0xFF4FC3F7.toInt(); else -> 0xCCFFFFFF.toInt() })
+                alpha = 0.9f
+            }
+            val fpLp = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT)
+            container.post {
+                val pw = container.width.coerceAtLeast(1); val ph = container.height.coerceAtLeast(1)
+                fpLp.leftMargin = ((prefs.aodFpX / 100f) * pw - 40).toInt().coerceIn(0, pw - 80)
+                fpLp.topMargin = ((prefs.aodFpY / 100f) * ph - 40).toInt().coerceIn(0, ph - 80)
+                fp.layoutParams = fpLp
+            }
+            container.addView(fp, fpLp)
+        }
+
+        if (!preview) {
+            container.setOnClickListener {
+                val now = System.currentTimeMillis()
+                if (now - aodLastTap > 600) aodTapCount = 0
+                aodLastTap = now; aodTapCount++
+                val need = if (prefs.aodTapToWake == "single") 1 else 2
+                if (aodTapCount >= need) { aodTapCount = 0; hideAodWithAnimation() }
+            }
+        }
+        container.alpha = 0f
+        container.animate().alpha(1f).setDuration(250).start()
+        return container
+    }
+
     private fun startAodOverlay() {
         stopAodOverlay()
         try {
@@ -1110,47 +1276,121 @@ class MainActivity : AppCompatActivity() {
             val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") android.view.WindowManager.LayoutParams.TYPE_PHONE
             val lp = android.view.WindowManager.LayoutParams(
                 android.view.WindowManager.LayoutParams.MATCH_PARENT,
-                android.view.WindowManager.LayoutParams.MATCH_PARENT,
-                type,
-                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                android.view.WindowManager.LayoutParams.MATCH_PARENT, type,
+                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN or android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
                 android.graphics.PixelFormat.TRANSLUCENT
             )
-            val v = FrameLayout(this).apply { setBackgroundColor(0xFF000000.toInt()) }
-            val clock = TextView(this).apply {
-                text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
-                setTextColor(Color.WHITE); textSize = 48f; typeface = android.graphics.Typeface.DEFAULT_BOLD
-            }
-            val date = TextView(this).apply {
-                text = java.text.SimpleDateFormat("dd.MM, EEEE", java.util.Locale.getDefault()).format(java.util.Date())
-                setTextColor(0xCCFFFFFF.toInt()); textSize = 16f
-            }
-            val col = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL; gravity = android.view.Gravity.CENTER_HORIZONTAL
-                addView(clock); addView(date)
-            }
-            val params = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT)
-            params.gravity = android.view.Gravity.CENTER
-            v.addView(col, params)
-            v.setOnClickListener { stopAodOverlay(); prefs.aodEnabled = prefs.aodEnabled /* keep enabled */ }
+            val v = buildAodContent(preview = false)
+            // make clickable for tap-to-wake
+            lp.flags = lp.flags and android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
             wm.addView(v, lp)
             aodView = v
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            android.widget.Toast.makeText(this, "AOD: нет разрешения поверх окон", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
+
+    private fun hideAodWithAnimation() {
+        val v = aodView ?: return
+        v.animate().alpha(0f).setDuration(280).withEndAction { stopAodOverlay() }.start()
+    }
+
     private fun stopAodOverlay() {
         try { aodView?.let { (getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager).removeView(it) } } catch (_: Exception) {}
         aodView = null
     }
+
     private fun showAodSettingsDialog() {
-        val opts = arrayOf("Стиль: HyperOS 3", "Стиль: MIUI 13", "Стиль: Nothing OS", "Тап для пробуждения: двойной/одинарный", "Закрыть")
-        AlertDialog.Builder(this).setTitle("AOD").setItems(opts) { _, w ->
-            when (w) {
-                0 -> prefs.aodStyle = "hyperos"
-                1 -> prefs.aodStyle = "miui13"
-                2 -> prefs.aodStyle = "nothing"
-                3 -> { prefs.aodTapToWake = if (prefs.aodTapToWake == "double") "single" else "double"; android.widget.Toast.makeText(this, "Тап: ${if (prefs.aodTapToWake=="double") "двойной" else "одинарный"}", android.widget.Toast.LENGTH_SHORT).show() }
+        openAodConfigScreen()
+    }
+
+    private fun openAodConfigScreen() {
+        try { aodConfigView?.let { root.removeView(it) } } catch (_: Exception) {}
+        val scrim = FrameLayout(this).apply { setBackgroundColor(0xFF000000.toInt()); isClickable = true; isFocusable = true }
+        val previewBox = FrameLayout(this).apply {
+            setBackgroundColor(0xFF050505.toInt())
+        }
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(12), dp(16), dp(20))
+            setBackgroundColor(0xEE111111.toInt())
+        }
+
+        fun refreshPreview() {
+            previewBox.removeAllViews()
+            val p = buildAodContent(preview = true).apply { alpha = 1f }
+            previewBox.addView(p, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        }
+
+        fun addLabel(t: String) { controls.addView(TextView(this).apply { text = t; setTextColor(0xCCFFFFFF.toInt()); textSize = 13f }) }
+        fun addBtn(t: String, onClick: () -> Unit): Button { val b = Button(this).apply { text = t; setOnClickListener { onClick() } }; controls.addView(b); return b }
+        fun addSeek(init: Int, max: Int, on: (Int) -> Unit) {
+            val s = SeekBar(this); s.max = max; s.progress = init.coerceIn(0, max)
+            s.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { if (fromUser) { on(progress); refreshPreview() } }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            }); controls.addView(s)
+        }
+
+        addLabel("Стиль AOD")
+        val styleRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        listOf("hyperos" to "HyperOS", "miui13" to "MIUI 13", "nothing" to "Nothing").forEach { (k, n) ->
+            styleRow.addView(Button(this).apply { text = n; setOnClickListener { prefs.aodStyle = k; refreshPreview() } },
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        controls.addView(styleRow)
+
+        addLabel("Размер часов"); addSeek(prefs.aodClockSize - 24, 72) { prefs.aodClockSize = it + 24 }
+        addLabel("Позиция X"); addSeek(prefs.aodClockX, 100) { prefs.aodClockX = it }
+        addLabel("Позиция Y"); addSeek(prefs.aodClockY, 100) { prefs.aodClockY = it }
+
+        addBtn(if (prefs.aodFontBold) "Шрифт: жирный" else "Шрифт: тонкий") { b ->
+            prefs.aodFontBold = !prefs.aodFontBold; (b as Button).text = if (prefs.aodFontBold) "Шрифт: жирный" else "Шрифт: тонкий"; refreshPreview()
+        }
+        addBtn(if (prefs.aodShowDate) "Дата: вкл" else "Дата: выкл") { b ->
+            prefs.aodShowDate = !prefs.aodShowDate; (b as Button).text = if (prefs.aodShowDate) "Дата: вкл" else "Дата: выкл"; refreshPreview()
+        }
+        addBtn("Тап пробуждения: ${if (prefs.aodTapToWake=="double") "двойной" else "одинарный"}") { b ->
+            prefs.aodTapToWake = if (prefs.aodTapToWake == "double") "single" else "double"
+            (b as Button).text = "Тап пробуждения: ${if (prefs.aodTapToWake=="double") "двойной" else "одинарный"}"
+        }
+
+        addLabel("Отпечаток пальца")
+        addBtn(if (prefs.aodFpEnabled) "Отпечаток: вкл" else "Отпечаток: выкл") { b ->
+            prefs.aodFpEnabled = !prefs.aodFpEnabled; (b as Button).text = if (prefs.aodFpEnabled) "Отпечаток: вкл" else "Отпечаток: выкл"; refreshPreview()
+        }
+        val fpRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        listOf("xiaomi" to "Xiaomi", "samsung" to "Samsung", "fire" to "Огонь", "ice" to "Лёд").forEach { (k, n) ->
+            fpRow.addView(Button(this).apply { text = n; textSize = 11f; setOnClickListener { prefs.aodFpStyle = k; refreshPreview() } },
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        controls.addView(fpRow)
+        addLabel("Отпечаток X"); addSeek(prefs.aodFpX, 100) { prefs.aodFpX = it }
+        addLabel("Отпечаток Y"); addSeek(prefs.aodFpY, 100) { prefs.aodFpY = it }
+
+        val actionRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        actionRow.addView(Button(this).apply { text = "Предпросмотр"; setOnClickListener {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this@MainActivity)) {
+                ensureAodPermissionAndStart(); return@setOnClickListener
             }
-            if (prefs.aodEnabled) { stopAodOverlay(); startAodOverlay() }
-        }.show()
+            startAodOverlay()
+        } }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        actionRow.addView(Button(this).apply { text = "Закрыть"; setOnClickListener {
+            try { root.removeView(scrim) } catch (_: Exception) {}; aodConfigView = null
+        } }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        controls.addView(actionRow)
+
+        val scroll = android.widget.ScrollView(this).apply { addView(controls) }
+        val split = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        split.addView(previewBox, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        split.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (resources.displayMetrics.heightPixels * 0.45f).toInt()))
+        scrim.addView(split, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        scrim.alpha = 0f
+        root.addView(scrim, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        scrim.animate().alpha(1f).setDuration(220).start()
+        aodConfigView = scrim
+        refreshPreview()
     }
 
     private fun updateIconPackLabel() {
@@ -1674,6 +1914,8 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
+                    aodConfigView != null -> { try { aodConfigView?.animate()?.alpha(0f)?.setDuration(180)?.withEndAction { try { root.removeView(aodConfigView) } catch (_: Exception) {}; aodConfigView = null }?.start() } catch (_: Exception) { aodConfigView = null } }
+                    aodView != null -> { hideAodWithAnimation() }
                     dockFolderPopup != null -> { try { root.removeView(dockFolderPopup) } catch (_: Exception) {}; dockFolderPopup = null }
                     findViewById<View>(R.id.folderOverlay).isVisible -> findViewById<View>(R.id.folderOverlay).isVisible = false
                     findViewById<View>(R.id.iconMenuOverlay).isVisible -> {
