@@ -307,6 +307,17 @@
 
                     <LinearLayout android:id="@+id/catAppearance" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/labelsSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Подписи иконок" android:textColor="@color/white" />
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/lightModeSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Светлый режим" android:textColor="@color/white" />
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/liquidGlassSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Жидкое стекло" android:textColor="@color/white" />
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/liquidWobbleSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Желе-эффект при закрытии" android:textColor="@color/white" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Интенсивность желе" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/liquidWobbleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <Button android:id="@+id/animPresetBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Пресет анимации: Пользовательская" />
+                        <Button android:id="@+id/dockStyleBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Стиль дока: Размытие" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Масштаб иконок" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/iconScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="80"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Отступы слева/справа" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/gridSideMarginSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="64"/>
                         <TextView android:id="@+id/iconPackLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Пакет иконок: системный" android:textColor="@color/white" />
                         <Button android:id="@+id/pickIconPackBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Выбрать пакет иконок" />
                         <Button android:id="@+id/wallpaperBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Обои" />
