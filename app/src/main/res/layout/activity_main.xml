@@ -254,6 +254,10 @@
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Рабочий стол" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
             </LinearLayout>
+            <LinearLayout android:id="@+id/catRowDock" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Док-бар" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
+            </LinearLayout>
             <LinearLayout android:id="@+id/catRowScreen" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Экран" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
@@ -400,6 +404,23 @@
                         <SeekBar android:id="@+id/landPadSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="40"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Горизонт.: масштаб иконок" android:textColor="#CCFFFFFF"/>
                         <SeekBar android:id="@+id/landScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="60"/>
+                    </LinearLayout>
+
+                    <LinearLayout android:id="@+id/catDock" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <TextView android:id="@+id/dockStyleLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Стиль дока: Стандарт" android:textColor="@color/white" />
+                        <Button android:id="@+id/dockStyleBtn2" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Выбрать стиль дока" />
+                        <FrameLayout android:id="@+id/dockPreview" android:layout_width="match_parent" android:layout_height="120dp" android:layout_marginTop="8dp" android:background="#22FFFFFF">
+                            <LinearLayout android:id="@+id/dockPreviewBar" android:layout_width="220dp" android:layout_height="56dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="8dp" android:background="@drawable/bg_dock" android:gravity="center" android:orientation="horizontal"/>
+                        </FrameLayout>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Масштаб дока" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/dockScaleSeek2" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="70"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закругление дока" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/dockRadiusSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="50"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Смещение X" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/dockOffsetXSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="400"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Смещение Y" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/dockOffsetYSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="400"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="macOS: свайп по доку влево/вправо перемещает его в нижний левый/правый угол." android:textColor="#99FFFFFF" android:textSize="12sp"/>
                     </LinearLayout>
 
                     <LinearLayout android:id="@+id/catScreen" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
