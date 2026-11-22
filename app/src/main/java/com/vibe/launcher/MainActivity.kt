@@ -210,6 +210,7 @@ class MainActivity : AppCompatActivity() {
             applyOrientationLayout()
             renderDock()
             renderCurrentPage()
+            applyVisualStyle()
         } catch (_: Exception) { }
     }
 
@@ -249,58 +250,33 @@ class MainActivity : AppCompatActivity() {
         gridRecycler.pivotY = 0f
 
         val indicator = findViewById<LinearLayout>(R.id.pageIndicator)
-        if (landscape) {
+        val dockPos = if (landscape) (if (prefs.desktopMode) prefs.landscapeDockPosition else prefs.landscapeDockSide) else "bottom"
+        if (landscape && dockPos != "bottom") {
             homeContent.orientation = LinearLayout.HORIZONTAL
-            (workspace.layoutParams as LinearLayout.LayoutParams).apply {
-                width = 0; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 1f; bottomMargin = 0; marginEnd = (8*d).toInt()
-            }.also { workspace.layoutParams = it }
-            (indicator.layoutParams as LinearLayout.LayoutParams).apply {
-                width = 0; height = 0; weight = 0f; marginEnd = 0
-            }.also { indicator.layoutParams = it }
+            (workspace.layoutParams as LinearLayout.LayoutParams).apply { width = 0; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 1f; bottomMargin = 0; marginEnd = (8*d).toInt(); marginStart = 0 }.also { workspace.layoutParams = it }
+            (indicator.layoutParams as LinearLayout.LayoutParams).apply { width = 0; height = 0; weight = 0f }.also { indicator.layoutParams = it }
             indicator.isVisible = false
-            if (prefs.landscapeDockSide == "left") {
-                (dockContainer.layoutParams as LinearLayout.LayoutParams).apply {
-                    width = LinearLayout.LayoutParams.WRAP_CONTENT; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 0f; topMargin = 0; marginEnd = (8*d).toInt()
-                }.also { dockContainer.layoutParams = it }
-            } else {
-                (dockContainer.layoutParams as LinearLayout.LayoutParams).apply {
-                    width = LinearLayout.LayoutParams.WRAP_CONTENT; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 0f; topMargin = 0; marginEnd = 0
-                }.also { dockContainer.layoutParams = it }
-            }
+            (dockContainer.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.WRAP_CONTENT; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 0f; topMargin = 0; marginEnd = if (dockPos=="right") 0 else (8*d).toInt() }.also { dockContainer.layoutParams = it }
             dockContainer.orientation = LinearLayout.VERTICAL
             dockContainer.gravity = android.view.Gravity.CENTER
-            (dockBar.layoutParams as LinearLayout.LayoutParams).apply {
-                width = (88 * d).toInt(); height = 0; weight = 1f
-            }.also { dockBar.layoutParams = it }
+            (dockBar.layoutParams as LinearLayout.LayoutParams).apply { width = (88 * d).toInt(); height = 0; weight = 1f }.also { dockBar.layoutParams = it }
             dockBar.orientation = LinearLayout.VERTICAL
             val pad = (prefs.landscapeDockPadding * d).toInt()
             dockBar.setPadding(pad, pad, pad, pad)
-            (drawerBtn.layoutParams as LinearLayout.LayoutParams).apply {
-                marginStart = 0; topMargin = (8*d).toInt()
-            }.also { drawerBtn.layoutParams = it }
+            (drawerBtn.layoutParams as LinearLayout.LayoutParams).apply { marginStart = 0; topMargin = (8*d).toInt() }.also { drawerBtn.layoutParams = it }
             dockContainer.isVisible = true
         } else {
             homeContent.orientation = LinearLayout.VERTICAL
-            (workspace.layoutParams as LinearLayout.LayoutParams).apply {
-                width = LinearLayout.LayoutParams.MATCH_PARENT; height = 0; weight = 1f; marginEnd = 0; bottomMargin = 0
-            }.also { workspace.layoutParams = it }
-            (indicator.layoutParams as LinearLayout.LayoutParams).apply {
-                width = LinearLayout.LayoutParams.MATCH_PARENT; height = (20 * d).toInt(); weight = 0f
-            }.also { indicator.layoutParams = it }
+            (workspace.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.MATCH_PARENT; height = 0; weight = 1f; marginEnd = 0; bottomMargin = 0 }.also { workspace.layoutParams = it }
+            (indicator.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.MATCH_PARENT; height = (20 * d).toInt(); weight = 0f }.also { indicator.layoutParams = it }
             indicator.isVisible = true
-            (dockContainer.layoutParams as LinearLayout.LayoutParams).apply {
-                width = LinearLayout.LayoutParams.MATCH_PARENT; height = LinearLayout.LayoutParams.WRAP_CONTENT; weight = 0f; topMargin = (4*d).toInt()
-            }.also { dockContainer.layoutParams = it }
+            (dockContainer.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.MATCH_PARENT; height = LinearLayout.LayoutParams.WRAP_CONTENT; weight = 0f; topMargin = (4*d).toInt() }.also { dockContainer.layoutParams = it }
             dockContainer.orientation = LinearLayout.HORIZONTAL
             dockContainer.gravity = android.view.Gravity.CENTER_VERTICAL
-            (dockBar.layoutParams as LinearLayout.LayoutParams).apply {
-                width = 0; height = (92 * d).toInt(); weight = 1f
-            }.also { dockBar.layoutParams = it }
+            (dockBar.layoutParams as LinearLayout.LayoutParams).apply { width = 0; height = (92 * d).toInt(); weight = 1f }.also { dockBar.layoutParams = it }
             dockBar.orientation = LinearLayout.HORIZONTAL
             dockBar.setPadding((12*d).toInt(), 0, (12*d).toInt(), 0)
-            (drawerBtn.layoutParams as LinearLayout.LayoutParams).apply {
-                marginStart = (8*d).toInt(); topMargin = 0
-            }.also { drawerBtn.layoutParams = it }
+            (drawerBtn.layoutParams as LinearLayout.LayoutParams).apply { marginStart = (8*d).toInt(); topMargin = 0 }.also { drawerBtn.layoutParams = it }
             dockContainer.isVisible = true
         }
     }
@@ -746,6 +722,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.drawerStyleBtn).setOnClickListener { showDrawerStylePicker() }
         updateDrawerLayoutLabel()
         findViewById<Button>(R.id.drawerLayoutBtn).setOnClickListener { showDrawerLayoutPicker() }
+        findViewById<SwitchMaterial>(R.id.desktopModeSwitch).apply { isChecked = prefs.desktopMode; setOnCheckedChangeListener { _, c -> prefs.desktopMode = c; updateLandDockLabel(); applyOrientationLayout(); renderDock(); renderCurrentPage() } }
         updateLandDockLabel()
         findViewById<Button>(R.id.landDockBtn).setOnClickListener { showLandDockPicker() }
         bindSeek(findViewById(R.id.gridRowsSeek), prefs.homeGridRows - 4, 0, 4) { prefs.homeGridRows = it + 4; applyOrientationLayout(); renderCurrentPage(); persistLayout() }
@@ -963,15 +940,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateLandDockLabel() {
-        val label = if (prefs.landscapeDockSide == "bottom") "Снизу" else "Справа"
+        val pos = if (prefs.desktopMode) prefs.landscapeDockPosition else prefs.landscapeDockSide
+        val label = when (pos) { "bottom" -> "Снизу"; "left" -> "Слева"; else -> "Справа" }
         findViewById<TextView>(R.id.landDockLabel).text = "Док в горизонтали: $label"
     }
 
     private fun showLandDockPicker() {
-        val opts = listOf("right" to "Справа", "bottom" to "Снизу")
+        val opts = listOf("right" to "Справа", "left" to "Слева", "bottom" to "Снизу")
         AlertDialog.Builder(this).setTitle("Док в горизонтальном режиме")
             .setItems(opts.map { it.second }.toTypedArray()) { _, which ->
-                prefs.landscapeDockSide = opts[which].first
+                val v = opts[which].first
+                prefs.landscapeDockSide = v
+                prefs.landscapeDockPosition = v
                 updateLandDockLabel()
                 applyOrientationLayout()
                 renderDock()
@@ -1098,16 +1078,30 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSettingsMain() {
-        findViewById<View>(R.id.settingsMain).isVisible = true
-        findViewById<View>(R.id.settingsDetail).isVisible = false
-        listOf(R.id.catAppearance, R.id.catAnimations, R.id.catHome, R.id.catDrawer, R.id.catPower, R.id.catAbout).forEach {
-            findViewById<View>(it).isVisible = false
+        val landscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val main = findViewById<View>(R.id.settingsMain)
+        val detail = findViewById<View>(R.id.settingsDetail)
+        if (landscape) {
+            main.isVisible = true; detail.isVisible = true
+            (main.layoutParams as FrameLayout.LayoutParams).apply { width = (resources.displayMetrics.widthPixels * 0.36f).toInt(); height = FrameLayout.LayoutParams.MATCH_PARENT; gravity = android.view.Gravity.START }
+            (detail.layoutParams as FrameLayout.LayoutParams).apply { width = FrameLayout.LayoutParams.MATCH_PARENT; height = FrameLayout.LayoutParams.MATCH_PARENT; marginStart = (resources.displayMetrics.widthPixels * 0.36f).toInt(); gravity = android.view.Gravity.START }
+            findViewById<View>(R.id.settingsBackBtn).isVisible = false
+        } else {
+            main.isVisible = true; detail.isVisible = false
+            (main.layoutParams as FrameLayout.LayoutParams).apply { width = FrameLayout.LayoutParams.MATCH_PARENT; height = FrameLayout.LayoutParams.MATCH_PARENT; marginStart = 0; gravity = android.view.Gravity.NO_GRAVITY }
+            (detail.layoutParams as FrameLayout.LayoutParams).apply { width = FrameLayout.LayoutParams.MATCH_PARENT; height = FrameLayout.LayoutParams.MATCH_PARENT; marginStart = 0; gravity = android.view.Gravity.NO_GRAVITY }
+            findViewById<View>(R.id.settingsBackBtn).isVisible = true
         }
+        listOf(R.id.catAppearance, R.id.catAnimations, R.id.catHome, R.id.catDrawer, R.id.catPower, R.id.catAbout).forEach {
+            findViewById<View>(it).isVisible = landscape && it == R.id.catAppearance
+        }
+        if (landscape) findViewById<TextView>(R.id.settingsDetailTitle).text = "Внешний вид"
     }
 
     private fun showSettingsCategory(cat: String) {
-        findViewById<View>(R.id.settingsMain).isVisible = false
-        findViewById<View>(R.id.settingsDetail).isVisible = true
+        val landscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val main = findViewById<View>(R.id.settingsMain)
+        val detail = findViewById<View>(R.id.settingsDetail)
         val map = mapOf(
             "appearance" to (R.id.catAppearance to "Внешний вид"),
             "animations" to (R.id.catAnimations to "Анимации"),
@@ -1116,6 +1110,16 @@ class MainActivity : AppCompatActivity() {
             "power" to (R.id.catPower to "Энергосбережение"),
             "about" to (R.id.catAbout to "О лаунчере")
         )
+        if (landscape) {
+            main.isVisible = true; detail.isVisible = true
+            (main.layoutParams as FrameLayout.LayoutParams).apply { width = (resources.displayMetrics.widthPixels * 0.36f).toInt(); height = FrameLayout.LayoutParams.MATCH_PARENT; marginStart = 0; gravity = android.view.Gravity.START }
+            (detail.layoutParams as FrameLayout.LayoutParams).apply { width = FrameLayout.LayoutParams.MATCH_PARENT; height = FrameLayout.LayoutParams.MATCH_PARENT; marginStart = (resources.displayMetrics.widthPixels * 0.36f).toInt(); gravity = android.view.Gravity.START }
+            findViewById<View>(R.id.settingsBackBtn).isVisible = false
+        } else {
+            main.isVisible = false; detail.isVisible = true
+            (detail.layoutParams as FrameLayout.LayoutParams).apply { width = FrameLayout.LayoutParams.MATCH_PARENT; height = FrameLayout.LayoutParams.MATCH_PARENT; marginStart = 0; gravity = android.view.Gravity.NO_GRAVITY }
+            findViewById<View>(R.id.settingsBackBtn).isVisible = true
+        }
         map.forEach { (k, v) -> findViewById<View>(v.first).isVisible = k == cat }
         findViewById<TextView>(R.id.settingsDetailTitle).text = map[cat]?.second ?: "Настройки"
     }
@@ -1783,7 +1787,8 @@ class MainActivity : AppCompatActivity() {
         dockBar.clipToPadding = false
         val density = resources.displayMetrics.density
         val vertical = dockBar.orientation == LinearLayout.VERTICAL
-        val ipad = prefs.drawerIpadMode
+        val landscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val ipad = prefs.drawerIpadMode || (landscape && prefs.desktopMode)
         val slots = if (ipad) 5 else 4
         for (i in 0 until slots) {
             val item = layoutInflater.inflate(R.layout.item_app, dockBar, false)
