@@ -102,15 +102,30 @@
             android:layout_marginBottom="10dp"
             android:background="@drawable/bg_handle" />
 
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center"
-            android:paddingBottom="8dp"
-            android:text="Все приложения"
-            android:textColor="@color/white"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingBottom="8dp">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="Все приложения"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+            <ImageButton
+                android:id="@+id/drawerSettingsBtn"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="Настройки меню"
+                android:src="@android:drawable/ic_menu_manage"
+                app:tint="@color/white" />
+        </LinearLayout>
 
         <FrameLayout
             android:layout_width="match_parent"
@@ -488,6 +503,28 @@
         <Button android:id="@+id/devCloseStyleBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Morph to icon"/>
         <Button android:id="@+id/devCloseDevBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="Close"/>
     </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/folderOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+        <View android:layout_width="match_parent" android:layout_height="match_parent" android:background="#99000000" />
+        <LinearLayout
+            android:id="@+id/folderCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_margin="24dp"
+            android:background="@drawable/bg_settings_panel"
+            android:orientation="vertical"
+            android:padding="16dp">
+            <TextView android:id="@+id/folderTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Папка" android:textColor="@color/white" android:textSize="18sp" android:textStyle="bold"/>
+            <androidx.recyclerview.widget.RecyclerView android:id="@+id/folderRecycler" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp"/>
+        </LinearLayout>
+    </FrameLayout>
 
     <FrameLayout
         android:id="@+id/iconMenuOverlay"
