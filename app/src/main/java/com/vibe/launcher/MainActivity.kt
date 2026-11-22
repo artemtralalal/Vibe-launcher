@@ -655,7 +655,11 @@ class MainActivity : AppCompatActivity() {
         flagshipSwitch.setOnCheckedChangeListener { _, c -> prefs.flagshipAnimations = c }
         blurSwitch.isChecked = prefs.blurEnabled
         blurSwitch.setOnCheckedChangeListener { _, c -> prefs.blurEnabled = c }
-        findViewById<SwitchMaterial>(R.id.dockHideSwitch).apply { isChecked = prefs.dockHideOnOpen; setOnCheckedChangeListener { _, c -> prefs.dockHideOnOpen = c; if (c) animateDock(true) else { dockContainer.translationY = 0f; dockContainer.alpha = 1f } } }
+        findViewById<SwitchMaterial>(R.id.dockHideSwitch).apply { isChecked = prefs.dockHideOnOpen; setOnCheckedChangeListener { _, c -> prefs.dockHideOnOpen = c; if (c) animateDock(true) else { dockContainer.translationY = 0f; dockContainer.alpha = 1f; dockContainer.translationX = 0f; dockContainer.scaleX = 1f; dockContainer.scaleY = 1f } } }
+        val dockHideStyleBtn = findViewById<Button>(R.id.dockHideStyleBtn)
+        fun updDockHide() { dockHideStyleBtn.text = "Стиль скрытия дока: ${if (prefs.dockHideStyle == "genie") "Джин в угол" else "Слайд"}" }
+        updDockHide()
+        dockHideStyleBtn.setOnClickListener { val opts = arrayOf("Слайд","Джин в угол"); AlertDialog.Builder(this).setTitle("Скрытие дока").setItems(opts){_,w-> prefs.dockHideStyle = if (w==1) "genie" else "slide"; updDockHide() }.show() }
         val tiltSwitch = findViewById<SwitchMaterial>(R.id.tiltSwitch)
         tiltSwitch.isChecked = prefs.tiltAnimation
         tiltSwitch.setOnCheckedChangeListener { _, c -> prefs.tiltAnimation = c }
@@ -2986,27 +2990,33 @@ class MainActivity : AppCompatActivity() {
 
     private fun clearBlur() = applyBlur(false)
 
-    private fun animateDock(show: Boolean, duration: Long = 220L) {
+    private fun animateDock(show: Boolean, duration: Long = 180L) {
         if (!prefs.dockHideOnOpen || prefs.powerSaving) {
-            dockContainer.translationY = 0f; dockContainer.alpha = 1f; return
+            dockContainer.translationY = 0f; dockContainer.alpha = 1f; dockContainer.scaleX = 1f; dockContainer.scaleY = 1f; dockContainer.translationX = 0f; return
         }
         val d = resources.displayMetrics.density
         val hideY = 120f * d
+        val hideX = if (prefs.dockHideStyle == "genie") (resources.displayMetrics.widthPixels * 0.35f) else 0f
         dockContainer.animate().cancel()
         if (show) {
-            dockContainer.translationY = hideY; dockContainer.alpha = 0f
-            dockContainer.animate().translationY(0f).alpha(1f).setDuration(duration)
-                .setInterpolator(DecelerateInterpolator(1.4f)).start()
+            dockContainer.translationY = hideY; dockContainer.translationX = hideX; dockContainer.alpha = 0f
+            dockContainer.scaleX = if (prefs.dockHideStyle == "genie") 0.4f else 1f
+            dockContainer.scaleY = if (prefs.dockHideStyle == "genie") 0.4f else 1f
+            dockContainer.animate().translationY(0f).translationX(0f).alpha(1f).scaleX(1f).scaleY(1f).setDuration(duration)
+                .setInterpolator(DecelerateInterpolator(1.6f)).start()
         } else {
-            dockContainer.animate().translationY(hideY).alpha(0f).setDuration(duration)
-                .setInterpolator(DecelerateInterpolator(1.2f)).start()
+            dockContainer.animate().translationY(hideY).translationX(hideX).alpha(0f)
+                .scaleX(if (prefs.dockHideStyle == "genie") 0.4f else 1f)
+                .scaleY(if (prefs.dockHideStyle == "genie") 0.4f else 1f)
+                .setDuration(duration)
+                .setInterpolator(DecelerateInterpolator(1.4f)).start()
         }
     }
 
     private fun scaleHomeForOpen(opening: Boolean, duration: Long = 260L) {
         homeContent.animate().cancel()
         if (opening) {
-            homeContent.animate().scaleX(0.92f).scaleY(0.92f).alpha(0.85f).setDuration(duration).start()
+            homeContent.animate().scaleX(0.88f).scaleY(0.88f).alpha(0.72f).setDuration(duration).start()
         } else {
             homeContent.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(duration).start()
         }
