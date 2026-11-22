@@ -171,7 +171,6 @@ class MainActivity : AppCompatActivity() {
         loadFoldersFromPrefs()
         loadApps()
         setupWelcome()
-        if (prefs.welcomeDone) maybeAskMusicPermission()
         applyPowerSavingMode()
         try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
         try { registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) } catch (_: Exception) {}
@@ -590,15 +589,6 @@ class MainActivity : AppCompatActivity() {
         val tiltSwitch = findViewById<SwitchMaterial>(R.id.tiltSwitch)
         tiltSwitch.isChecked = prefs.tiltAnimation
         tiltSwitch.setOnCheckedChangeListener { _, c -> prefs.tiltAnimation = c }
-        val musicSwitch = findViewById<SwitchMaterial>(R.id.musicAnimSwitch)
-        musicSwitch.isChecked = prefs.musicAnimEnabled
-        musicSwitch.setOnCheckedChangeListener { _, c ->
-            prefs.musicAnimEnabled = c
-            if (c && !prefs.musicPermissionAsked) {
-                prefs.musicPermissionAsked = true
-                android.widget.Toast.makeText(this, "Для точного отслеживания музыки можно выдать доступ к уведомлениям в настройках системы", android.widget.Toast.LENGTH_LONG).show()
-            }
-        }
         bindSeek(findViewById(R.id.tiltIntensitySeek), prefs.tiltIntensity, 0, 100) { prefs.tiltIntensity = it }
         bindSeek(findViewById(R.id.windowCornerSeek), prefs.windowCornerRadius, 0, 60) { prefs.windowCornerRadius = it }
         val powerSwitch = findViewById<SwitchMaterial>(R.id.powerSavingSwitch)
@@ -1179,20 +1169,6 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun maybeAskMusicPermission() {
-        if (prefs.musicPermissionAsked) return
-        AlertDialog.Builder(this)
-            .setTitle("Музыка и анимации")
-            .setMessage("Разрешить Vibe Launcher отслеживать воспроизведение музыки для спец-анимации открытия приложений? Можно изменить позже в настройках.")
-            .setPositiveButton("Включить") { _, _ ->
-                prefs.musicPermissionAsked = true
-                prefs.musicAnimEnabled = true
-                try { findViewById<SwitchMaterial>(R.id.musicAnimSwitch).isChecked = true } catch (_: Exception) {}
-            }
-            .setNegativeButton("Позже") { _, _ -> prefs.musicPermissionAsked = true }
-            .show()
-    }
-
     private fun setupWelcome() {
         val overlay = findViewById<View>(R.id.welcomeOverlay)
         val start = findViewById<View>(R.id.welcomeStartBtn)
@@ -1237,7 +1213,6 @@ class MainActivity : AppCompatActivity() {
             overlay.animate().alpha(0f).setDuration(250).withEndAction {
                 overlay.isVisible = false
                 overlay.alpha = 1f
-                maybeAskMusicPermission()
             }.start()
         }
 
@@ -2575,7 +2550,6 @@ class MainActivity : AppCompatActivity() {
         lastLaunchKey?.let { findIconViewByKey(it)?.alpha = 1f }
         applyBlur(true)
         scaleHomeForOpen(true)
-        val musicMode = prefs.musicAnimEnabled && try { audioManager.isMusicActive } catch (_: Exception) { false }
 
         val overlay = animationOverlay
         overlay.background = roundedBg(color)
@@ -2613,24 +2587,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         overlay.animate().cancel()
-        if (musicMode && !prefs.powerSaving) {
-            overlay.animate()
-                .scaleX(0.25f).scaleY(0.25f)
-                .translationY(-root.height * 0.9f)
-                .translationX(prefs.openTranslateX)
-                .rotationX(6f).rotationY(-4f)
-                .alpha(0f)
-                .setDuration(prefs.openDuration.toLong().coerceAtLeast(320L))
-                .setInterpolator(DecelerateInterpolator(1.1f))
-                .withEndAction {
-                    overlay.alpha = 1f; overlay.scaleX = 1f; overlay.scaleY = 1f
-                    overlay.translationX = 0f; overlay.translationY = 0f
-                    overlay.rotationX = 0f; overlay.rotationY = 0f
-                    overlay.isVisible = false
-                    if (openAnimating) { openAnimating = false; onEnd() }
-                }.start()
-            return
-        }
         overlay.animate()
             .scaleX(1f).scaleY(1f)
             .translationX(prefs.openTranslateX)
@@ -2689,6 +2645,14 @@ class MainActivity : AppCompatActivity() {
 
         val targetView = lastLaunchKey?.let { findIconViewByKey(it) }
         closeTargetView = targetView
+        if (targetView != null && appDrawer.isVisible) {
+            appDrawer.animate().cancel()
+            appDrawer.animate().alpha(0f).setDuration(120).withEndAction {
+                appDrawer.isVisible = false
+                appDrawer.alpha = 1f
+                appDrawer.translationY = 0f
+            }.start()
+        }
         if (targetView == null) {
             closeTargetView = null
             overlay.animate().cancel()
