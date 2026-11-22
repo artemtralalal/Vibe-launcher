@@ -160,6 +160,34 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getString("aod_tap_wake", "double") ?: "double"
         set(v) = prefs.edit().putString("aod_tap_wake", v).apply()
 
+    var aodClockSize: Int
+        get() = prefs.getInt("aod_clock_size", 56)
+        set(v) = prefs.edit().putInt("aod_clock_size", v.coerceIn(24, 96)).apply()
+    var aodClockX: Int
+        get() = prefs.getInt("aod_clock_x", 50) // percent
+        set(v) = prefs.edit().putInt("aod_clock_x", v.coerceIn(0, 100)).apply()
+    var aodClockY: Int
+        get() = prefs.getInt("aod_clock_y", 45)
+        set(v) = prefs.edit().putInt("aod_clock_y", v.coerceIn(0, 100)).apply()
+    var aodFontBold: Boolean
+        get() = prefs.getBoolean("aod_font_bold", true)
+        set(v) = prefs.edit().putBoolean("aod_font_bold", v).apply()
+    var aodShowDate: Boolean
+        get() = prefs.getBoolean("aod_show_date", true)
+        set(v) = prefs.edit().putBoolean("aod_show_date", v).apply()
+    var aodFpEnabled: Boolean
+        get() = prefs.getBoolean("aod_fp_enabled", true)
+        set(v) = prefs.edit().putBoolean("aod_fp_enabled", v).apply()
+    var aodFpStyle: String
+        get() = prefs.getString("aod_fp_style", "xiaomi") ?: "xiaomi"
+        set(v) = prefs.edit().putString("aod_fp_style", v).apply()
+    var aodFpX: Int
+        get() = prefs.getInt("aod_fp_x", 50)
+        set(v) = prefs.edit().putInt("aod_fp_x", v.coerceIn(0, 100)).apply()
+    var aodFpY: Int
+        get() = prefs.getInt("aod_fp_y", 78)
+        set(v) = prefs.edit().putInt("aod_fp_y", v.coerceIn(0, 100)).apply()
+
     var powerSaving: Boolean
         get() = prefs.getBoolean("power_saving", false)
         set(v) = prefs.edit().putBoolean("power_saving", v).apply()
