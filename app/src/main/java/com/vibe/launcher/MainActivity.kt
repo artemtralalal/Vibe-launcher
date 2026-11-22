@@ -852,6 +852,7 @@ class MainActivity : AppCompatActivity() {
                 prefs.animPreset = if (w == 1) "genie" else "custom"; updateAnimPresetLabel()
             }.show()
         }
+        var updDockStyle2: () -> Unit = {}
         val dockStyleBtn = findViewById<Button>(R.id.dockStyleBtn)
         fun updateDockStyleLabel() { dockStyleBtn.text = "Стиль дока: ${when(prefs.dockStyle){ "glass"->"Стекло"; "solid"->"Сплошной"; "transparent"->"Прозрачный"; "macos"->"macOS"; "fold_right"->"iPhone Fold (справа)"; else->"Размытие" }}" }
         updateDockStyleLabel()
@@ -943,7 +944,7 @@ class MainActivity : AppCompatActivity() {
 
         // Dock category
         val dockStyleLabel2 = findViewById<TextView>(R.id.dockStyleLabel)
-        fun updDockStyle2() {
+        updDockStyle2 = {
             val n = when (prefs.dockStyle) { "macos" -> "macOS (снизу, компактный)"; "fold_right" -> "iPhone Fold (справа)"; "glass" -> "Стекло"; "solid" -> "Сплошной"; "transparent" -> "Прозрачный"; else -> "Стандарт (размытие)" }
             dockStyleLabel2.text = "Стиль дока: $n"
             updateDockPreview()
