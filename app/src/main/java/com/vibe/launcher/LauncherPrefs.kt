@@ -73,6 +73,14 @@ class LauncherPrefs(context: Context) {
     var blurEnabled: Boolean
         get() = prefs.getBoolean("blur_enabled", true)
         set(v) = prefs.edit().putBoolean("blur_enabled", v).apply()
+
+    var powerSaving: Boolean
+        get() = prefs.getBoolean("power_saving", false)
+        set(v) = prefs.edit().putBoolean("power_saving", v).apply()
+
+    var tiltAnimation: Boolean
+        get() = prefs.getBoolean("tilt_anim", false)
+        set(v) = prefs.edit().putBoolean("tilt_anim", v).apply()
     var blurRadius: Float
         get() = prefs.getFloat("blur_radius", 24f)
         set(v) = prefs.edit().putFloat("blur_radius", v).apply()
