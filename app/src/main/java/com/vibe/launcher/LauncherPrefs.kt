@@ -61,6 +61,9 @@ class LauncherPrefs(context: Context) {
     var portraitGridPadding: Int
         get() = prefs.getInt("port_grid_pad", 16)
         set(v) = prefs.edit().putInt("port_grid_pad", v).apply()
+    var homeGridRows: Int
+        get() = prefs.getInt("home_grid_rows", 6)
+        set(v) = prefs.edit().putInt("home_grid_rows", v).apply()
     var openOvershoot: Float
         get() = prefs.getFloat("open_overshoot", 0.6f)
         set(v) = prefs.edit().putFloat("open_overshoot", v).apply()
@@ -155,11 +158,7 @@ class LauncherPrefs(context: Context) {
                 val arr = JSONArray(raw)
                 List(arr.length()) { i ->
                     val p = arr.optJSONArray(i) ?: JSONArray()
-                    val list = MutableList(p.length()) { j -> p.optString(j).takeIf { it.isNotBlank() } }
-                    // normalize to 24 slots
-                    while (list.size < 24) list.add(null)
-                    if (list.size > 24) list.subList(24, list.size).clear()
-                    list
+                    MutableList(p.length()) { j -> p.optString(j).takeIf { it.isNotBlank() } }
                 }
             } catch (_: Exception) { emptyList() }
         }
