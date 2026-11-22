@@ -251,7 +251,11 @@
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
             </LinearLayout>
             <LinearLayout android:id="@+id/catRowHome" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
-                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Рабочий стол и экран" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Рабочий стол" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/catRowScreen" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Экран" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
             </LinearLayout>
             <LinearLayout android:id="@+id/catRowDrawer" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
@@ -374,12 +378,14 @@
                         <SeekBar android:id="@+id/overshootSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="150"/>
                         <TextView android:id="@+id/unlockAnimLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Анимация разблокировки: Pixel" android:textColor="@color/white" />
                         <Button android:id="@+id/unlockAnimBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Анимация разблокировки" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Анимация блокировки/выключения экрана" android:textColor="@color/white" />
+                        <Button android:id="@+id/lockAnimBtnAnim" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Выбрать анимацию блокировки" />
                     </LinearLayout>
 
                     <LinearLayout android:id="@+id/catHome" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/desktopModeSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Режим ПК/планшета в горизонтали" android:textColor="@color/white" />
-                        <TextView android:id="@+id/landDockLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Док в горизонтали: справа" android:textColor="@color/white" />
-                        <Button android:id="@+id/landDockBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Положение дока (горизонт.)"/>
+                        <TextView android:id="@+id/landDockLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Док: Снизу" android:textColor="@color/white" />
+                        <Button android:id="@+id/landDockBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Положение дока"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Масштаб дока" android:textColor="#CCFFFFFF"/>
                         <SeekBar android:id="@+id/dockScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="70"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Строки сетки" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
@@ -394,11 +400,21 @@
                         <SeekBar android:id="@+id/landPadSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="40"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Горизонт.: масштаб иконок" android:textColor="#CCFFFFFF"/>
                         <SeekBar android:id="@+id/landScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="60"/>
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Масштаб экрана (лаунчер)" android:textColor="#CCFFFFFF"/>
+                    </LinearLayout>
+
+                    <LinearLayout android:id="@+id/catScreen" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Масштаб экрана (лаунчер)" android:textColor="#CCFFFFFF"/>
                         <SeekBar android:id="@+id/screenScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="150"/>
                         <TextView android:id="@+id/screenScaleLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="100%" android:textColor="#99FFFFFF" android:textSize="12sp"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Частота обновления (предпочтение)" android:textColor="#CCFFFFFF"/>
                         <Button android:id="@+id/refreshRateBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Гц: Авто" />
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/fullscreenSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Полноэкранный режим (скрывать статус/навигацию)" android:textColor="@color/white" />
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/doubleTapLockSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Блокировка двойным тапом по пустому месту" android:textColor="@color/white" />
+                        <Button android:id="@+id/lockAnimBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Анимация блокировки экрана" />
+                        <TextView android:id="@+id/lockAnimLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Анимация: Pixel" android:textColor="#99FFFFFF" android:textSize="12sp"/>
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/aodSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Always On Display (AOD)" android:textColor="@color/white" />
+                        <Button android:id="@+id/aodSettingsBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Настроить AOD" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="AOD требует разрешение «Поверх других окон» и работу в фоне. На некоторых устройствах поведение зависит от системы." android:textColor="#99FFFFFF" android:textSize="12sp"/>
                     </LinearLayout>
 
                     <LinearLayout android:id="@+id/catDrawer" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
