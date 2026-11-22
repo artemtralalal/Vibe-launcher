@@ -294,7 +294,7 @@ class MainActivity : AppCompatActivity() {
             (workspace.layoutParams as LinearLayout.LayoutParams).apply { width = 0; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 1f; bottomMargin = 0; marginEnd = (8*d).toInt(); marginStart = if (dockPos=="left") (8*d).toInt() else 0 }.also { workspace.layoutParams = it }
             (indicator.layoutParams as LinearLayout.LayoutParams).apply { width = 0; height = 0; weight = 0f }.also { indicator.layoutParams = it }
             indicator.isVisible = false
-            val foldPortrait = !landscape && prefs.dockStyle == "fold_right"
+            val foldPortrait = !landscape && prefs.dockLayout == "orbit"
             (dockContainer.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.WRAP_CONTENT; height = if (foldPortrait) LinearLayout.LayoutParams.WRAP_CONTENT else LinearLayout.LayoutParams.MATCH_PARENT; weight = 0f; topMargin = 0; marginEnd = 0; marginStart = 0 }.also { dockContainer.layoutParams = it }
             dockContainer.orientation = LinearLayout.VERTICAL
             dockContainer.gravity = android.view.Gravity.CENTER
@@ -342,9 +342,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun currentDockPosition(landscape: Boolean): String {
         if (!landscape) {
-            return when (prefs.dockStyle) {
-                "macos" -> if (prefs.dockCornerMode == "bottom-right") "bottom-right" else "bottom-left"
-                "fold_right" -> "right"
+            return when (prefs.dockLayout) {
+                "harbor" -> if (prefs.dockCornerMode == "bottom-right") "bottom-right" else "bottom-left"
+                "orbit" -> "right"
                 else -> "bottom"
             }
         }
@@ -456,7 +456,7 @@ class MainActivity : AppCompatActivity() {
         }
         val dockSwipe = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-                if (prefs.dockStyle != "macos" || dockMoveMode) return false
+                if (prefs.dockLayout != "harbor" || dockMoveMode) return false
                 val dx = e2.x - (e1?.x ?: e2.x)
                 if (abs(dx) < 80 || abs(dx) < abs(e2.y - (e1?.y ?: e2.y))) return false
                 val toRight = dx > 0
@@ -492,7 +492,7 @@ class MainActivity : AppCompatActivity() {
                             else -> "bottom"
                         }
                         prefs.landscapeDockSide = pos; prefs.landscapeDockPosition = pos
-                        if (prefs.dockStyle == "macos" && (pos == "bottom-left" || pos == "bottom-right")) prefs.dockCornerMode = pos
+                        if (prefs.dockLayout == "harbor" && (pos == "bottom-left" || pos == "bottom-right")) prefs.dockCornerMode = pos
                         dockContainer.translationX = 0f; dockContainer.translationY = 0f
                         updateLandDockLabel(); applyOrientationLayout(); renderDock(); renderCurrentPage(); updateDockPreview()
                         true
@@ -500,7 +500,7 @@ class MainActivity : AppCompatActivity() {
                     else -> false
                 }
             } else {
-                if (prefs.dockStyle == "macos") {
+                if (prefs.dockLayout == "harbor") {
                     if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
                         dockSwipeTracking = !isPointOnAppIcon(ev.rawX, ev.rawY)
                     }
@@ -855,14 +855,13 @@ class MainActivity : AppCompatActivity() {
         }
         var updDockStyle2: () -> Unit = {}
         val dockStyleBtn = findViewById<Button>(R.id.dockStyleBtn)
-        fun updateDockStyleLabel() { dockStyleBtn.text = "Стиль дока: ${when(prefs.dockStyle){ "glass"->"Стекло"; "solid"->"Сплошной"; "transparent"->"Прозрачный"; "macos"->"macOS"; "fold_right"->"iPhone Fold (справа)"; else->"Размытие" }}" }
+        fun updateDockStyleLabel() { dockStyleBtn.text = "Фон дока: ${when(prefs.dockBg){ "glass"->"Стекло"; "solid"->"Сплошной"; "transparent"->"Прозрачный"; else->"Размытие" }}" }
         updateDockStyleLabel()
         dockStyleBtn.setOnClickListener {
-            val opts = listOf("blur" to "Размытие", "glass" to "Стекло", "solid" to "Сплошной", "transparent" to "Прозрачный", "macos" to "macOS (компактный)", "fold_right" to "iPhone Fold (справа)")
-            AlertDialog.Builder(this).setTitle("Стиль дока").setItems(opts.map{it.second}.toTypedArray()) { _, w ->
-                prefs.dockStyle = opts[w].first
-                if (prefs.dockStyle == "macos" && prefs.dockCornerMode == "bottom") prefs.dockCornerMode = "bottom-left"
-                updateDockStyleLabel(); updDockStyle2(); applyDockStyle(); applyOrientationLayout(); renderDock(); updateDockPreview()
+            val opts = listOf("blur" to "Размытие", "glass" to "Стекло", "solid" to "Сплошной", "transparent" to "Прозрачный")
+            AlertDialog.Builder(this).setTitle("Фон дока").setItems(opts.map{it.second}.toTypedArray()) { _, w ->
+                prefs.dockBg = opts[w].first
+                updateDockStyleLabel(); updDockStyle2(); applyDockStyle(); updateDockPreview()
             }.show()
         }
         bindSeek(findViewById(R.id.iconScaleSeek), (prefs.iconScale - 60).coerceIn(0,80), 0, 80) { prefs.iconScale = it + 60; gridAdapter.notifyDataSetChanged(); drawerAdapter.notifyDataSetChanged(); renderDock() }
@@ -905,7 +904,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<SwitchMaterial>(R.id.desktopModeSwitch).apply { isChecked = prefs.desktopMode; setOnCheckedChangeListener { _, c -> prefs.desktopMode = c; updateLandDockLabel(); applyOrientationLayout(); renderDock(); renderCurrentPage() } }
         updateLandDockLabel()
         findViewById<Button>(R.id.landDockBtn).setOnClickListener { showLandDockPicker() }
-        bindSeek(findViewById(R.id.dockScaleSeek), (prefs.dockScale - 70).coerceIn(0,70), 0, 70) { prefs.dockScale = it + 70; applyOrientationLayout(); renderDock() }
+        // dock scale moved to Dock category
         bindSeek(findViewById(R.id.gridRowsSeek), prefs.homeGridRows - 4, 0, 4) { prefs.homeGridRows = it + 4; applyOrientationLayout(); renderCurrentPage(); persistLayout() }
         bindSeek(findViewById(R.id.portColsSeek), prefs.portraitGridCols - 3, 0, 3) { prefs.portraitGridCols = it + 3; applyOrientationLayout(); renderCurrentPage() }
         bindSeek(findViewById(R.id.portPadSeek), prefs.portraitGridPadding, 0, 40) { prefs.portraitGridPadding = it; applyOrientationLayout() }
@@ -945,35 +944,61 @@ class MainActivity : AppCompatActivity() {
 
         // Dock category
         val dockStyleLabel2 = findViewById<TextView>(R.id.dockStyleLabel)
+        val dockBgLabel = findViewById<TextView>(R.id.dockBgLabel)
         val dockScaleSeek2 = findViewById<SeekBar>(R.id.dockScaleSeek2)
         val dockRadiusSeek = findViewById<SeekBar>(R.id.dockRadiusSeek)
         val dockOffsetXSeek = findViewById<SeekBar>(R.id.dockOffsetXSeek)
         val dockOffsetYSeek = findViewById<SeekBar>(R.id.dockOffsetYSeek)
+        val dockTransparencySeek = findViewById<SeekBar>(R.id.dockTransparencySeek)
+        val dockHideSwitch2 = findViewById<SwitchMaterial>(R.id.dockHideSwitch2)
+        val dockHideStyleBtn2 = findViewById<Button>(R.id.dockHideStyleBtn2)
+        val dockBounceSeek = findViewById<SeekBar>(R.id.dockBounceSeek)
+        val dockBounceLabel = findViewById<TextView>(R.id.dockBounceLabel)
         fun refreshDockSeekbars() {
             dockScaleSeek2.progress = (prefs.dockScale - 70).coerceIn(0,70)
             dockRadiusSeek.progress = prefs.dockRadius.coerceIn(0,50)
             dockOffsetXSeek.progress = (prefs.dockXOffset + 200).coerceIn(0,400)
             dockOffsetYSeek.progress = (prefs.dockYOffset + 200).coerceIn(0,400)
+            dockTransparencySeek.progress = prefs.dockTransparency.coerceIn(0,100)
+            dockHideSwitch2.isChecked = prefs.dockHideOnOpen
+            dockBounceSeek.progress = prefs.dockBounceMs.coerceIn(0,2000)
+            dockBounceLabel.text = if (prefs.dockBounceMs >= 1000) String.format("%.2f с", prefs.dockBounceMs / 1000f) else "${prefs.dockBounceMs} мс"
+            dockHideStyleBtn2.text = "Стиль скрытия: ${if (prefs.dockHideStyle == "genie") "Джинн" else "Слайд"}"
         }
         updDockStyle2 = {
-            val n = when (prefs.dockStyle) { "macos" -> "macOS (снизу, компактный)"; "fold_right" -> "iPhone Fold (справа)"; "glass" -> "Стекло"; "solid" -> "Сплошной"; "transparent" -> "Прозрачный"; else -> "Стандарт (размытие)" }
-            dockStyleLabel2.text = "Стиль дока: $n"
+            val ln = when (prefs.dockLayout) { "harbor" -> "Harbor"; "orbit" -> "Orbit"; else -> "Standard" }
+            val bn = when (prefs.dockBg) { "glass" -> "Стекло"; "solid" -> "Сплошной"; "transparent" -> "Прозрачный"; else -> "Размытие" }
+            dockStyleLabel2.text = "Макет: $ln"
+            dockBgLabel.text = "Фон: $bn"
             refreshDockSeekbars()
             updateDockPreview()
         }
         updDockStyle2()
-        findViewById<Button>(R.id.dockStyleBtn2).setOnClickListener {
-            val opts = listOf("blur" to "Стандарт", "glass" to "Стекло", "solid" to "Сплошной", "transparent" to "Прозрачный", "macos" to "macOS (компактный)", "fold_right" to "iPhone Fold (справа)")
-            AlertDialog.Builder(this).setTitle("Стиль дока").setItems(opts.map{it.second}.toTypedArray()) { _, w ->
-                prefs.dockStyle = opts[w].first
-                if (prefs.dockStyle == "macos" && prefs.dockCornerMode == "bottom") prefs.dockCornerMode = "bottom-left"
+        findViewById<Button>(R.id.dockLayoutBtn).setOnClickListener {
+            val opts = listOf("standard" to "Standard (классический)", "harbor" to "Harbor (компактный, как macOS)", "orbit" to "Orbit (боковой, как iPhone Fold)")
+            AlertDialog.Builder(this).setTitle("Макет дока").setItems(opts.map{it.second}.toTypedArray()) { _, w ->
+                prefs.dockLayout = opts[w].first
+                if (prefs.dockLayout == "harbor" && prefs.dockCornerMode == "bottom") prefs.dockCornerMode = "bottom-left"
                 updDockStyle2(); applyDockStyle(); applyOrientationLayout(); renderDock()
+            }.show()
+        }
+        findViewById<Button>(R.id.dockBgBtn).setOnClickListener {
+            val opts = listOf("blur" to "Размытие", "glass" to "Стекло", "solid" to "Сплошной", "transparent" to "Прозрачный")
+            AlertDialog.Builder(this).setTitle("Фон дока").setItems(opts.map{it.second}.toTypedArray()) { _, w ->
+                prefs.dockBg = opts[w].first; updateDockStyleLabel(); updDockStyle2(); applyDockStyle(); updateDockPreview()
             }.show()
         }
         bindSeek(dockScaleSeek2, (prefs.dockScale - 70).coerceIn(0,70), 0, 70) { prefs.dockScale = it + 70; applyOrientationLayout(); renderDock(); updateDockPreview() }
         bindSeek(dockRadiusSeek, prefs.dockRadius.coerceIn(0,50), 0, 50) { prefs.dockRadius = it; applyDockStyle(); updateDockPreview() }
+        bindSeek(dockTransparencySeek, prefs.dockTransparency.coerceIn(0,100), 0, 100) { prefs.dockTransparency = it; applyDockStyle(); updateDockPreview() }
         bindSeek(dockOffsetXSeek, (prefs.dockXOffset + 200).coerceIn(0,400), 0, 400) { prefs.dockXOffset = it - 200; applyOrientationLayout(); renderDock(); updateDockPreview() }
         bindSeek(dockOffsetYSeek, (prefs.dockYOffset + 200).coerceIn(0,400), 0, 400) { prefs.dockYOffset = it - 200; applyOrientationLayout(); renderDock(); updateDockPreview() }
+        dockHideSwitch2.setOnCheckedChangeListener { _, c -> prefs.dockHideOnOpen = c }
+        dockHideStyleBtn2.setOnClickListener {
+            val opts = arrayOf("Слайд","Джинн (всасывание)")
+            AlertDialog.Builder(this).setTitle("Стиль скрытия дока").setItems(opts){_,w-> prefs.dockHideStyle = if (w==1) "genie" else "slide"; refreshDockSeekbars() }.show()
+        }
+        bindSeek(dockBounceSeek, prefs.dockBounceMs.coerceIn(0,2000), 0, 2000) { prefs.dockBounceMs = it; dockBounceLabel.text = if (it >= 1000) String.format("%.2f с", it / 1000f) else "$it мс" }
 
         settingsButton.setOnClickListener {
             showSettingsMain()
@@ -2548,7 +2573,7 @@ class MainActivity : AppCompatActivity() {
         val compactBottom = !vertical && (dockPos == "bottom-left" || dockPos == "bottom-right")
         val ipad = prefs.drawerIpadMode || (landscape && prefs.desktopMode)
         val slots = if (ipad) 5 else 4
-        val foldPortraitSide = vertical && !landscape && prefs.dockStyle == "fold_right"
+        val foldPortraitSide = vertical && !landscape && prefs.dockLayout == "orbit"
         for (i in 0 until slots) {
             val item = layoutInflater.inflate(R.layout.item_app, dockBar, false)
             val icon = item.findViewById<ImageView>(R.id.appIcon)
@@ -2593,7 +2618,7 @@ class MainActivity : AppCompatActivity() {
             dockBar.addView(item)
         }
         val isEmptyDock = dockApps.all { it == null }
-        if (isEmptyDock && (foldPortraitSide || compactBottom || prefs.dockStyle == "fold_right")) {
+        if (isEmptyDock && (foldPortraitSide || compactBottom || prefs.dockLayout == "orbit")) {
             val ph = TextView(this).apply {
                 text = "+"; setTextColor(0x88FFFFFF.toInt()); textSize = 22f; gravity = android.view.Gravity.CENTER
                 background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = 16f * density; setColor(0x22FFFFFF); setStroke((1*density).toInt(), 0x55FFFFFF) }
@@ -3821,26 +3846,66 @@ class MainActivity : AppCompatActivity() {
 
     private fun clearBlur() = applyBlur(false)
 
-    private fun animateDock(show: Boolean, duration: Long = 180L) {
-        if (!prefs.dockHideOnOpen || prefs.powerSaving) {
-            dockContainer.translationY = 0f; dockContainer.alpha = 1f; dockContainer.scaleX = 1f; dockContainer.scaleY = 1f; dockContainer.translationX = 0f; return
-        }
+    private fun playDockBounce() {
         val d = resources.displayMetrics.density
-        val hideY = 120f * d
-        val hideX = if (prefs.dockHideStyle == "genie") (resources.displayMetrics.widthPixels * 0.35f) else 0f
+        val baseS = prefs.dockScale.coerceIn(70,140) / 100f
+        val dur = prefs.dockBounceMs.coerceIn(0, 2000)
+        if (dur <= 0) { dockContainer.scaleX = baseS; dockContainer.scaleY = baseS; return }
+        dockContainer.animate().cancel()
+        dockContainer.scaleX = baseS; dockContainer.scaleY = baseS
+        val amp = 0.08f
+        val t1 = (dur * 0.28f).toLong().coerceAtLeast(40)
+        val t2 = (dur * 0.24f).toLong().coerceAtLeast(40)
+        val t3 = (dur * 0.24f).toLong().coerceAtLeast(40)
+        val t4 = (dur - t1 - t2 - t3).coerceAtLeast(40)
+        dockContainer.animate().scaleX(baseS * (1f + amp)).scaleY(baseS * (1f - amp * 0.6f)).setDuration(t1).setInterpolator(DecelerateInterpolator()).withEndAction {
+            dockContainer.animate().scaleX(baseS * (1f - amp * 0.55f)).scaleY(baseS * (1f + amp * 0.45f)).setDuration(t2).setInterpolator(DecelerateInterpolator()).withEndAction {
+                dockContainer.animate().scaleX(baseS * (1f + amp * 0.25f)).scaleY(baseS * (1f - amp * 0.2f)).setDuration(t3).setInterpolator(DecelerateInterpolator()).withEndAction {
+                    dockContainer.animate().scaleX(baseS).scaleY(baseS).setDuration(t4).setInterpolator(DecelerateInterpolator()).start()
+                }.start()
+            }.start()
+        }.start()
+    }
+
+    private fun animateDock(show: Boolean, duration: Long = 180L) {
+        val d = resources.displayMetrics.density
+        val baseX = prefs.dockXOffset * d
+        val baseY = prefs.dockYOffset * d
+        val baseS = prefs.dockScale.coerceIn(70,140) / 100f
+        if (!prefs.dockHideOnOpen || prefs.powerSaving) {
+            dockContainer.animate().cancel()
+            dockContainer.translationX = baseX; dockContainer.translationY = baseY
+            dockContainer.alpha = 1f; dockContainer.scaleX = baseS; dockContainer.scaleY = baseS
+            return
+        }
+        val landscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val dockPos = currentDockPosition(landscape)
+        val side = dockPos in listOf("left","right")
+        val genie = prefs.dockHideStyle == "genie"
+        val hideTx = baseX + when {
+            genie && side && dockPos == "right" -> 140f * d
+            genie && side && dockPos == "left" -> -140f * d
+            genie -> 0f
+            else -> 0f
+        }
+        val hideTy = baseY + when {
+            genie && side -> 0f
+            else -> 140f * d
+        }
+        val hideS = if (genie) baseS * 0.35f else baseS
         dockContainer.animate().cancel()
         if (show) {
-            dockContainer.translationY = hideY; dockContainer.translationX = hideX; dockContainer.alpha = 0f
-            dockContainer.scaleX = if (prefs.dockHideStyle == "genie") 0.4f else 1f
-            dockContainer.scaleY = if (prefs.dockHideStyle == "genie") 0.4f else 1f
-            dockContainer.animate().translationY(0f).translationX(0f).alpha(1f).scaleX(1f).scaleY(1f).setDuration(duration)
-                .setInterpolator(DecelerateInterpolator(1.6f)).start()
+            dockContainer.translationX = hideTx; dockContainer.translationY = hideTy
+            dockContainer.alpha = 0f; dockContainer.scaleX = hideS; dockContainer.scaleY = hideS
+            val anim = dockContainer.animate().translationX(baseX).translationY(baseY).alpha(1f).scaleX(baseS).scaleY(baseS)
+                .setDuration(if (genie) 320 else duration).setInterpolator(DecelerateInterpolator(1.8f))
+            if (genie) {
+                anim.withEndAction { playDockBounce() }
+            }
+            anim.start()
         } else {
-            dockContainer.animate().translationY(hideY).translationX(hideX).alpha(0f)
-                .scaleX(if (prefs.dockHideStyle == "genie") 0.4f else 1f)
-                .scaleY(if (prefs.dockHideStyle == "genie") 0.4f else 1f)
-                .setDuration(duration)
-                .setInterpolator(DecelerateInterpolator(1.4f)).start()
+            dockContainer.animate().translationX(hideTx).translationY(hideTy).alpha(0f).scaleX(hideS).scaleY(hideS)
+                .setDuration(if (genie) 280 else duration).setInterpolator(DecelerateInterpolator(1.6f)).start()
         }
     }
 
@@ -3869,16 +3934,18 @@ class MainActivity : AppCompatActivity() {
             val r = prefs.dockRadius.coerceIn(0, 50) * resources.displayMetrics.density
             val d = android.graphics.drawable.GradientDrawable()
             d.cornerRadius = r
+            val bgStyle = prefs.dockBg
+            val trans = prefs.dockTransparency.coerceIn(0,100)
+            fun withTrans(baseAlpha: Int): Int { val a = (baseAlpha * (100 - trans) / 100f).toInt().coerceIn(0,255); return (a shl 24) or 0xFFFFFF }
+            fun withTransDark(baseAlpha: Int): Int { val a = (baseAlpha * (100 - trans) / 100f).toInt().coerceIn(0,255); return (a shl 24) or 0x000000 }
             when {
-                prefs.dockStyle == "transparent" -> { d.setColor(0x00000000); d.setStroke(0, 0) }
-                prefs.dockStyle == "solid" -> { d.setColor(if (prefs.lightMode) 0xCCFFFFFF.toInt() else 0xCC222222.toInt()) }
-                prefs.liquidGlass || prefs.dockStyle == "glass" -> {
-                    d.setColor(if (prefs.lightMode) 0x55FFFFFF else 0x44FFFFFF)
-                    d.setStroke((1 * resources.displayMetrics.density).toInt(), 0x66FFFFFF)
+                bgStyle == "transparent" -> { d.setColor(0x00000000); d.setStroke(0, 0) }
+                bgStyle == "solid" -> { d.setColor(if (prefs.lightMode) withTrans(0xCC) else withTransDark(0xCC)); d.setStroke(if (trans > 80) 0 else (1 * resources.displayMetrics.density).toInt(), 0x33FFFFFF) }
+                bgStyle == "glass" || prefs.liquidGlass -> {
+                    d.setColor(if (prefs.lightMode) withTrans(0x55) else withTrans(0x44))
+                    d.setStroke(if (trans > 90) 0 else (1 * resources.displayMetrics.density).toInt(), 0x66FFFFFF)
                 }
-                prefs.dockStyle == "macos" -> { d.setColor(if (prefs.lightMode) 0x77FFFFFF else 0x77222222); d.setStroke((1 * resources.displayMetrics.density).toInt(), 0x55FFFFFF) }
-                prefs.dockStyle == "fold_right" -> { d.setColor(if (prefs.lightMode) 0x66FFFFFF else 0x55222222); d.setStroke((1 * resources.displayMetrics.density).toInt(), 0x44FFFFFF) }
-                else -> { d.setColor(if (prefs.lightMode) 0x66FFFFFF else 0x66000000); d.setStroke((1 * resources.displayMetrics.density).toInt(), 0x33FFFFFF) }
+                else -> { d.setColor(if (prefs.lightMode) withTrans(0x66) else withTransDark(0x66)); d.setStroke(if (trans > 90) 0 else (1 * resources.displayMetrics.density).toInt(), 0x33FFFFFF) }
             }
             dockBar.background = d
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) dockBar.setRenderEffect(null)
@@ -3895,9 +3962,9 @@ class MainActivity : AppCompatActivity() {
             val bg = android.graphics.drawable.GradientDrawable().apply { cornerRadius = r; setColor(if (prefs.lightMode) 0x66FFFFFF else 0x66333333); setStroke((1*d).toInt(), 0x55FFFFFF) }
             bar.background = bg
             val lp = bar.layoutParams as FrameLayout.LayoutParams
-            when (prefs.dockStyle) {
-                "fold_right" -> { lp.width = (64*d).toInt(); lp.height = (100*d).toInt(); lp.gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL; lp.marginEnd = (8*d).toInt(); lp.bottomMargin = 0; bar.orientation = LinearLayout.VERTICAL }
-                "macos" -> { lp.width = (150*d).toInt(); lp.height = (44*d).toInt(); lp.gravity = (if (prefs.dockCornerMode == "bottom-right") android.view.Gravity.END else android.view.Gravity.START) or android.view.Gravity.BOTTOM; lp.marginStart = (8*d).toInt(); lp.marginEnd = (8*d).toInt(); lp.bottomMargin = (8*d).toInt(); bar.orientation = LinearLayout.HORIZONTAL }
+            when (prefs.dockLayout) {
+                "orbit" -> { lp.width = (64*d).toInt(); lp.height = (100*d).toInt(); lp.gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL; lp.marginEnd = (8*d).toInt(); lp.bottomMargin = 0; bar.orientation = LinearLayout.VERTICAL }
+                "harbor" -> { lp.width = (150*d).toInt(); lp.height = (44*d).toInt(); lp.gravity = (if (prefs.dockCornerMode == "bottom-right") android.view.Gravity.END else android.view.Gravity.START) or android.view.Gravity.BOTTOM; lp.marginStart = (8*d).toInt(); lp.marginEnd = (8*d).toInt(); lp.bottomMargin = (8*d).toInt(); bar.orientation = LinearLayout.HORIZONTAL }
                 else -> { lp.width = (220*d).toInt(); lp.height = (52*d).toInt(); lp.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL; lp.bottomMargin = (8*d).toInt(); lp.marginStart = 0; lp.marginEnd = 0; bar.orientation = LinearLayout.HORIZONTAL }
             }
             bar.layoutParams = lp
