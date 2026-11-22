@@ -119,6 +119,7 @@ class MainActivity : AppCompatActivity() {
     private var openAnimating = false
     private var cameraGeniePending = false
     private var closeAnimator: android.animation.ValueAnimator? = null
+    private var closeTargetView: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -181,6 +182,7 @@ class MainActivity : AppCompatActivity() {
             pendingLaunch = false
             playCloseAnimation()
         } else {
+            closeTargetView?.alpha = 1f; closeTargetView = null
             clearBlur()
         }
     }
@@ -448,8 +450,23 @@ class MainActivity : AppCompatActivity() {
         val devOverlay = findViewById<View>(R.id.devOverlay)
         val ver = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "1.9.3-beta" } catch (_: Exception) { "1.9.3-beta" }
         aboutCardVersion.text = ver
+        var devTaps = 0
+        aboutCardVersion.setOnClickListener {
+            devTaps++
+            if (devTaps >= 7 && !prefs.devMode) {
+                prefs.devMode = true
+                android.widget.Toast.makeText(this, "Режим разработчика включён", android.widget.Toast.LENGTH_SHORT).show()
+                findViewById<SwitchMaterial>(R.id.flagshipSwitch).isVisible = true
+            }
+        }
         aboutVersion.text = "Version $ver"
-        aboutDevice.text = "${Build.MANUFACTURER} ${Build.MODEL} • Android ${Build.VERSION.RELEASE}"
+        val dm = resources.displayMetrics
+        val screen = "${dm.widthPixels}x${dm.heightPixels} @${dm.densityDpi}dpi"
+        val soc = if (Build.VERSION.SDK_INT >= 31) (Build.SOC_MODEL ?: Build.HARDWARE ?: "unknown") else (Build.HARDWARE ?: "unknown")
+        val bt = try { packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_BLUETOOTH) } catch (_: Exception) { false }
+        val accel = try { (getSystemService(android.content.Context.SENSOR_SERVICE) as android.hardware.SensorManager).getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER) != null } catch (_: Exception) { false }
+        val gyro = try { (getSystemService(android.content.Context.SENSOR_SERVICE) as android.hardware.SensorManager).getDefaultSensor(android.hardware.Sensor.TYPE_GYROSCOPE) != null } catch (_: Exception) { false }
+        aboutDevice.text = "${Build.MANUFACTURER} ${Build.MODEL}\nAndroid ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})\nCPU/SoC: $soc\nЭкран: $screen\nBluetooth: ${if (bt) "да" else "нет"} • Акселерометр: ${if (accel) "да" else "нет"} • Гироскоп: ${if (gyro) "да" else "нет"}"
 
         fun openAbout() {
             aboutOverlay.isVisible = true
@@ -547,6 +564,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupSettings() {
+        val allowFlagship = deviceSupportsFlagshipByDefault() || prefs.devMode
+        flagshipSwitch.isVisible = allowFlagship
+        if (!allowFlagship) prefs.flagshipAnimations = false
         flagshipSwitch.isChecked = prefs.flagshipAnimations
         flagshipSwitch.setOnCheckedChangeListener { _, c -> prefs.flagshipAnimations = c }
         blurSwitch.isChecked = prefs.blurEnabled
@@ -554,6 +574,8 @@ class MainActivity : AppCompatActivity() {
         val tiltSwitch = findViewById<SwitchMaterial>(R.id.tiltSwitch)
         tiltSwitch.isChecked = prefs.tiltAnimation
         tiltSwitch.setOnCheckedChangeListener { _, c -> prefs.tiltAnimation = c }
+        bindSeek(findViewById(R.id.tiltIntensitySeek), prefs.tiltIntensity, 0, 100) { prefs.tiltIntensity = it }
+        bindSeek(findViewById(R.id.windowCornerSeek), prefs.windowCornerRadius, 0, 60) { prefs.windowCornerRadius = it }
         val powerSwitch = findViewById<SwitchMaterial>(R.id.powerSavingSwitch)
         powerSwitch.isChecked = prefs.powerSaving
         powerSwitch.setOnCheckedChangeListener { _, c -> prefs.powerSaving = c; applyPowerSavingMode() }
@@ -844,6 +866,18 @@ class MainActivity : AppCompatActivity() {
             AppGridAdapter.applyShape(preview, prefs.iconShape, currentCornerRadii())
             preview.invalidate()
         } catch (_: Exception) { }
+    }
+
+    private fun deviceSupportsFlagshipByDefault(): Boolean {
+        val soc = (if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL else "")?.lowercase().orEmpty()
+        val hw = (Build.HARDWARE ?: "").lowercase()
+        val board = (Build.BOARD ?: "").lowercase()
+        val s = "$soc $hw $board"
+        if (s.contains("g99") || s.contains("g100") || s.contains("dimensity") || s.contains("snapdragon 8") || s.contains("snapdragon 7")) return true
+        // weak/old Helio G series below 99
+        val weakTokens = listOf("g35","g37","g70","g80","g85","g88","g90","g91","g95","g96","helio g9","mt676","mt6781","mt6785")
+        if (weakTokens.any { s.contains(it) }) return false
+        return true
     }
 
     private fun applyPowerSavingMode() {
@@ -1500,62 +1534,67 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadApps() {
-        try {
-            val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-            val resolved = packageManager.queryIntentActivities(intent, 0)
-            val pack = prefs.iconPackPackage
-            val apps = resolved.mapNotNull { ri ->
-                try {
-                    val label = ri.loadLabel(packageManager)?.toString()?.trim().orEmpty()
-                    val pkg = ri.activityInfo?.packageName ?: return@mapNotNull null
-                    val act = ri.activityInfo?.name ?: return@mapNotNull null
-                    val defIcon = ri.loadIcon(packageManager) ?: return@mapNotNull null
-                    if (pkg == packageName) return@mapNotNull null
-                    val component = "$pkg/$act"
-                    val icon = runCatching { iconPackManager.loadIcon(pack, component, defIcon) }.getOrDefault(defIcon)
-                    AppEntry(label, pkg, act, icon)
-                } catch (_: Exception) { null }
-            }.distinctBy { it.key }.sortedBy { it.label.lowercase() }
+        val pack = prefs.iconPackPackage
+        Thread {
+            try {
+                val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                val resolved = packageManager.queryIntentActivities(intent, 0)
+                val apps = resolved.mapNotNull { ri ->
+                    try {
+                        val label = ri.loadLabel(packageManager)?.toString()?.trim().orEmpty()
+                        val pkg = ri.activityInfo?.packageName ?: return@mapNotNull null
+                        val act = ri.activityInfo?.name ?: return@mapNotNull null
+                        val defIcon = ri.loadIcon(packageManager) ?: return@mapNotNull null
+                        if (pkg == packageName) return@mapNotNull null
+                        val component = "$pkg/$act"
+                        val icon = runCatching { iconPackManager.loadIcon(pack, component, defIcon) }.getOrDefault(defIcon)
+                        AppEntry(label, pkg, act, icon)
+                    } catch (_: Exception) { null }
+                }.distinctBy { it.key }.sortedBy { it.label.lowercase() }
 
-            allApps.clear()
-            allApps.addAll(apps)
-
-            val byKey = apps.associateBy { it.key }
-            if (prefs.layoutInitialized) {
-                val savedDock = prefs.loadDockOrder().mapNotNull { byKey[it] }.distinctBy { it.key }.take(4)
-                for (i in 0 until 4) dockApps[i] = savedDock.getOrNull(i)
-                val used = dockApps.filterNotNull().map { it.key }.toMutableSet()
-                val savedPages = prefs.loadPages()
-                pages.clear()
-                if (savedPages.isNotEmpty()) {
-                    savedPages.forEach { pageKeys ->
-                        val page = MutableList<AppEntry?>(pageSize) { null }
-                        for (i in 0 until pageSize) {
-                            val k = pageKeys.getOrNull(i)
-                            val app = if (k != null) byKey[k] else null
-                            if (app != null && app.key !in used) {
-                                page[i] = app
-                                used.add(app.key)
+                root.post {
+                    try {
+                        allApps.clear()
+                        allApps.addAll(apps)
+                        val byKey = apps.associateBy { it.key }
+                        if (prefs.layoutInitialized) {
+                            val savedDock = prefs.loadDockOrder().mapNotNull { byKey[it] }.distinctBy { it.key }.take(4)
+                            for (i in 0 until 4) dockApps[i] = savedDock.getOrNull(i)
+                            val used = dockApps.filterNotNull().map { it.key }.toMutableSet()
+                            val savedPages = prefs.loadPages()
+                            pages.clear()
+                            if (savedPages.isNotEmpty()) {
+                                savedPages.forEach { pageKeys ->
+                                    val page = MutableList<AppEntry?>(pageSize) { null }
+                                    for (i in 0 until pageSize) {
+                                        val k = pageKeys.getOrNull(i)
+                                        val app = if (k != null) byKey[k] else null
+                                        if (app != null && app.key !in used) {
+                                            page[i] = app
+                                            used.add(app.key)
+                                        }
+                                    }
+                                    pages.add(page)
+                                }
                             }
+                            if (pages.isEmpty()) pages.add(newPage())
+                            while (pages.size > 1 && pages.last().all { it == null }) pages.removeAt(pages.lastIndex)
+                            currentPageIndex = prefs.currentPage.coerceIn(0, pages.lastIndex)
+                            renderCurrentPage()
+                        } else {
+                            for (i in 0 until 4) dockApps[i] = null
+                            pages.clear()
+                            pages.add(newPage())
+                            currentPageIndex = 0
+                            renderCurrentPage()
                         }
-                        pages.add(page)
-                    }
+                        drawerAdapter.submit(allApps)
+                        renderDock()
+                        if (prefs.layoutInitialized) persistLayout()
+                    } catch (_: Exception) { }
                 }
-                if (pages.isEmpty()) pages.add(newPage())
-                while (pages.size > 1 && pages.last().all { it == null }) pages.removeAt(pages.lastIndex)
-                currentPageIndex = prefs.currentPage.coerceIn(0, pages.lastIndex)
-                renderCurrentPage()
-            } else {
-                for (i in 0 until 4) dockApps[i] = null
-                pages.clear()
-                pages.add(newPage())
-                currentPageIndex = 0
-                renderCurrentPage()
-            }
-            drawerAdapter.submit(allApps)
-            renderDock()
-            if (prefs.layoutInitialized) persistLayout()
-        } catch (_: Exception) { }
+            } catch (_: Exception) { }
+        }.start()
     }
 
     private fun renderDock() {
@@ -2115,6 +2154,7 @@ class MainActivity : AppCompatActivity() {
     private fun playOpenAnimation(fromDrawer: Boolean, bounds: IntArray, color: Int, onEnd: () -> Unit) {
         openAnimating = true
         closeAnimator?.cancel(); closeAnimator = null
+        closeTargetView?.alpha = 1f; closeTargetView = null
         lastLaunchKey?.let { findIconViewByKey(it)?.alpha = 1f }
         applyBlur(true)
         scaleHomeForOpen(true)
@@ -2144,10 +2184,11 @@ class MainActivity : AppCompatActivity() {
         overlay.translationX = tX
         overlay.translationY = tY
         if (prefs.tiltAnimation && !prefs.powerSaving) {
+            val ti = prefs.tiltIntensity.coerceIn(0, 100) / 50f
             val cam = resources.displayMetrics.density * 8000f
             overlay.cameraDistance = cam
-            overlay.rotationX = 12f
-            overlay.rotationY = -6f
+            overlay.rotationX = 12f * ti
+            overlay.rotationY = -6f * ti
         } else {
             overlay.rotationX = 0f; overlay.rotationY = 0f
         }
@@ -2170,12 +2211,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playCloseAnimation() {
-        val bounds = lastLaunchBounds ?: run { clearBlur(); scaleHomeForOpen(false); openAnimating = false; return }
+        val bounds = lastLaunchBounds ?: run { clearBlur(); scaleHomeForOpen(false); openAnimating = false; closeTargetView?.alpha = 1f; closeTargetView = null; return }
         val overlay = animationOverlay
         val wasOpenAnimating = openAnimating
         openAnimating = false
         closeAnimator?.cancel()
         closeAnimator = null
+        closeTargetView?.alpha = 1f
         clearBlur()
         if (!prefs.flagshipAnimations || prefs.powerSaving) {
             overlay.animate().cancel()
@@ -2205,6 +2247,19 @@ class MainActivity : AppCompatActivity() {
         val sY = (endH / screenH).coerceAtLeast(0.08f)
 
         val targetView = lastLaunchKey?.let { findIconViewByKey(it) }
+        closeTargetView = targetView
+        if (targetView == null) {
+            closeTargetView = null
+            overlay.animate().cancel()
+            overlay.isVisible = true
+            scaleHomeForOpen(false, 220)
+            overlay.animate().alpha(0f).translationY(-60f * resources.displayMetrics.density).scaleX(0.94f).scaleY(0.94f)
+                .setDuration(220).setInterpolator(DecelerateInterpolator(1.3f))
+                .withEndAction {
+                    overlay.isVisible = false; overlay.alpha = 1f; overlay.translationY = 0f; overlay.scaleX = 1f; overlay.scaleY = 1f; overlay.rotationX = 0f; overlay.rotationY = 0f
+                }.start()
+            return
+        }
         targetView?.alpha = 0f
 
         overlay.animate().cancel()
@@ -2218,7 +2273,7 @@ class MainActivity : AppCompatActivity() {
         }
         overlay.background = roundedBg(lastLaunchColor)
         overlay.clipToOutline = true
-        val startRadius = 48f * resources.displayMetrics.density
+        val startRadius = prefs.windowCornerRadius.coerceIn(0, 60) * resources.displayMetrics.density
         overlay.outlineProvider = object : ViewOutlineProvider() {
             override fun getOutline(view: View, outline: Outline) {
                 outline.setRoundRect(0, 0, view.width, view.height, startRadius)
@@ -2239,6 +2294,7 @@ class MainActivity : AppCompatActivity() {
         val startSY = overlay.scaleY
         val arcH = prefs.closeArcHeight.coerceIn(0f, 900f)
         val tilt = prefs.tiltAnimation && !prefs.powerSaving
+        val ti = prefs.tiltIntensity.coerceIn(0, 100) / 50f
 
         val upDur = (dur * 0.38f).toLong().coerceAtLeast(60L)
         val downDur = (dur - upDur).coerceAtLeast(60L)
@@ -2258,7 +2314,8 @@ class MainActivity : AppCompatActivity() {
             overlay.rotationY = 0f
             overlay.clipToOutline = false
             clearBlur()
-            targetView?.alpha = 1f
+            closeTargetView?.alpha = 1f
+            closeTargetView = null
             bounceTargetIcon(lastLaunchKey)
         }
 
@@ -2296,7 +2353,7 @@ class MainActivity : AppCompatActivity() {
         overlay.animate()
             .translationX(midTX).translationY(midTY)
             .scaleX(midSX).scaleY(midSY)
-            .rotationX(if (tilt) -8f else 0f).rotationY(if (tilt) 3f else 0f)
+            .rotationX(if (tilt) -10f * ti else 0f).rotationY(if (tilt) 4f * ti else 0f)
             .setDuration(upDur)
             .setInterpolator(DecelerateInterpolator(1.2f))
             .withEndAction {
@@ -2375,7 +2432,7 @@ class MainActivity : AppCompatActivity() {
     private fun roundedBg(color: Int): Drawable {
         val d = android.graphics.drawable.GradientDrawable()
         d.shape = android.graphics.drawable.GradientDrawable.RECTANGLE
-        d.cornerRadius = 48f * resources.displayMetrics.density
+        d.cornerRadius = prefs.windowCornerRadius.coerceIn(0, 60) * resources.displayMetrics.density
         d.setColor(color)
         return d
     }
