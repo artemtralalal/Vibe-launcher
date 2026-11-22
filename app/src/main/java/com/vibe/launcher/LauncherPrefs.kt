@@ -154,7 +154,7 @@ class LauncherPrefs(context: Context) {
         prefs.edit().putString(KEY_DOCK, JSONArray(keys).toString()).apply()
     }
 
-    fun loadGridOrder(): List<String> = loadPages().firstOrNull() ?: emptyList()
+    fun loadGridOrder(): List<String> = loadPages().firstOrNull()?.filterNotNull() ?: emptyList()
     fun loadDockOrder(): List<String> = loadList(KEY_DOCK)
 
     private fun loadList(key: String): List<String> {
