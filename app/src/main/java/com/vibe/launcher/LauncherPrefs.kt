@@ -112,30 +112,37 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getBoolean("icon_press_anim", true)
         set(v) = prefs.edit().putBoolean("icon_press_anim", v).apply()
 
-    fun savePages(pages: List<List<String>>) {
+    fun savePages(pages: List<List<String?>>) {
         val arr = JSONArray()
         pages.forEach { page ->
             val p = JSONArray()
-            page.forEach { p.put(it) }
+            page.forEach { p.put(it ?: "") }
             arr.put(p)
         }
         prefs.edit().putString(KEY_PAGES, arr.toString()).apply()
     }
 
-    fun loadPages(): List<List<String>> {
+    fun loadPages(): List<List<String?>> {
         val raw = prefs.getString(KEY_PAGES, null)
         if (raw != null) {
             return try {
                 val arr = JSONArray(raw)
                 List(arr.length()) { i ->
                     val p = arr.optJSONArray(i) ?: JSONArray()
-                    List(p.length()) { j -> p.optString(j) }.filter { it.isNotBlank() }
+                    val list = MutableList(p.length()) { j -> p.optString(j).takeIf { it.isNotBlank() } }
+                    // normalize to 24 slots
+                    while (list.size < 24) list.add(null)
+                    if (list.size > 24) list.subList(24, list.size).clear()
+                    list
                 }
             } catch (_: Exception) { emptyList() }
         }
         // Migration from old single grid
         val old = loadList(KEY_GRID)
-        return if (old.isNotEmpty()) listOf(old) else emptyList()
+        if (old.isEmpty()) return emptyList()
+        val slots = MutableList<String?>(24) { null }
+        old.forEachIndexed { i, k -> if (i < 24) slots[i] = k }
+        return listOf(slots)
     }
 
     fun saveGridOrder(keys: List<String>) {
