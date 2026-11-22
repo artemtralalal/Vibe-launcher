@@ -1784,7 +1784,7 @@ class MainActivity : AppCompatActivity() {
             val sz = (base * scale).toInt().coerceAtLeast(1)
             val ilp = icon.layoutParams
             ilp.width = sz; ilp.height = sz; icon.layoutParams = ilp
-            (item as? ViewGroup)?.clipChildren = false; (item as? ViewGroup)?.clipToPadding = false
+            (item as? android.view.ViewGroup)?.let { it.clipChildren = false; it.clipToPadding = false }
             if (ipad && i == 4) {
                 icon.setImageDrawable(getDockFolderIcon())
                 AppGridAdapter.applyShape(icon, prefs.iconShape, currentCornerRadii())
