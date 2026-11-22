@@ -911,55 +911,6 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    private fun showSettingsButton() {
-        if (settingsOverlay.isVisible || appDrawer.isVisible) return
-        quickPanel.isVisible = true
-        settingsButton.isVisible = true
-    }
-
-    private fun updateLandDockLabel() {
-        val p = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) currentDockPosition(true) else "bottom"
-        val label = when (p) { "left" -> "Слева"; "right" -> "Справа"; "bottom-left" -> "Снизу слева"; "bottom-right" -> "Снизу справа"; else -> "Снизу" }
-        findViewById<TextView?>(R.id.landDockLabel)?.text = "Док: $label"
-    }
-
-    private fun updateDrawerStyleLabel() {
-        findViewById<TextView?>(R.id.drawerStyleLabel)?.text = "Меню приложений: ${if (prefs.drawerStyle == "button") "кнопка" else "свайп вверх"}"
-    }
-
-    private fun updateDrawerLayoutLabel() {
-        findViewById<TextView?>(R.id.drawerLayoutLabel)?.text = "Вид меню: ${if (prefs.drawerLayout == "list") "список" else "сетка"}"
-    }
-
-    private fun applyDrawerLayout() {
-        if (!::drawerRecycler.isInitialized) return
-        val landscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-        val cols = if (landscape) 6 else 4
-        drawerRecycler.layoutManager = if (prefs.drawerLayout == "list") LinearLayoutManager(this) else GridLayoutManager(this, cols)
-        drawerRecycler.requestLayout()
-    }
-
-    private fun showDrawerStylePicker() {
-        val opts = arrayOf("Свайп вверх", "Кнопка в доке")
-        AlertDialog.Builder(this).setTitle("Стиль меню").setItems(opts) { _, w ->
-            prefs.drawerStyle = if (w == 1) "button" else "swipe"; updateDrawerStyleLabel(); renderDock(); applyOrientationLayout()
-        }.show()
-    }
-
-    private fun showDrawerLayoutPicker() {
-        val opts = arrayOf("Сетка", "Список")
-        AlertDialog.Builder(this).setTitle("Вид меню").setItems(opts) { _, w ->
-            prefs.drawerLayout = if (w == 1) "list" else "grid"; updateDrawerLayoutLabel(); applyDrawerLayout(); drawerAdapter.submit(allApps)
-        }.show()
-    }
-
-    private fun showDrawerSettingsDialog() {
-        val opts = arrayOf("Вид: сетка/список", "Стиль: свайп/кнопка", "Закрыть")
-        AlertDialog.Builder(this).setTitle("Меню приложений").setItems(opts) { _, w ->
-            when (w) { 0 -> showDrawerLayoutPicker(); 1 -> showDrawerStylePicker() }
-        }.show()
-    }
-
     // ---- Lock / fullscreen / AOD ----
 
     private fun lockAnimDisplayName(key: String): String = when (key) {
@@ -986,70 +937,6 @@ class MainActivity : AppCompatActivity() {
             prefs.lockAnimation = opts[w]
             findViewById<TextView?>(R.id.lockAnimLabel)?.text = "Анимация: ${lockAnimDisplayName(prefs.lockAnimation)}"
             onChanged()
-        }.show()
-    }
-
-    private fun updateUnlockLabel() {
-        findViewById<TextView?>(R.id.unlockAnimLabel)?.text = "Анимация разблокировки: ${lockAnimDisplayName(prefs.unlockAnim)}"
-    }
-    private fun showUnlockAnimPicker() {
-        val opts = listOf("pixel","xiaomi","oneplus","oukitel","samsung","wave","fire","ice","nothing","miui13","hyperos","iphone","pixel2")
-        val names = opts.map { lockAnimDisplayName(it) }.toTypedArray()
-        AlertDialog.Builder(this).setTitle("Анимация разблокировки").setItems(names) { _, w ->
-            prefs.unlockAnim = opts[w]; updateUnlockLabel()
-        }.show()
-    }
-
-    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
-    private fun applyDockStyle() { try { dockBar.background = getDrawable(R.drawable.bg_dock) } catch (_: Exception) {} }
-    private fun applyVisualStyle() { applyDockStyle(); applyAccent() }
-    private fun applyAccent() {
-        try {
-            val accent = prefs.accentColor
-            settingsButton.backgroundTintList = android.content.res.ColorStateList.valueOf(accent)
-            findViewById<ImageButton?>(R.id.drawerBtn)?.setColorFilter(accent)
-        } catch (_: Exception) {}
-    }
-    private fun clearBlur() { try { if (Build.VERSION.SDK_INT >= 31) homeContent.setRenderEffect(null) } catch (_: Exception) {} }
-    private fun applyBlur(strong: Boolean = false) {
-        try { if (Build.VERSION.SDK_INT >= 31) homeContent.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(if (strong) 24f else 12f, if (strong) 24f else 12f, android.graphics.Shader.TileMode.CLAMP)) } catch (_: Exception) {}
-    }
-    private fun deviceSupportsFlagshipByDefault(): Boolean = true
-    private fun applyPowerSavingMode() {
-        val dim = if (prefs.powerSaving) 0.72f else 1f
-        try { homeContent.alpha = dim } catch (_: Exception) {}
-    }
-    private fun requestWriteSettingsPermission() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(this)) {
-                startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, android.net.Uri.parse("package:$packageName")))
-            }
-        } catch (_: Exception) {}
-    }
-    private fun setLowBrightness() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.System.canWrite(this)) {
-                Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
-                Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, 60)
-            } else requestWriteSettingsPermission()
-        } catch (_: Exception) {}
-    }
-    private fun currentCornerRadii(): FloatArray {
-        val r = prefs.iconRadius.coerceIn(0,100) / 100f
-        fun pick(v: Int) = if (v >= 0) v.coerceIn(0,100) / 100f else r
-        return floatArrayOf(pick(prefs.iconRadiusTL), pick(prefs.iconRadiusTR), pick(prefs.iconRadiusBL), pick(prefs.iconRadiusBR))
-    }
-    private fun setupCornerSeekbars() { /* wired in layout; minimal stub */ }
-    private fun updateCornerPreview() { /* minimal stub */ }
-
-    private fun updateIconShapeLabel() {
-        val name = when (prefs.iconShape) { "circle" -> "круглая"; "squircle" -> "сквиркл"; "rounded" -> "скруглённая"; "square" -> "квадрат"; else -> prefs.iconShape }
-        findViewById<TextView?>(R.id.iconShapeLabel)?.text = "Форма иконок: $name"
-    }
-    private fun showIconShapePicker() {
-        val opts = listOf("circle" to "Круг", "squircle" to "Сквиркл", "rounded" to "Скруглённый квадрат", "square" to "Квадрат")
-        AlertDialog.Builder(this).setTitle("Форма иконок").setItems(opts.map{it.second}.toTypedArray()) { _, w ->
-            prefs.iconShape = opts[w].first; updateIconShapeLabel(); gridAdapter.notifyDataSetChanged(); drawerAdapter.notifyDataSetChanged(); renderDock()
         }.show()
     }
 
