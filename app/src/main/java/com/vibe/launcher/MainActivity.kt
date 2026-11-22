@@ -92,6 +92,8 @@ class MainActivity : AppCompatActivity() {
     private var pageDragStartY = 0f
     private var pageDragDx = 0f
     private var dragGridOverlay: DragGridOverlay? = null
+    private val folders = mutableMapOf<String, MutableList<String>>() // folderId -> appKeys
+    private val folderNames = mutableMapOf<String, String>()
 
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -155,6 +157,7 @@ class MainActivity : AppCompatActivity() {
         setupVolumePanel()
         setupAbout()
         applyOrientationLayout()
+        loadFoldersFromPrefs()
         loadApps()
         setupWelcome()
         applyPowerSavingMode()
@@ -274,7 +277,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupGrid() {
         gridAdapter = AppGridAdapter(
-            onClick = { app, icon -> launchApp(app, icon, fromDrawer = false) },
+            onClick = { app, icon -> if (isFolderKey(app.key)) openFolder(folderIdFromKey(app.key)) else launchApp(app, icon, fromDrawer = false) },
             onLongPressDrag = { app, view -> showIconMenu(app, view, fromDock = null, fromDrawer = false) },
             onEmptyLongPress = { showSettingsButton() },
             shape = { prefs.iconShape },
@@ -309,6 +312,7 @@ class MainActivity : AppCompatActivity() {
         drawerRecycler.adapter = drawerAdapter
         applyDrawerLayout()
         appDrawer.setOnClickListener { }
+        findViewById<ImageButton>(R.id.drawerSettingsBtn).setOnClickListener { showDrawerSettingsDialog() }
         drawerSearch.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -794,6 +798,22 @@ class MainActivity : AppCompatActivity() {
             }.show()
     }
 
+    private fun showDrawerSettingsDialog() {
+        val opts = arrayOf(
+            if (prefs.drawerIpadMode) "Режим iPad: вкл" else "Режим iPad: выкл",
+            "Вид меню: ${if (prefs.drawerLayout == "list") "Список" else "Сетка"}",
+            "Стиль открытия: ${if (prefs.drawerStyle == "button") "Кнопка" else "Свайп"}"
+        )
+        AlertDialog.Builder(this).setTitle("Настройки меню приложений")
+            .setItems(opts) { _, which ->
+                when (which) {
+                    0 -> { prefs.drawerIpadMode = !prefs.drawerIpadMode; renderDock() }
+                    1 -> showDrawerLayoutPicker()
+                    2 -> showDrawerStylePicker()
+                }
+            }.show()
+    }
+
     private fun applyDrawerLayout() {
         if (!::drawerRecycler.isInitialized) return
         drawerRecycler.layoutManager = if (prefs.drawerLayout == "list") LinearLayoutManager(this) else GridLayoutManager(this, 4)
@@ -1079,6 +1099,7 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
+                    findViewById<View>(R.id.folderOverlay).isVisible -> findViewById<View>(R.id.folderOverlay).isVisible = false
                     findViewById<View>(R.id.iconMenuOverlay).isVisible -> {
                         findViewById<View>(R.id.iconMenuOverlay).isVisible = false
                         findViewById<View>(R.id.iconMenuPreview).isVisible = false
@@ -1568,7 +1589,11 @@ class MainActivity : AppCompatActivity() {
                                     val page = MutableList<AppEntry?>(pageSize) { null }
                                     for (i in 0 until pageSize) {
                                         val k = pageKeys.getOrNull(i)
-                                        val app = if (k != null) byKey[k] else null
+                                        val app = when {
+                                            k == null -> null
+                                            isFolderKey(k) -> buildFolderEntry(folderIdFromKey(k))
+                                            else -> byKey[k]
+                                        }
                                         if (app != null && app.key !in used) {
                                             page[i] = app
                                             used.add(app.key)
@@ -1601,8 +1626,9 @@ class MainActivity : AppCompatActivity() {
         dockBar.removeAllViews()
         val density = resources.displayMetrics.density
         val vertical = dockBar.orientation == LinearLayout.VERTICAL
-        for (i in 0 until 4) {
-            val app = dockApps[i]
+        val ipad = prefs.drawerIpadMode
+        val slots = if (ipad) 5 else 4
+        for (i in 0 until slots) {
             val item = layoutInflater.inflate(R.layout.item_app, dockBar, false)
             val icon = item.findViewById<ImageView>(R.id.appIcon)
             val label = item.findViewById<TextView>(R.id.appLabel)
@@ -1610,27 +1636,153 @@ class MainActivity : AppCompatActivity() {
             val lp = if (vertical) {
                 LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
             } else {
-                val itemWidth = ((resources.displayMetrics.widthPixels - density * 56) / 4).toInt()
+                val itemWidth = ((resources.displayMetrics.widthPixels - density * 56) / slots).toInt()
                 LinearLayout.LayoutParams(itemWidth, LinearLayout.LayoutParams.MATCH_PARENT)
             }
             item.layoutParams = lp
-            if (app != null) {
-                icon.setImageDrawable(app.icon)
-                label.text = app.label
+            if (ipad && i == 4) {
+                icon.setImageDrawable(getDockFolderIcon())
                 AppGridAdapter.applyShape(icon, prefs.iconShape, currentCornerRadii())
-                item.setOnClickListener { launchApp(app, icon, fromDrawer = false) }
-                item.setOnLongClickListener { showIconMenu(app, item, fromDock = i, fromDrawer = false) }
                 item.alpha = 1f
+                item.setOnClickListener { if (appDrawer.isVisible) closeDrawer() else openDrawer() }
+                item.setOnLongClickListener { showDrawerSettingsDialog(); true }
             } else {
-                item.alpha = 0f
+                val app = dockApps[i]
+                if (app != null) {
+                    icon.setImageDrawable(app.icon)
+                    label.text = app.label
+                    AppGridAdapter.applyShape(icon, prefs.iconShape, currentCornerRadii())
+                    item.setOnClickListener { if (isFolderKey(app.key)) openFolder(folderIdFromKey(app.key)) else launchApp(app, icon, fromDrawer = false) }
+                    item.setOnLongClickListener { showIconMenu(app, item, fromDock = i, fromDrawer = false) }
+                    item.alpha = 1f
+                } else {
+                    item.alpha = 0f
+                }
+                item.setOnDragListener { _, event -> handleDockSlotDrag(i, event) }
             }
-            item.setOnDragListener { _, event -> handleDockSlotDrag(i, event) }
             dockBar.addView(item)
         }
         val drawerBtn = findViewById<ImageButton>(R.id.drawerBtn)
-        drawerBtn.isVisible = prefs.drawerStyle == "button"
+        drawerBtn.isVisible = prefs.drawerStyle == "button" && !ipad
         drawerBtn.setColorFilter(prefs.accentColor)
         drawerBtn.setOnClickListener { if (appDrawer.isVisible) closeDrawer() else openDrawer() }
+    }
+
+    private fun loadFoldersFromPrefs() {
+        try {
+            val arr = org.json.JSONArray(prefs.loadFolders())
+            folders.clear(); folderNames.clear()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val id = o.optString("id"); if (id.isBlank()) continue
+                folderNames[id] = o.optString("name", "Папка")
+                val apps = mutableListOf<String>()
+                val a = o.optJSONArray("apps") ?: org.json.JSONArray()
+                for (j in 0 until a.length()) a.optString(j)?.takeIf { it.isNotBlank() }?.let { apps.add(it) }
+                folders[id] = apps
+            }
+        } catch (_: Exception) { folders.clear(); folderNames.clear() }
+    }
+
+    private fun saveFoldersToPrefs() {
+        try {
+            val arr = org.json.JSONArray()
+            folders.forEach { (id, apps) ->
+                val o = org.json.JSONObject()
+                o.put("id", id); o.put("name", folderNames[id] ?: "Папка")
+                val a = org.json.JSONArray(); apps.forEach { a.put(it) }; o.put("apps", a)
+                arr.put(o)
+            }
+            prefs.saveFolders(arr.toString())
+        } catch (_: Exception) { }
+    }
+
+    private fun folderKey(id: String) = "folder/$id"
+    private fun isFolderKey(key: String?) = key?.startsWith("folder/") == true || key?.startsWith("folder::") == true
+    private fun folderIdFromKey(key: String) = key.removePrefix("folder/").removePrefix("folder::")
+
+    private fun buildFolderEntry(id: String): AppEntry {
+        val name = folderNames[id] ?: "Папка"
+        val icon = getFolderPreviewIcon(id)
+        return AppEntry(name, "folder", id, icon)
+    }
+
+    private fun getFolderPreviewIcon(id: String): android.graphics.drawable.Drawable {
+        val size = dp(56)
+        val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(bmp)
+        val p = android.graphics.Paint(Paint.ANTI_ALIAS_FLAG)
+        p.color = 0x33FFFFFF
+        val r = dp(14).toFloat()
+        c.drawRoundRect(0f,0f,size.toFloat(),size.toFloat(),r,r,p)
+        val keys = folders[id].orEmpty()
+        val inner = dp(18)
+        val pad = dp(8)
+        val gap = dp(4)
+        for (i in 0 until minOf(4, keys.size)) {
+            val row = i / 2; val col = i % 2
+            val left = pad + col * (inner + gap)
+            val top = pad + row * (inner + gap)
+            val app = findApp(keys[i])
+            val d = app?.icon ?: android.graphics.drawable.ColorDrawable(0x55FFFFFF)
+            d.setBounds(left, top, left + inner, top + inner)
+            d.draw(c)
+        }
+        return android.graphics.drawable.BitmapDrawable(resources, bmp)
+    }
+
+    private fun openFolder(id: String) {
+        val overlay = findViewById<FrameLayout>(R.id.folderOverlay)
+        val title = findViewById<TextView>(R.id.folderTitle)
+        val rv = findViewById<RecyclerView>(R.id.folderRecycler)
+        title.text = folderNames[id] ?: "Папка"
+        val apps = folders[id].orEmpty().mapNotNull { findApp(it) }
+        rv.layoutManager = GridLayoutManager(this, 4)
+        val ad = DrawerAdapter(
+            onClick = { app, icon -> overlay.isVisible = false; launchApp(app, icon, fromDrawer = false) },
+            onLongPress = { app, view -> showIconMenu(app, view, fromDock = null, fromDrawer = true); true },
+            shape = { prefs.iconShape },
+            cornerRadii = { currentCornerRadii() }
+        )
+        rv.adapter = ad
+        ad.submit(apps)
+        overlay.isVisible = true
+        overlay.setOnClickListener { overlay.isVisible = false }
+        findViewById<View>(R.id.folderCard).setOnClickListener { }
+    }
+
+    private fun createFolderWith(appKey1: String, appKey2: String, targetSlot: Int) {
+        val id = "f${System.currentTimeMillis()}"
+        folderNames[id] = "Папка"
+        folders[id] = mutableListOf(appKey1, appKey2)
+        saveFoldersToPrefs()
+        val folderEntry = buildFolderEntry(id)
+        // place folder in targetSlot on current page
+        val slots = gridAdapter.allSlots().toMutableList()
+        // remove both apps from slots
+        for (i in slots.indices) { if (slots[i]?.key == appKey1 || slots[i]?.key == appKey2) slots[i] = null }
+        slots[targetSlot.coerceIn(0, pageSize-1)] = folderEntry
+        pages[currentPageIndex] = slots
+        gridAdapter.submitApps(slots)
+        persistLayout()
+    }
+
+    private fun getDockFolderIcon(): android.graphics.drawable.Drawable {
+        val size = dp(56)
+        val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(bmp)
+        val p = android.graphics.Paint(Paint.ANTI_ALIAS_FLAG)
+        p.color = 0x33FFFFFF
+        val r = dp(14).toFloat()
+        c.drawRoundRect(0f,0f,size.toFloat(),size.toFloat(),r,r,p)
+        p.color = 0xCCFFFFFF.toInt()
+        val dot = dp(6).toFloat()
+        val gap = dp(14).toFloat()
+        val start = dp(14).toFloat()
+        for (row in 0..1) for (col in 0..1) {
+            c.drawRoundRect(start + col*gap, start + row*gap, start + col*gap + dot, start + row*gap + dot, dp(2).toFloat(), dp(2).toFloat(), p)
+        }
+        return android.graphics.drawable.BitmapDrawable(resources, bmp)
     }
 
     private fun showIconMenu(app: AppEntry, view: View, fromDock: Int?, fromDrawer: Boolean): Boolean {
@@ -1671,26 +1823,47 @@ class MainActivity : AppCompatActivity() {
             card.addView(tv)
         }
 
-        addOption("Переместить") {
-            view.setOnTouchListener { v, ev ->
-                if (ev.action == android.view.MotionEvent.ACTION_DOWN) {
-                    v.setOnTouchListener(null)
-                    startIconDrag(app, v, fromDock, fromDrawer)
-                    true
-                } else false
+        if (isFolderKey(app.key)) {
+            val fid = folderIdFromKey(app.key)
+            addOption("Открыть") { openFolder(fid) }
+            addOption("Переименовать") {
+                val input = android.widget.EditText(this)
+                input.setText(folderNames[fid] ?: "Папка")
+                AlertDialog.Builder(this).setTitle("Имя папки").setView(input)
+                    .setPositiveButton("OK") { _, _ ->
+                        folderNames[fid] = input.text?.toString()?.trim().takeUnless { it.isNullOrBlank() } ?: "Папка"
+                        saveFoldersToPrefs(); loadApps()
+                    }.setNegativeButton("Отмена", null).show()
             }
-            android.widget.Toast.makeText(this, "Перетащите иконку", android.widget.Toast.LENGTH_SHORT).show()
-        }
-        if (!fromDrawer) {
-            addOption("Убрать с рабочего стола") {
-                animateShatter(view) {
-                    if (fromDock != null) dockApps[fromDock] = null else gridAdapter.removeByKey(app.key)
-                    renderDock(); persistLayout(); updatePageIndicator()
+            addOption("Удалить папку", danger = true) {
+                val keys = folders[fid].orEmpty()
+                folders.remove(fid); folderNames.remove(fid); saveFoldersToPrefs()
+                gridAdapter.removeByKey(app.key)
+                keys.forEachIndexed { idx, k -> findApp(k)?.let { addToCurrentPage(it, gridAdapter.itemCount) } }
+                persistLayout(); renderCurrentPage(); renderDock()
+            }
+        } else {
+            addOption("Переместить") {
+                view.setOnTouchListener { v, ev ->
+                    if (ev.action == android.view.MotionEvent.ACTION_DOWN) {
+                        v.setOnTouchListener(null)
+                        startIconDrag(app, v, fromDock, fromDrawer)
+                        true
+                    } else false
+                }
+                android.widget.Toast.makeText(this, "Перетащите иконку", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            if (!fromDrawer) {
+                addOption("Убрать с рабочего стола") {
+                    animateShatter(view) {
+                        if (fromDock != null) dockApps[fromDock] = null else gridAdapter.removeByKey(app.key)
+                        renderDock(); persistLayout(); updatePageIndicator()
+                    }
                 }
             }
-        }
-        addOption("Удалить с телефона", danger = true) {
-            try { startActivity(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${app.packageName}"))) } catch (_: Exception) { }
+            addOption("Удалить с телефона", danger = true) {
+                try { startActivity(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${app.packageName}"))) } catch (_: Exception) { }
+            }
         }
 
         // position
@@ -1918,8 +2091,21 @@ class MainActivity : AppCompatActivity() {
             val occupant = currentSlots[targetSlot]
             if (occupant == null || occupant.key == key) {
                 currentSlots[targetSlot] = app
+            } else if (isFolderKey(occupant.key) && !isFolderKey(app.key)) {
+                val fid = folderIdFromKey(occupant.key)
+                val list = folders.getOrPut(fid) { mutableListOf() }
+                if (app.key !in list) list.add(app.key)
+                folderNames.putIfAbsent(fid, "Папка")
+                saveFoldersToPrefs()
+                currentSlots[targetSlot] = buildFolderEntry(fid)
+            } else if (fromDrawer && !isFolderKey(occupant.key) && !isFolderKey(app.key)) {
+                val id = "f${System.currentTimeMillis()}"
+                folderNames[id] = "Папка"
+                folders[id] = mutableListOf(occupant.key, app.key)
+                saveFoldersToPrefs()
+                currentSlots[targetSlot] = buildFolderEntry(id)
             } else {
-                // swap: put occupant into source slot if available, else first empty
+                // swap
                 currentSlots[targetSlot] = app
                 if (!fromDrawer && fromDock == null && sourcePage == currentPageIndex && sourceSlot >= 0 && sourceSlot != targetSlot) {
                     currentSlots[sourceSlot] = occupant
@@ -2144,10 +2330,11 @@ class MainActivity : AppCompatActivity() {
         overlay.background = roundedBg(prefs.accentColor)
         overlay.isVisible = true
         overlay.alpha = 0f
-        overlay.scaleX = 0.92f; overlay.scaleY = 0.92f
-        overlay.translationX = 0f; overlay.translationY = 40f * resources.displayMetrics.density
-        overlay.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
-            .setDuration(180).setInterpolator(DecelerateInterpolator(1.4f))
+        overlay.scaleX = 0.2f; overlay.scaleY = 0.2f
+        overlay.translationX = 0f; overlay.translationY = 0f
+        overlay.rotationX = 0f; overlay.rotationY = 0f
+        overlay.animate().alpha(1f).scaleX(1f).scaleY(1f)
+            .setDuration(220).setInterpolator(DecelerateInterpolator(1.6f))
             .withEndAction { openAnimating = false; onEnd() }.start()
     }
 
@@ -2185,12 +2372,13 @@ class MainActivity : AppCompatActivity() {
         overlay.translationY = tY
         if (prefs.tiltAnimation && !prefs.powerSaving) {
             val ti = prefs.tiltIntensity.coerceIn(0, 100) / 50f
-            val cam = resources.displayMetrics.density * 8000f
-            overlay.cameraDistance = cam
-            overlay.rotationX = 12f * ti
-            overlay.rotationY = -6f * ti
+            overlay.cameraDistance = resources.displayMetrics.density * 6000f
+            overlay.pivotY = overlay.height * 0.85f
+            overlay.pivotX = overlay.width / 2f
+            overlay.rotationX = 18f * ti
+            overlay.rotationY = (if (tX < 0) 8f else -8f) * ti
         } else {
-            overlay.rotationX = 0f; overlay.rotationY = 0f
+            overlay.rotationX = 0f; overlay.rotationY = 0f; overlay.pivotX = overlay.width / 2f; overlay.pivotY = overlay.height / 2f
         }
 
         overlay.animate().cancel()
@@ -2223,11 +2411,14 @@ class MainActivity : AppCompatActivity() {
             overlay.animate().cancel()
             overlay.isVisible = true
             overlay.alpha = 1f
-            scaleHomeForOpen(false, 220)
-            overlay.animate().alpha(0f).translationY(-60f * resources.displayMetrics.density).scaleX(0.94f).scaleY(0.94f)
-                .setDuration(220).setInterpolator(DecelerateInterpolator(1.3f))
+            overlay.translationX = 0f; overlay.translationY = 0f
+            overlay.scaleX = 1f; overlay.scaleY = 1f
+            overlay.rotationX = 0f; overlay.rotationY = 0f
+            scaleHomeForOpen(false, 260)
+            overlay.animate().alpha(0f).scaleX(0.18f).scaleY(0.18f)
+                .setDuration(260).setInterpolator(DecelerateInterpolator(1.6f))
                 .withEndAction {
-                    overlay.isVisible = false; overlay.alpha = 1f; overlay.translationY = 0f; overlay.scaleX = 1f; overlay.scaleY = 1f
+                    overlay.isVisible = false; overlay.alpha = 1f; overlay.translationY = 0f; overlay.translationX = 0f; overlay.scaleX = 1f; overlay.scaleY = 1f; overlay.clipToOutline = false; overlay.outlineProvider = ViewOutlineProvider.BACKGROUND
                 }.start()
             return
         }
@@ -2252,11 +2443,12 @@ class MainActivity : AppCompatActivity() {
             closeTargetView = null
             overlay.animate().cancel()
             overlay.isVisible = true
-            scaleHomeForOpen(false, 220)
-            overlay.animate().alpha(0f).translationY(-60f * resources.displayMetrics.density).scaleX(0.94f).scaleY(0.94f)
-                .setDuration(220).setInterpolator(DecelerateInterpolator(1.3f))
+            overlay.translationX = 0f; overlay.translationY = 0f
+            scaleHomeForOpen(false, 260)
+            overlay.animate().alpha(0f).scaleX(0.18f).scaleY(0.18f)
+                .setDuration(260).setInterpolator(DecelerateInterpolator(1.6f))
                 .withEndAction {
-                    overlay.isVisible = false; overlay.alpha = 1f; overlay.translationY = 0f; overlay.scaleX = 1f; overlay.scaleY = 1f; overlay.rotationX = 0f; overlay.rotationY = 0f
+                    overlay.isVisible = false; overlay.alpha = 1f; overlay.translationY = 0f; overlay.translationX = 0f; overlay.scaleX = 1f; overlay.scaleY = 1f; overlay.clipToOutline = false; overlay.outlineProvider = ViewOutlineProvider.BACKGROUND; overlay.rotationX = 0f; overlay.rotationY = 0f
                 }.start()
             return
         }
@@ -2280,7 +2472,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
         if (prefs.tiltAnimation && !prefs.powerSaving) {
-            overlay.cameraDistance = resources.displayMetrics.density * 8000f
+            overlay.cameraDistance = resources.displayMetrics.density * 6000f
+            overlay.pivotY = overlay.height * 0.85f
+            overlay.pivotX = overlay.width / 2f
+        } else {
+            overlay.pivotX = overlay.width / 2f; overlay.pivotY = overlay.height / 2f
         }
         overlay.rotationX = 0f; overlay.rotationY = 0f
 
@@ -2312,7 +2508,10 @@ class MainActivity : AppCompatActivity() {
             overlay.translationY = 0f
             overlay.rotationX = 0f
             overlay.rotationY = 0f
+            overlay.pivotX = overlay.width / 2f
+            overlay.pivotY = overlay.height / 2f
             overlay.clipToOutline = false
+            overlay.outlineProvider = ViewOutlineProvider.BACKGROUND
             clearBlur()
             closeTargetView?.alpha = 1f
             closeTargetView = null
