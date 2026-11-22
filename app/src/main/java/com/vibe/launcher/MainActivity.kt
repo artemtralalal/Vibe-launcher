@@ -1323,7 +1323,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         fun addLabel(t: String) { controls.addView(TextView(this).apply { text = t; setTextColor(0xCCFFFFFF.toInt()); textSize = 13f }) }
-        fun addBtn(t: String, onClick: () -> Unit): Button { val b = Button(this).apply { text = t; setOnClickListener { onClick() } }; controls.addView(b); return b }
+        fun addBtn(t: String, onClick: (Button) -> Unit): Button { val b = Button(this).apply { text = t; setOnClickListener { onClick(this) } }; controls.addView(b); return b }
         fun addSeek(init: Int, max: Int, on: (Int) -> Unit) {
             val s = SeekBar(this); s.max = max; s.progress = init.coerceIn(0, max)
             s.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
