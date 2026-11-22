@@ -581,7 +581,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.quickIcons).setOnClickListener { quickPanel.isVisible = false; showIconShapePicker() }
         findViewById<View>(R.id.quickWidgets).setOnClickListener { quickPanel.isVisible = false; android.widget.Toast.makeText(this, "Виджеты скоро будут добавлены", android.widget.Toast.LENGTH_SHORT).show() }
         settingsOverlay.setOnClickListener { settingsOverlay.isVisible = false }
-        findViewById<View>(R.id.settingsPanel).setOnClickListener { }
+        findViewById<View>(R.id.settingsMain).setOnClickListener { }
+        findViewById<View>(R.id.settingsDetail).setOnClickListener { }
     }
 
     private fun bindSeek(seek: SeekBar, value: Int, min: Int, max: Int, onChange: (Int) -> Unit) {
