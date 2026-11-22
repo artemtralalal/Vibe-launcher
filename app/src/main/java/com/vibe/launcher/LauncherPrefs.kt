@@ -35,6 +35,32 @@ class LauncherPrefs(context: Context) {
     var closeTranslateY: Float
         get() = prefs.getFloat("close_ty", -40f)
         set(v) = prefs.edit().putFloat("close_ty", v).apply()
+
+    var closeArcHeight: Float
+        get() = prefs.getFloat("close_arc_h", 280f)
+        set(v) = prefs.edit().putFloat("close_arc_h", v).apply()
+
+    var landscapeDockSide: String
+        get() = prefs.getString("land_dock_side", "right") ?: "right"
+        set(v) = prefs.edit().putString("land_dock_side", v).apply()
+    var landscapeGridCols: Int
+        get() = prefs.getInt("land_cols", 6)
+        set(v) = prefs.edit().putInt("land_cols", v).apply()
+    var landscapeIconScale: Int
+        get() = prefs.getInt("land_icon_scale", 85)
+        set(v) = prefs.edit().putInt("land_icon_scale", v).apply()
+    var landscapeDockPadding: Int
+        get() = prefs.getInt("land_dock_pad", 8)
+        set(v) = prefs.edit().putInt("land_dock_pad", v).apply()
+    var landscapeGridPadding: Int
+        get() = prefs.getInt("land_grid_pad", 12)
+        set(v) = prefs.edit().putInt("land_grid_pad", v).apply()
+    var portraitGridCols: Int
+        get() = prefs.getInt("port_cols", 4)
+        set(v) = prefs.edit().putInt("port_cols", v).apply()
+    var portraitGridPadding: Int
+        get() = prefs.getInt("port_grid_pad", 16)
+        set(v) = prefs.edit().putInt("port_grid_pad", v).apply()
     var openOvershoot: Float
         get() = prefs.getFloat("open_overshoot", 0.6f)
         set(v) = prefs.edit().putFloat("open_overshoot", v).apply()
