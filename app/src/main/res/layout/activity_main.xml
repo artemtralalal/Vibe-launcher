@@ -239,6 +239,10 @@
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Меню приложений" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
             </LinearLayout>
+            <LinearLayout android:id="@+id/catRowPower" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Энергосбережение" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
+            </LinearLayout>
             <LinearLayout android:id="@+id/catRowAbout" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp">
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="О лаунчере" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
@@ -302,6 +306,8 @@
                         </LinearLayout>
                         <TextView android:id="@+id/iconShapeLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Форма иконок: круглая" android:textColor="@color/white" />
                         <Button android:id="@+id/iconShapeBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Форма иконок" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Предпросмотр формы" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
+                        <ImageView android:id="@+id/cornerPreviewIcon" android:layout_width="64dp" android:layout_height="64dp" android:layout_marginTop="6dp" android:layout_gravity="center_horizontal" android:src="@mipmap/ic_launcher" />
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Радиус всех углов" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
                         <SeekBar android:id="@+id/radiusAllSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Верх-лево / Верх-право" android:textColor="#CCFFFFFF"/>
@@ -315,7 +321,8 @@
 
                     <LinearLayout android:id="@+id/catAnimations" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/flagshipSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Флагманские анимации" android:textColor="@color/white" />
-                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/blurSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Размытие фона" android:textColor="@color/white" />
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/blurSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Расширенные текстуры" android:textColor="@color/white" />
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/tiltSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="false" android:text="Эксперимент: наклон окон (iOS 26)" android:textColor="@color/white" />
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Открытие: длительность" android:textColor="#CCFFFFFF" android:layout_marginTop="12dp"/>
                         <SeekBar android:id="@+id/openDurationSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="600"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закрытие: длительность" android:textColor="#CCFFFFFF"/>
@@ -354,6 +361,13 @@
                         <Button android:id="@+id/drawerStyleBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Стиль меню приложений" />
                         <TextView android:id="@+id/drawerLayoutLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Вид меню: сетка" android:textColor="@color/white" />
                         <Button android:id="@+id/drawerLayoutBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Вид меню приложений" />
+                    </LinearLayout>
+
+                    <LinearLayout android:id="@+id/catPower" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/powerSavingSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Режим энергосбережения" android:textColor="@color/white" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Затемняет иконки и обои, отключает расширенные текстуры, упрощает анимации и может снизить яркость." android:textColor="#CCFFFFFF" android:textSize="13sp"/>
+                        <Button android:id="@+id/powerBrightnessPermBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Разрешить управление яркостью" />
+                        <Button android:id="@+id/powerBrightnessLowBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Снизить яркость" />
                     </LinearLayout>
 
                     <LinearLayout android:id="@+id/catAbout" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
@@ -470,6 +484,35 @@
         <Button android:id="@+id/devCloseStyleBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Morph to icon"/>
         <Button android:id="@+id/devCloseDevBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="Close"/>
     </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/iconMenuOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+
+        <View
+            android:id="@+id/iconMenuBg"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#66000000" />
+
+        <ImageView
+            android:id="@+id/iconMenuPreview"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/iconMenuCard"
+            android:layout_width="220dp"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_settings_panel"
+            android:orientation="vertical"
+            android:padding="8dp" />
+    </FrameLayout>
 
     <LinearLayout
         android:id="@+id/welcomeOverlay"
