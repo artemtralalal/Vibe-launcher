@@ -17,6 +17,7 @@
         android:paddingBottom="20dp">
 
         <FrameLayout
+            android:id="@+id/workspaceContainer"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1">
@@ -52,6 +53,7 @@
             android:orientation="horizontal" />
 
         <LinearLayout
+            android:id="@+id/dockContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
@@ -192,188 +194,177 @@
         android:id="@+id/settingsOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#F2111111"
+        android:background="#FF101010"
         android:clickable="true"
         android:focusable="true"
         android:visibility="gone">
 
-        <ScrollView
+        <LinearLayout
+            android:id="@+id/settingsMain"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:fillViewport="true">
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Настройки"
+                android:textColor="@color/white"
+                android:textSize="28sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="16dp"
+                android:text="Vibe Launcher"
+                android:textColor="#99FFFFFF"
+                android:textSize="14sp" />
+
+            <LinearLayout android:id="@+id/catRowAppearance" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Внешний вид" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/catRowAnimations" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Анимации" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/catRowHome" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Рабочий стол и экран" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/catRowDrawer" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Меню приложений" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/catRowAbout" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="О лаунчере" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/settingsDetail"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
 
             <LinearLayout
-                android:id="@+id/settingsPanel"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="20dp">
-
+                android:layout_height="56dp"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="16dp">
+                <ImageButton
+                    android:id="@+id/settingsBackBtn"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@android:color/transparent"
+                    android:src="@android:drawable/ic_media_previous"
+                    app:tint="@color/white" />
                 <TextView
+                    android:id="@+id/settingsDetailTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/settings_title"
+                    android:layout_marginStart="8dp"
+                    android:text="Настройки"
                     android:textColor="@color/white"
-                    android:textSize="20sp"
+                    android:textSize="22sp"
                     android:textStyle="bold" />
-
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/flagshipSwitch"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:checked="true"
-                    android:text="Флагманские анимации"
-                    android:textColor="@color/white" />
-
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/blurSwitch"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:checked="true"
-                    android:text="Размытие фона"
-                    android:textColor="@color/white" />
-
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/labelsSwitch"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:checked="true"
-                    android:text="Подписи иконок на рабочем столе"
-                    android:textColor="@color/white" />
-
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Анимации" android:textColor="@color/white" android:textStyle="bold" android:textSize="16sp" android:layout_marginTop="16dp"/>
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Открытие: длительность" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
-                <SeekBar android:id="@+id/openDurationSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="600"/>
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закрытие: длительность" android:textColor="#CCFFFFFF"/>
-                <SeekBar android:id="@+id/closeDurationSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="600"/>
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Открытие: масштаб" android:textColor="#CCFFFFFF"/>
-                <SeekBar android:id="@+id/openScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закрытие: масштаб" android:textColor="#CCFFFFFF"/>
-                <SeekBar android:id="@+id/closeScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закрытие: смещение Y" android:textColor="#CCFFFFFF"/>
-                <SeekBar android:id="@+id/closeTySeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Отскок (overshoot)" android:textColor="#CCFFFFFF"/>
-                <SeekBar android:id="@+id/overshootSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="150"/>
-
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Внешний вид" android:textColor="@color/white" android:textStyle="bold" android:textSize="16sp" android:layout_marginTop="16dp"/>
-                <TextView
-                    android:id="@+id/iconPackLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Пакет иконок: системный"
-                    android:textColor="@color/white" />
-
-                <Button
-                    android:id="@+id/pickIconPackBtn"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Выбрать пакет иконок" />
-
-                <Button
-                    android:id="@+id/wallpaperBtn"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Обои" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="Цвет акцента"
-                    android:textColor="@color/white" />
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginTop="4dp">
-                    <View android:id="@+id/accentPurple" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginEnd="8dp" android:background="#7C4DFF"/>
-                    <View android:id="@+id/accentBlue" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginEnd="8dp" android:background="#448AFF"/>
-                    <View android:id="@+id/accentGreen" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginEnd="8dp" android:background="#00C853"/>
-                    <View android:id="@+id/accentOrange" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginEnd="8dp" android:background="#FF6D00"/>
-                    <View android:id="@+id/accentPink" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginEnd="8dp" android:background="#FF4081"/>
-                    <View android:id="@+id/accentRed" android:layout_width="36dp" android:layout_height="36dp" android:background="#FF5252"/>
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/iconShapeLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="Форма иконок: круглая"
-                    android:textColor="@color/white" />
-                <Button
-                    android:id="@+id/iconShapeBtn"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Форма иконок" />
-
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Радиус всех углов" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
-                <SeekBar android:id="@+id/radiusAllSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Верх-лево / Верх-право" android:textColor="#CCFFFFFF"/>
-                <SeekBar android:id="@+id/radiusTLSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
-                <SeekBar android:id="@+id/radiusTRSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Низ-лево / Низ-право" android:textColor="#CCFFFFFF"/>
-                <SeekBar android:id="@+id/radiusBLSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
-                <SeekBar android:id="@+id/radiusBRSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
-                <Button android:id="@+id/resetCornersBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сбросить углы"/>
-
-                <TextView
-                    android:id="@+id/unlockAnimLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="Анимация разблокировки: Pixel"
-                    android:textColor="@color/white" />
-                <Button
-                    android:id="@+id/unlockAnimBtn"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Анимация разблокировки" />
-
-                <TextView
-                    android:id="@+id/drawerStyleLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="Меню приложений: свайп вверх"
-                    android:textColor="@color/white" />
-                <Button
-                    android:id="@+id/drawerStyleBtn"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Стиль меню приложений" />
-
-                <TextView
-                    android:id="@+id/drawerLayoutLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Вид меню: сетка"
-                    android:textColor="@color/white" />
-                <Button
-                    android:id="@+id/drawerLayoutBtn"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Вид меню приложений" />
-
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="О телефоне" android:textColor="@color/white" android:textStyle="bold" android:textSize="16sp" android:layout_marginTop="16dp"/>
-                <LinearLayout
-                    android:id="@+id/aboutCardBtn"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:background="@drawable/bg_settings_panel"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Vibe Launcher" android:textColor="@color/white" android:textSize="20sp" android:textStyle="bold"/>
-                    <TextView android:id="@+id/aboutCardVersion" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1.9.3-beta" android:textColor="#CCFFFFFF" android:layout_marginTop="4dp"/>
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Нажмите, чтобы открыть" android:textColor="#99FFFFFF" android:layout_marginTop="8dp" android:textSize="12sp"/>
-                </LinearLayout>
             </LinearLayout>
-        </ScrollView>
+
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:fillViewport="true">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <LinearLayout android:id="@+id/catAppearance" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/labelsSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Подписи иконок" android:textColor="@color/white" />
+                        <TextView android:id="@+id/iconPackLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Пакет иконок: системный" android:textColor="@color/white" />
+                        <Button android:id="@+id/pickIconPackBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Выбрать пакет иконок" />
+                        <Button android:id="@+id/wallpaperBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Обои" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Цвет акцента" android:textColor="@color/white" />
+                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="4dp">
+                            <View android:id="@+id/accentPurple" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginEnd="8dp" android:background="#7C4DFF"/>
+                            <View android:id="@+id/accentBlue" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginEnd="8dp" android:background="#448AFF"/>
+                            <View android:id="@+id/accentGreen" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginEnd="8dp" android:background="#00C853"/>
+                            <View android:id="@+id/accentOrange" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginEnd="8dp" android:background="#FF6D00"/>
+                            <View android:id="@+id/accentPink" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginEnd="8dp" android:background="#FF4081"/>
+                            <View android:id="@+id/accentRed" android:layout_width="36dp" android:layout_height="36dp" android:background="#FF5252"/>
+                        </LinearLayout>
+                        <TextView android:id="@+id/iconShapeLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Форма иконок: круглая" android:textColor="@color/white" />
+                        <Button android:id="@+id/iconShapeBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Форма иконок" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Радиус всех углов" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
+                        <SeekBar android:id="@+id/radiusAllSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Верх-лево / Верх-право" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/radiusTLSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <SeekBar android:id="@+id/radiusTRSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Низ-лево / Низ-право" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/radiusBLSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <SeekBar android:id="@+id/radiusBRSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <Button android:id="@+id/resetCornersBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сбросить углы"/>
+                    </LinearLayout>
+
+                    <LinearLayout android:id="@+id/catAnimations" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/flagshipSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Флагманские анимации" android:textColor="@color/white" />
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/blurSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Размытие фона" android:textColor="@color/white" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Открытие: длительность" android:textColor="#CCFFFFFF" android:layout_marginTop="12dp"/>
+                        <SeekBar android:id="@+id/openDurationSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="600"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закрытие: длительность" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/closeDurationSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="600"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Открытие: масштаб" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/openScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закрытие: масштаб" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/closeScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закрытие: высота дуги (физика)" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/closeTySeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="600"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Отскок (overshoot)" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/overshootSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="150"/>
+                        <TextView android:id="@+id/unlockAnimLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Анимация разблокировки: Pixel" android:textColor="@color/white" />
+                        <Button android:id="@+id/unlockAnimBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Анимация разблокировки" />
+                    </LinearLayout>
+
+                    <LinearLayout android:id="@+id/catHome" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <TextView android:id="@+id/landDockLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Док в горизонтали: справа" android:textColor="@color/white" />
+                        <Button android:id="@+id/landDockBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Положение дока (горизонт.)"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сетка (портрет): колонки" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
+                        <SeekBar android:id="@+id/portColsSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="3"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сетка (портрет): отступы" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/portPadSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="40"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сетка (горизонт.): колонки" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/landColsSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="4"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сетка (горизонт.): отступы" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/landPadSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="40"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Горизонт.: масштаб иконок" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/landScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="60"/>
+                    </LinearLayout>
+
+                    <LinearLayout android:id="@+id/catDrawer" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <TextView android:id="@+id/drawerStyleLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Меню приложений: свайп вверх" android:textColor="@color/white" />
+                        <Button android:id="@+id/drawerStyleBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Стиль меню приложений" />
+                        <TextView android:id="@+id/drawerLayoutLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Вид меню: сетка" android:textColor="@color/white" />
+                        <Button android:id="@+id/drawerLayoutBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Вид меню приложений" />
+                    </LinearLayout>
+
+                    <LinearLayout android:id="@+id/catAbout" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <LinearLayout android:id="@+id/aboutCardBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/bg_settings_panel" android:orientation="vertical" android:padding="16dp">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Vibe Launcher" android:textColor="@color/white" android:textSize="20sp" android:textStyle="bold"/>
+                            <TextView android:id="@+id/aboutCardVersion" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1.9.3-beta" android:textColor="#CCFFFFFF" android:layout_marginTop="4dp"/>
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Нажмите, чтобы открыть подробности" android:textColor="#99FFFFFF" android:layout_marginTop="8dp" android:textSize="12sp"/>
+                        </LinearLayout>
+                    </LinearLayout>
+
+                </LinearLayout>
+            </ScrollView>
+        </LinearLayout>
     </FrameLayout>
 
     <LinearLayout
