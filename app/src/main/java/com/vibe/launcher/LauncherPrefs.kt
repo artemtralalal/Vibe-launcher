@@ -116,6 +116,14 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getString("dock_hide_style", "slide") ?: "slide" // slide | genie
         set(v) = prefs.edit().putString("dock_hide_style", v).apply()
 
+    var desktopMode: Boolean
+        get() = prefs.getBoolean("desktop_mode", false)
+        set(v) = prefs.edit().putBoolean("desktop_mode", v).apply()
+
+    var landscapeDockPosition: String
+        get() = prefs.getString("land_dock_pos", "right") ?: "right" // right | left | bottom
+        set(v) = prefs.edit().putString("land_dock_pos", v).apply()
+
     var powerSaving: Boolean
         get() = prefs.getBoolean("power_saving", false)
         set(v) = prefs.edit().putBoolean("power_saving", v).apply()
