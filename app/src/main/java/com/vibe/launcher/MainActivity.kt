@@ -156,6 +156,7 @@ class MainActivity : AppCompatActivity() {
         applyOrientationLayout()
         loadApps()
         setupWelcome()
+        applyPowerSavingMode()
         try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
         try { registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) } catch (_: Exception) {}
     }
@@ -163,6 +164,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         try { unregisterReceiver(unlockReceiver) } catch (_: Exception) {}
         try { unregisterReceiver(volumeReceiver) } catch (_: Exception) {}
+        try { unlockPlayer?.release() } catch (_: Exception) {}
         super.onDestroy()
     }
 
@@ -549,6 +551,14 @@ class MainActivity : AppCompatActivity() {
         flagshipSwitch.setOnCheckedChangeListener { _, c -> prefs.flagshipAnimations = c }
         blurSwitch.isChecked = prefs.blurEnabled
         blurSwitch.setOnCheckedChangeListener { _, c -> prefs.blurEnabled = c }
+        val tiltSwitch = findViewById<SwitchMaterial>(R.id.tiltSwitch)
+        tiltSwitch.isChecked = prefs.tiltAnimation
+        tiltSwitch.setOnCheckedChangeListener { _, c -> prefs.tiltAnimation = c }
+        val powerSwitch = findViewById<SwitchMaterial>(R.id.powerSavingSwitch)
+        powerSwitch.isChecked = prefs.powerSaving
+        powerSwitch.setOnCheckedChangeListener { _, c -> prefs.powerSaving = c; applyPowerSavingMode() }
+        findViewById<Button>(R.id.powerBrightnessPermBtn).setOnClickListener { requestWriteSettingsPermission() }
+        findViewById<Button>(R.id.powerBrightnessLowBtn).setOnClickListener { setLowBrightness() }
         val labelsSwitch = findViewById<SwitchMaterial>(R.id.labelsSwitch)
         labelsSwitch.isChecked = prefs.showLabels
         labelsSwitch.setOnCheckedChangeListener { _, c -> prefs.showLabels = c; gridAdapter.notifyDataSetChanged() }
@@ -580,6 +590,7 @@ class MainActivity : AppCompatActivity() {
         updateIconShapeLabel()
         findViewById<Button>(R.id.iconShapeBtn).setOnClickListener { showIconShapePicker() }
         setupCornerSeekbars()
+        updateCornerPreview()
         updateUnlockLabel()
         findViewById<Button>(R.id.unlockAnimBtn).setOnClickListener { showUnlockAnimPicker() }
         updateDrawerStyleLabel()
@@ -702,6 +713,7 @@ class MainActivity : AppCompatActivity() {
             .setItems(shapes.map { it.second }.toTypedArray()) { _, which ->
                 prefs.iconShape = shapes[which].first
                 updateIconShapeLabel()
+                updateCornerPreview()
                 loadApps()
             }.show()
     }
@@ -711,7 +723,7 @@ class MainActivity : AppCompatActivity() {
             "pixel" -> "Pixel"; "poco" -> "POCO/Xiaomi"; "ios" -> "iPhone"
             "ripple" -> "Ripple (отпечаток)"; "wave" -> "Волна"; "fire" -> "Огонь"; "ice" -> "Лёд"
             "samsung" -> "Samsung One UI"; "oneplus" -> "OnePlus"; "nothing" -> "Nothing"; "hyperos" -> "HyperOS"
-            "miui13" -> "MIUI 13"; "none" -> "Нет"; else -> prefs.unlockAnim
+            "miui13" -> "MIUI 13"; "oukitel" -> "Oukitel / Чистый Android"; "none" -> "Нет"; else -> prefs.unlockAnim
         }
         findViewById<TextView>(R.id.unlockAnimLabel).text = "Анимация разблокировки: $label"
     }
@@ -721,7 +733,7 @@ class MainActivity : AppCompatActivity() {
             "pixel" to "Pixel", "poco" to "POCO/Xiaomi", "ios" to "iPhone",
             "ripple" to "Ripple (отпечаток)", "wave" to "Волна", "fire" to "Огонь", "ice" to "Лёд",
             "samsung" to "Samsung One UI", "oneplus" to "OnePlus", "nothing" to "Nothing", "hyperos" to "HyperOS",
-            "miui13" to "MIUI 13", "none" to "Нет"
+            "miui13" to "MIUI 13", "oukitel" to "Oukitel / Чистый Android", "none" to "Нет"
         )
         AlertDialog.Builder(this).setTitle("Анимация разблокировки")
             .setItems(opts.map { it.second }.toTypedArray()) { _, which ->
@@ -797,6 +809,7 @@ class MainActivity : AppCompatActivity() {
             gridAdapter.notifyDataSetChanged()
             drawerAdapter.notifyDataSetChanged()
             renderDock()
+            updateCornerPreview()
         }
         fun bind(id: Int, value: () -> Int, onVal: (Int) -> Unit) {
             val sb = findViewById<SeekBar>(id)
@@ -823,19 +836,75 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var globalDetector: GestureDetector
 
+    private fun updateCornerPreview() {
+        try {
+            val preview = findViewById<ImageView>(R.id.cornerPreviewIcon)
+            val icon = packageManager.getApplicationIcon(packageName)
+            preview.setImageDrawable(icon)
+            AppGridAdapter.applyShape(preview, prefs.iconShape, currentCornerRadii())
+            preview.invalidate()
+        } catch (_: Exception) { }
+    }
+
+    private fun applyPowerSavingMode() {
+        val on = prefs.powerSaving
+        homeContent.alpha = if (on) 0.72f else 1f
+        homeContent.setBackgroundColor(if (on) 0x55000000 else 0x00000000)
+        if (on) {
+            clearBlur()
+        }
+        if (::gridRecycler.isInitialized) gridRecycler.alpha = if (on) 0.85f else 1f
+        if (::dockBar.isInitialized) dockBar.alpha = if (on) 0.85f else 1f
+        gridAdapter.notifyDataSetChanged()
+        renderDock()
+    }
+
+    private fun requestWriteSettingsPermission() {
+        try {
+            if (android.provider.Settings.System.canWrite(this)) {
+                android.widget.Toast.makeText(this, "Разрешение уже есть", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            val intent = Intent(android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS)
+            intent.data = android.net.Uri.parse("package:$packageName")
+            startActivity(intent)
+        } catch (_: Exception) {
+            android.widget.Toast.makeText(this, "Не удалось открыть настройки разрешения", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun setLowBrightness() {
+        try {
+            if (!android.provider.Settings.System.canWrite(this)) {
+                android.widget.Toast.makeText(this, "Сначала дайте разрешение на управление яркостью", android.widget.Toast.LENGTH_SHORT).show()
+                requestWriteSettingsPermission()
+                return
+            }
+            android.provider.Settings.System.putInt(contentResolver, android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE, android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+            android.provider.Settings.System.putInt(contentResolver, android.provider.Settings.System.SCREEN_BRIGHTNESS, 30)
+            val lp = window.attributes
+            lp.screenBrightness = 30f / 255f
+            window.attributes = lp
+            android.widget.Toast.makeText(this, "Яркость снижена", android.widget.Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) {
+            android.widget.Toast.makeText(this, "Не удалось изменить яркость", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun setupSettingsNavigation() {
         findViewById<View>(R.id.settingsBackBtn).setOnClickListener { showSettingsMain() }
         findViewById<View>(R.id.catRowAppearance).setOnClickListener { showSettingsCategory("appearance") }
         findViewById<View>(R.id.catRowAnimations).setOnClickListener { showSettingsCategory("animations") }
         findViewById<View>(R.id.catRowHome).setOnClickListener { showSettingsCategory("home") }
         findViewById<View>(R.id.catRowDrawer).setOnClickListener { showSettingsCategory("drawer") }
+        findViewById<View>(R.id.catRowPower).setOnClickListener { showSettingsCategory("power") }
         findViewById<View>(R.id.catRowAbout).setOnClickListener { showSettingsCategory("about") }
     }
 
     private fun showSettingsMain() {
         findViewById<View>(R.id.settingsMain).isVisible = true
         findViewById<View>(R.id.settingsDetail).isVisible = false
-        listOf(R.id.catAppearance, R.id.catAnimations, R.id.catHome, R.id.catDrawer, R.id.catAbout).forEach {
+        listOf(R.id.catAppearance, R.id.catAnimations, R.id.catHome, R.id.catDrawer, R.id.catPower, R.id.catAbout).forEach {
             findViewById<View>(it).isVisible = false
         }
     }
@@ -848,6 +917,7 @@ class MainActivity : AppCompatActivity() {
             "animations" to (R.id.catAnimations to "Анимации"),
             "home" to (R.id.catHome to "Рабочий стол и экран"),
             "drawer" to (R.id.catDrawer to "Меню приложений"),
+            "power" to (R.id.catPower to "Энергосбережение"),
             "about" to (R.id.catAbout to "О лаунчере")
         )
         map.forEach { (k, v) -> findViewById<View>(v.first).isVisible = k == cat }
@@ -975,6 +1045,11 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
+                    findViewById<View>(R.id.iconMenuOverlay).isVisible -> {
+                        findViewById<View>(R.id.iconMenuOverlay).isVisible = false
+                        findViewById<View>(R.id.iconMenuPreview).isVisible = false
+                        clearBlur(); if (appDrawer.isVisible) appDrawer.alpha = 1f
+                    }
                     findViewById<View>(R.id.devOverlay).isVisible -> findViewById<View>(R.id.devOverlay).isVisible = false
                     findViewById<View>(R.id.aboutOverlay).isVisible -> findViewById<View>(R.id.aboutOverlay).isVisible = false
                     settingsOverlay.isVisible -> {
@@ -1115,6 +1190,25 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) { }
     }
 
+    private var unlockPlayer: android.media.MediaPlayer? = null
+    private fun playUnlockSound(anim: String) {
+        try {
+            val resId = when (anim) {
+                "samsung" -> R.raw.unlock_samsung
+                "ios" -> R.raw.unlock_iphone
+                "oukitel", "pixel" -> R.raw.unlock_pixel
+                "oneplus", "nothing" -> R.raw.unlock_oneplus
+                else -> 0
+            }
+            if (resId == 0) return
+            unlockPlayer?.release()
+            unlockPlayer = android.media.MediaPlayer.create(this, resId)?.apply {
+                setOnCompletionListener { it.release(); if (unlockPlayer === it) unlockPlayer = null }
+                start()
+            }
+        } catch (_: Exception) { }
+    }
+
     private fun playUnlockAnimation() {
         if (prefs.unlockAnim == "none") return
         val now = android.os.SystemClock.uptimeMillis()
@@ -1136,6 +1230,11 @@ class MainActivity : AppCompatActivity() {
             val centerX = root.width / 2f
             val bottomY = root.height.toFloat()
             val anim = prefs.unlockAnim
+            if (anim == "oukitel" || anim == "pixel") {
+                applyBlur(true)
+                root.postDelayed({ clearBlur() }, 700)
+            }
+            playUnlockSound(anim)
 
             if (anim == "ripple") {
                 val ripple = View(this)
@@ -1256,6 +1355,12 @@ class MainActivity : AppCompatActivity() {
                         v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
                             .setStartDelay((row * 55L + (idx % 4) * 18L).coerceAtMost(360L))
                             .setDuration(420).setInterpolator(DecelerateInterpolator(1.8f)).start()
+                    }
+                    "oukitel" -> {
+                        v.alpha = 0f; v.translationY = 90f * resources.displayMetrics.density / 3f; v.scaleX = 0.98f; v.scaleY = 0.98f
+                        v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
+                            .setStartDelay((idx * 18L).coerceAtMost(220L))
+                            .setDuration(420).setInterpolator(DecelerateInterpolator(2f)).start()
                     }
                     else -> { // pixel
                         v.alpha = 0f; v.translationY = 120f; v.scaleX = 0.92f; v.scaleY = 0.92f
@@ -1490,9 +1595,44 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showIconMenu(app: AppEntry, view: View, fromDock: Int?, fromDrawer: Boolean): Boolean {
-        val options = mutableListOf<String>()
-        val actions = mutableListOf<() -> Unit>()
-        options.add("Переместить"); actions.add {
+        val overlay = findViewById<FrameLayout>(R.id.iconMenuOverlay)
+        val card = findViewById<LinearLayout>(R.id.iconMenuCard)
+        val bg = findViewById<View>(R.id.iconMenuBg)
+        val preview = findViewById<ImageView>(R.id.iconMenuPreview)
+        card.removeAllViews()
+        card.setOnClickListener { }
+
+        fun closeMenu() {
+            overlay.isVisible = false
+            preview.isVisible = false
+            clearBlur()
+            if (appDrawer.isVisible) appDrawer.alpha = 1f
+        }
+        bg.setOnClickListener { closeMenu() }
+        overlay.setOnClickListener { closeMenu() }
+
+        val title = TextView(this).apply {
+            text = app.label
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 14f
+            setPadding(dp(12), dp(10), dp(12), dp(6))
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+        card.addView(title)
+
+        fun addOption(label: String, danger: Boolean = false, action: () -> Unit) {
+            val tv = TextView(this).apply {
+                text = label
+                setTextColor(if (danger) 0xFFFF6B6B.toInt() else 0xFFFFFFFF.toInt())
+                textSize = 14f
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                isClickable = true; isFocusable = true
+                setOnClickListener { closeMenu(); action() }
+            }
+            card.addView(tv)
+        }
+
+        addOption("Переместить") {
             view.setOnTouchListener { v, ev ->
                 if (ev.action == android.view.MotionEvent.ACTION_DOWN) {
                     v.setOnTouchListener(null)
@@ -1500,25 +1640,52 @@ class MainActivity : AppCompatActivity() {
                     true
                 } else false
             }
-            android.widget.Toast.makeText(this, "Теперь перетащите иконку", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(this, "Перетащите иконку", android.widget.Toast.LENGTH_SHORT).show()
         }
         if (!fromDrawer) {
-            options.add("Убрать с рабочего стола"); actions.add {
+            addOption("Убрать с рабочего стола") {
                 animateShatter(view) {
                     if (fromDock != null) dockApps[fromDock] = null else gridAdapter.removeByKey(app.key)
                     renderDock(); persistLayout(); updatePageIndicator()
                 }
             }
         }
-        options.add("Удалить с телефона"); actions.add {
-            try {
-                val intent = Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${app.packageName}"))
-                startActivity(intent)
-            } catch (_: Exception) { }
+        addOption("Удалить с телефона", danger = true) {
+            try { startActivity(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${app.packageName}"))) } catch (_: Exception) { }
         }
-        AlertDialog.Builder(this).setTitle(app.label).setItems(options.toTypedArray()) { _, which -> actions[which]() }.show()
+
+        // position
+        val loc = IntArray(2); view.getLocationOnScreen(loc)
+        val iconSize = view.width.coerceAtLeast(dp(48))
+        preview.setImageDrawable(app.icon.constantState?.newDrawable()?.mutate() ?: app.icon)
+        preview.layoutParams = FrameLayout.LayoutParams(iconSize, iconSize).apply { leftMargin = loc[0]; topMargin = loc[1] }
+        preview.isVisible = true
+        AppGridAdapter.applyShape(preview, prefs.iconShape, currentCornerRadii())
+
+        overlay.isVisible = true
+        overlay.bringToFront()
+        card.post {
+            val lp = card.layoutParams as FrameLayout.LayoutParams
+            val screenW = root.width
+            val screenH = root.height
+            var left = loc[0]
+            var top = loc[1] + iconSize + dp(8)
+            if (left + card.width > screenW - dp(12)) left = screenW - card.width - dp(12)
+            if (left < dp(12)) left = dp(12)
+            if (top + card.height > screenH - dp(12)) top = loc[1] - card.height - dp(8)
+            if (top < dp(12)) top = dp(12)
+            lp.leftMargin = left; lp.topMargin = top
+            card.layoutParams = lp
+        }
+
+        if (prefs.blurEnabled && !prefs.powerSaving && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            homeContent.setRenderEffect(RenderEffect.createBlurEffect(30f,30f, Shader.TileMode.CLAMP))
+            if (appDrawer.isVisible) appDrawer.alpha = 0.7f
+        }
         return true
     }
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private fun startIconDrag(app: AppEntry, view: View, fromDock: Int?, fromDrawer: Boolean): Boolean {
         draggedKey = app.key
@@ -1901,9 +2068,10 @@ class MainActivity : AppCompatActivity() {
             lastLaunchColor = extractColor(app.icon)
 
             if (!prefs.flagshipAnimations) {
-                val opts = ActivityOptions.makeCustomAnimation(this, android.R.anim.fade_in, android.R.anim.fade_out)
-                try { startActivity(intent, opts.toBundle()) } catch (_: Exception) {}
-                pendingLaunch = false
+                playSimpleOpenAnimation {
+                    val opts = ActivityOptions.makeCustomAnimation(this, 0, 0)
+                    try { startActivity(intent, opts.toBundle()); pendingLaunch = true } catch (_: Exception) { pendingLaunch = false; animationOverlay.isVisible = false }
+                }
             } else {
                 playOpenAnimation(fromDrawer, lastLaunchBounds!!, lastLaunchColor) {
                     val opts = ActivityOptions.makeCustomAnimation(this, 0, 0)
@@ -1928,6 +2096,20 @@ class MainActivity : AppCompatActivity() {
         } else {
             doLaunch()
         }
+    }
+
+    private fun playSimpleOpenAnimation(onEnd: () -> Unit) {
+        openAnimating = true
+        val overlay = animationOverlay
+        overlay.animate().cancel()
+        overlay.background = roundedBg(prefs.accentColor)
+        overlay.isVisible = true
+        overlay.alpha = 0f
+        overlay.scaleX = 0.92f; overlay.scaleY = 0.92f
+        overlay.translationX = 0f; overlay.translationY = 40f * resources.displayMetrics.density
+        overlay.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+            .setDuration(180).setInterpolator(DecelerateInterpolator(1.4f))
+            .withEndAction { openAnimating = false; onEnd() }.start()
     }
 
     private fun playOpenAnimation(fromDrawer: Boolean, bounds: IntArray, color: Int, onEnd: () -> Unit) {
@@ -1960,12 +2142,21 @@ class MainActivity : AppCompatActivity() {
         overlay.scaleY = sY
         overlay.translationX = tX
         overlay.translationY = tY
+        if (prefs.tiltAnimation && !prefs.powerSaving) {
+            val cam = resources.displayMetrics.density * 8000f
+            overlay.cameraDistance = cam
+            overlay.rotationX = 12f
+            overlay.rotationY = -6f
+        } else {
+            overlay.rotationX = 0f; overlay.rotationY = 0f
+        }
 
         overlay.animate().cancel()
         overlay.animate()
             .scaleX(1f).scaleY(1f)
             .translationX(prefs.openTranslateX)
             .translationY(prefs.openTranslateY)
+            .rotationX(0f).rotationY(0f)
             .setDuration(prefs.openDuration.toLong())
             .setInterpolator(DecelerateInterpolator(1.4f))
             .withEndAction {
@@ -1985,6 +2176,18 @@ class MainActivity : AppCompatActivity() {
         closeAnimator?.cancel()
         closeAnimator = null
         clearBlur()
+        if (!prefs.flagshipAnimations || prefs.powerSaving) {
+            overlay.animate().cancel()
+            overlay.isVisible = true
+            overlay.alpha = 1f
+            scaleHomeForOpen(false, 220)
+            overlay.animate().alpha(0f).translationY(-60f * resources.displayMetrics.density).scaleX(0.94f).scaleY(0.94f)
+                .setDuration(220).setInterpolator(DecelerateInterpolator(1.3f))
+                .withEndAction {
+                    overlay.isVisible = false; overlay.alpha = 1f; overlay.translationY = 0f; overlay.scaleX = 1f; overlay.scaleY = 1f
+                }.start()
+            return
+        }
 
         val screenW = root.width.toFloat().coerceAtLeast(1f)
         val screenH = root.height.toFloat().coerceAtLeast(1f)
@@ -2014,11 +2217,16 @@ class MainActivity : AppCompatActivity() {
         }
         overlay.background = roundedBg(lastLaunchColor)
         overlay.clipToOutline = true
+        val startRadius = 48f * resources.displayMetrics.density
         overlay.outlineProvider = object : ViewOutlineProvider() {
             override fun getOutline(view: View, outline: Outline) {
-                outline.setRoundRect(0, 0, view.width, view.height, 48f * resources.displayMetrics.density)
+                outline.setRoundRect(0, 0, view.width, view.height, startRadius)
             }
         }
+        if (prefs.tiltAnimation && !prefs.powerSaving) {
+            overlay.cameraDistance = resources.displayMetrics.density * 8000f
+        }
+        overlay.rotationX = 0f; overlay.rotationY = 0f
 
         val dur = prefs.closeDuration.toLong().coerceAtLeast(120L)
         scaleHomeForOpen(false, dur)
@@ -2045,15 +2253,34 @@ class MainActivity : AppCompatActivity() {
                 overlay.scaleX = startSX + (sX - startSX) * p
                 overlay.scaleY = startSY + (sY - startSY) * p
                 overlay.alpha = startAlpha + (1f - startAlpha) * p
+                if (prefs.tiltAnimation && !prefs.powerSaving) {
+                    overlay.rotationX = -10f * kotlin.math.sin(raw * Math.PI.toFloat())
+                    overlay.rotationY = 4f * raw
+                }
                 if (!morphed && raw >= 0.45f) {
                     morphed = true
                     try {
                         if (app != null) {
                             overlay.background = app.icon.constantState?.newDrawable()?.mutate() ?: app.icon
+                            val shape = prefs.iconShape
+                            val radii = currentCornerRadii()
                             overlay.outlineProvider = object : ViewOutlineProvider() {
                                 override fun getOutline(view: View, outline: Outline) {
-                                    val r = minOf(view.width, view.height) * 0.22f
-                                    outline.setRoundRect(0, 0, view.width, view.height, r)
+                                    val w = view.width; val h = view.height
+                                    if (w <= 0 || h <= 0) return
+                                    if (radii != null && radii.size == 8) {
+                                        val path = android.graphics.Path()
+                                        path.addRoundRect(android.graphics.RectF(0f,0f,w.toFloat(),h.toFloat()), radii, android.graphics.Path.Direction.CW)
+                                        if (Build.VERSION.SDK_INT >= 30) outline.setPath(path) else @Suppress("DEPRECATION") outline.setConvexPath(path)
+                                        return
+                                    }
+                                    val r = when (shape) {
+                                        "circle" -> minOf(w,h)/2f
+                                        "rounded" -> minOf(w,h)*0.22f
+                                        "squircle" -> minOf(w,h)*0.32f
+                                        else -> 0f
+                                    }
+                                    if (r <= 0f) outline.setRect(0,0,w,h) else outline.setRoundRect(0,0,w,h,r)
                                 }
                             }
                             overlay.invalidateOutline()
@@ -2070,6 +2297,8 @@ class MainActivity : AppCompatActivity() {
                     overlay.scaleY = 1f
                     overlay.translationX = 0f
                     overlay.translationY = 0f
+                    overlay.rotationX = 0f
+                    overlay.rotationY = 0f
                     overlay.clipToOutline = false
                     clearBlur()
                     targetView?.alpha = 1f
@@ -2122,7 +2351,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyBlur(enable: Boolean) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (enable && prefs.blurEnabled) {
+            if (enable && prefs.blurEnabled && !prefs.powerSaving) {
                 val r = prefs.blurRadius.coerceIn(1f, 60f)
                 homeContent.setRenderEffect(RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP))
             } else {
