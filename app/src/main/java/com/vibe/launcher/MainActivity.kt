@@ -2109,7 +2109,7 @@ class MainActivity : AppCompatActivity() {
         for (i in 0 until gridRecycler.childCount) {
             val child = gridRecycler.getChildAt(i) ?: continue
             val pos = gridRecycler.getChildAdapterPosition(child)
-            if (pos >= 0 && pos < gridAdapter.itemCount && gridAdapter.all().getOrNull(pos)?.key == key) return child
+            if (pos >= 0 && gridAdapter.getSlot(pos)?.key == key) return child.findViewById(R.id.appIcon) ?: child
         }
         for (i in 0 until dockBar.childCount) {
             val child = dockBar.getChildAt(i) ?: continue
