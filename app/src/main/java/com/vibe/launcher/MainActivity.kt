@@ -249,14 +249,24 @@ class MainActivity : AppCompatActivity() {
         gridRecycler.pivotY = 0f
 
         val indicator = findViewById<LinearLayout>(R.id.pageIndicator)
-        if (landscape && prefs.landscapeDockSide == "right") {
+        if (landscape) {
             homeContent.orientation = LinearLayout.HORIZONTAL
             (workspace.layoutParams as LinearLayout.LayoutParams).apply {
                 width = 0; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 1f; bottomMargin = 0; marginEnd = (8*d).toInt()
             }.also { workspace.layoutParams = it }
-            (dockContainer.layoutParams as LinearLayout.LayoutParams).apply {
-                width = LinearLayout.LayoutParams.WRAP_CONTENT; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 0f; topMargin = 0
-            }.also { dockContainer.layoutParams = it }
+            (indicator.layoutParams as LinearLayout.LayoutParams).apply {
+                width = 0; height = 0; weight = 0f; marginEnd = 0
+            }.also { indicator.layoutParams = it }
+            indicator.isVisible = false
+            if (prefs.landscapeDockSide == "left") {
+                (dockContainer.layoutParams as LinearLayout.LayoutParams).apply {
+                    width = LinearLayout.LayoutParams.WRAP_CONTENT; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 0f; topMargin = 0; marginEnd = (8*d).toInt()
+                }.also { dockContainer.layoutParams = it }
+            } else {
+                (dockContainer.layoutParams as LinearLayout.LayoutParams).apply {
+                    width = LinearLayout.LayoutParams.WRAP_CONTENT; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 0f; topMargin = 0; marginEnd = 0
+                }.also { dockContainer.layoutParams = it }
+            }
             dockContainer.orientation = LinearLayout.VERTICAL
             dockContainer.gravity = android.view.Gravity.CENTER
             (dockBar.layoutParams as LinearLayout.LayoutParams).apply {
@@ -268,12 +278,16 @@ class MainActivity : AppCompatActivity() {
             (drawerBtn.layoutParams as LinearLayout.LayoutParams).apply {
                 marginStart = 0; topMargin = (8*d).toInt()
             }.also { drawerBtn.layoutParams = it }
-            indicator.isVisible = false
+            dockContainer.isVisible = true
         } else {
             homeContent.orientation = LinearLayout.VERTICAL
             (workspace.layoutParams as LinearLayout.LayoutParams).apply {
                 width = LinearLayout.LayoutParams.MATCH_PARENT; height = 0; weight = 1f; marginEnd = 0; bottomMargin = 0
             }.also { workspace.layoutParams = it }
+            (indicator.layoutParams as LinearLayout.LayoutParams).apply {
+                width = LinearLayout.LayoutParams.MATCH_PARENT; height = (20 * d).toInt(); weight = 0f
+            }.also { indicator.layoutParams = it }
+            indicator.isVisible = true
             (dockContainer.layoutParams as LinearLayout.LayoutParams).apply {
                 width = LinearLayout.LayoutParams.MATCH_PARENT; height = LinearLayout.LayoutParams.WRAP_CONTENT; weight = 0f; topMargin = (4*d).toInt()
             }.also { dockContainer.layoutParams = it }
@@ -287,7 +301,7 @@ class MainActivity : AppCompatActivity() {
             (drawerBtn.layoutParams as LinearLayout.LayoutParams).apply {
                 marginStart = (8*d).toInt(); topMargin = 0
             }.also { drawerBtn.layoutParams = it }
-            indicator.isVisible = true
+            dockContainer.isVisible = true
         }
     }
 
