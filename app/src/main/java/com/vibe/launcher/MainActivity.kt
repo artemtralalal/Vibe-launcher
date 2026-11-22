@@ -3008,7 +3008,6 @@ class MainActivity : AppCompatActivity() {
         val cardBg = if (prefs.liquidGlass) glassBg(24f, if (prefs.lightMode) 0x66 else 0x44, prefs.lightMode) else getDrawable(R.drawable.bg_settings_panel)
         try { findViewById<View>(R.id.iconMenuCard).background = cardBg } catch (_: Exception) {}
         try { findViewById<View>(R.id.folderCard).background = cardBg } catch (_: Exception) {}
-        try { findViewById<View>(R.id.settingsPanel).background = cardBg } catch (_: Exception) {}
         try { findViewById<View>(R.id.quickPanel).background = cardBg } catch (_: Exception) {}
         val textColor = if (prefs.lightMode) 0xFF111111.toInt() else 0xFFFFFFFF.toInt()
         try { findViewById<TextView>(R.id.folderTitle).setTextColor(textColor) } catch (_: Exception) {}
