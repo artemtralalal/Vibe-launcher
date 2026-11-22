@@ -112,6 +112,10 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getBoolean("dock_hide_open", true)
         set(v) = prefs.edit().putBoolean("dock_hide_open", v).apply()
 
+    var dockHideStyle: String
+        get() = prefs.getString("dock_hide_style", "slide") ?: "slide" // slide | genie
+        set(v) = prefs.edit().putString("dock_hide_style", v).apply()
+
     var powerSaving: Boolean
         get() = prefs.getBoolean("power_saving", false)
         set(v) = prefs.edit().putBoolean("power_saving", v).apply()
