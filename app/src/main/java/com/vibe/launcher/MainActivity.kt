@@ -175,6 +175,7 @@ class MainActivity : AppCompatActivity() {
         setupWelcome()
         applyPowerSavingMode()
         applyVisualStyle()
+        applyRefreshRatePref()
         try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
         try { registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) } catch (_: Exception) {}
     }
@@ -279,6 +280,11 @@ class MainActivity : AppCompatActivity() {
             (drawerBtn.layoutParams as LinearLayout.LayoutParams).apply { marginStart = (8*d).toInt(); topMargin = 0 }.also { drawerBtn.layoutParams = it }
             dockContainer.isVisible = true
         }
+        val bs = (prefs.screenScale.coerceIn(50,200) / 100f)
+        homeContent.pivotX = homeContent.width / 2f
+        homeContent.pivotY = homeContent.height / 2f
+        homeContent.scaleX = bs
+        homeContent.scaleY = bs
     }
 
     private fun setupGrid() {
@@ -731,6 +737,14 @@ class MainActivity : AppCompatActivity() {
         bindSeek(findViewById(R.id.landColsSeek), prefs.landscapeGridCols - 4, 0, 4) { prefs.landscapeGridCols = it + 4; applyOrientationLayout(); renderCurrentPage() }
         bindSeek(findViewById(R.id.landPadSeek), prefs.landscapeGridPadding, 0, 40) { prefs.landscapeGridPadding = it; applyOrientationLayout() }
         bindSeek(findViewById(R.id.landScaleSeek), prefs.landscapeIconScale - 60, 0, 60) { prefs.landscapeIconScale = it + 60; applyOrientationLayout() }
+        val screenScaleLabel = findViewById<TextView>(R.id.screenScaleLabel)
+        fun updScreenScale() { screenScaleLabel.text = "${prefs.screenScale}%" }
+        updScreenScale()
+        bindSeek(findViewById(R.id.screenScaleSeek), (prefs.screenScale - 50).coerceIn(0,150), 0, 150) { prefs.screenScale = it + 50; updScreenScale(); applyOrientationLayout() }
+        val rrBtn = findViewById<Button>(R.id.refreshRateBtn)
+        fun updRr() { rrBtn.text = "Гц: ${if (prefs.refreshRatePref==0) "Авто" else prefs.refreshRatePref.toString()}" }
+        updRr()
+        rrBtn.setOnClickListener { showRefreshRatePicker(updRr = { updRr() }) }
 
         settingsButton.setOnClickListener {
             showSettingsMain()
@@ -957,6 +971,33 @@ class MainActivity : AppCompatActivity() {
                 renderDock()
                 renderCurrentPage()
             }.show()
+    }
+
+    private fun showRefreshRatePicker(updRr: () -> Unit) {
+        val modes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) display?.supportedModes?.map { it.refreshRate.toInt() }?.distinct()?.sorted() ?: emptyList() else emptyList()
+        val opts = mutableListOf(0 to "Авто")
+        listOf(30,60,90,120,144,165).forEach { r -> opts.add(r to "${r} Гц${if (modes.isNotEmpty() && r !in modes) " (может не поддерживаться)" else ""}") }
+        AlertDialog.Builder(this).setTitle("Частота обновления")
+            .setItems(opts.map { it.second }.toTypedArray()) { _, w ->
+                prefs.refreshRatePref = opts[w].first
+                updRr()
+                applyRefreshRatePref()
+            }.show()
+    }
+
+    private fun applyRefreshRatePref() {
+        try {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+            val pref = prefs.refreshRatePref
+            val w = window ?: return
+            val lp = w.attributes
+            if (pref == 0) { lp.preferredRefreshRate = 0f } else {
+                val mode = display?.supportedModes?.minByOrNull { kotlin.math.abs(it.refreshRate - pref) }
+                if (mode != null) lp.preferredDisplayModeId = mode.modeId
+                lp.preferredRefreshRate = pref.toFloat()
+            }
+            w.attributes = lp
+        } catch (_: Exception) {}
     }
 
     private fun applyAccent() {
@@ -1957,6 +1998,8 @@ class MainActivity : AppCompatActivity() {
         } else {
             moreBtn?.isVisible = false
         }
+        val resize = findViewById<TextView>(R.id.folderResizeHandle)
+        resize.setOnClickListener { showFolderTypePicker(id) }
         overlay.isVisible = true
         overlay.alpha = 0f
         overlay.animate().alpha(1f).setDuration(180).start()
@@ -3033,11 +3076,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scaleHomeForOpen(opening: Boolean, duration: Long = 260L) {
+        val bs = (prefs.screenScale.coerceIn(50,200) / 100f)
         homeContent.animate().cancel()
         if (opening) {
-            homeContent.animate().scaleX(0.88f).scaleY(0.88f).alpha(0.72f).setDuration(duration).start()
+            homeContent.animate().scaleX(0.88f * bs).scaleY(0.88f * bs).alpha(0.72f).setDuration(duration).start()
         } else {
-            homeContent.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(duration).start()
+            homeContent.animate().scaleX(bs).scaleY(bs).alpha(1f).setDuration(duration).start()
         }
     }
 
