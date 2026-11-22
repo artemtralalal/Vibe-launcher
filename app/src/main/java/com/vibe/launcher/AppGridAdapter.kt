@@ -18,7 +18,8 @@ class AppGridAdapter(
     private val onEmptyLongPress: () -> Unit,
     private val shape: () -> String = { "circle" },
     private val showLabels: () -> Boolean = { true },
-    private val cornerRadii: () -> FloatArray? = { null }
+    private val cornerRadii: () -> FloatArray? = { null },
+    private val iconScale: () -> Int = { 100 }
 ) : RecyclerView.Adapter<AppGridAdapter.VH>() {
 
     var pageSize: Int = 24
@@ -136,6 +137,11 @@ class AppGridAdapter(
             holder.itemView.setOnLongClickListener { onEmptyLongPress(); true }
             return
         }
+        val scale = iconScale().coerceIn(60, 140) / 100f
+        val base = (56 * holder.itemView.resources.displayMetrics.density).toInt()
+        val sz = (base * scale).toInt().coerceAtLeast(1)
+        val lp = holder.icon.layoutParams
+        if (lp.width != sz || lp.height != sz) { lp.width = sz; lp.height = sz; holder.icon.layoutParams = lp }
         holder.icon.alpha = 1f
         holder.icon.setImageDrawable(item.icon)
         holder.label.text = item.label
