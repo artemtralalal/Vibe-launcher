@@ -138,6 +138,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        try { androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false) } catch (_: Exception) {}
         setContentView(R.layout.activity_main)
 
         prefs = LauncherPrefs(this)
@@ -177,6 +178,7 @@ class MainActivity : AppCompatActivity() {
         applyPowerSavingMode()
         applyVisualStyle()
         applyRefreshRatePref()
+        applyFullscreenMode()
         try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
         try { registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) } catch (_: Exception) {}
     }
@@ -220,7 +222,7 @@ class MainActivity : AppCompatActivity() {
                 flash.alpha = 0f
                 root.addView(flash, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
                 flash.animate().alpha(1f).setDuration(120).withEndAction {
-                    applyOrientationLayout(); renderDock(); renderCurrentPage(); applyVisualStyle()
+                    applyOrientationLayout(); renderDock(); renderCurrentPage(); applyVisualStyle(); applyDrawerLayout(); applyFullscreenMode()
                     flash.animate().alpha(0f).setDuration(220).withEndAction { try { root.removeView(flash) } catch (_: Exception) {} }.start()
                 }.start()
                 return
@@ -229,6 +231,8 @@ class MainActivity : AppCompatActivity() {
             renderDock()
             renderCurrentPage()
             applyVisualStyle()
+            applyDrawerLayout()
+            applyFullscreenMode()
         } catch (_: Exception) { }
     }
 
@@ -268,13 +272,14 @@ class MainActivity : AppCompatActivity() {
         gridRecycler.pivotY = 0f
 
         val indicator = findViewById<LinearLayout>(R.id.pageIndicator)
-        val dockPos = if (landscape) (if (prefs.desktopMode) prefs.landscapeDockPosition else prefs.landscapeDockSide) else "bottom"
-        if (landscape && dockPos != "bottom") {
+        val dockPos = currentDockPosition(landscape)
+        val sideDock = landscape && dockPos in listOf("left", "right")
+        if (sideDock) {
             homeContent.orientation = LinearLayout.HORIZONTAL
-            (workspace.layoutParams as LinearLayout.LayoutParams).apply { width = 0; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 1f; bottomMargin = 0; marginEnd = (8*d).toInt(); marginStart = 0 }.also { workspace.layoutParams = it }
+            (workspace.layoutParams as LinearLayout.LayoutParams).apply { width = 0; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 1f; bottomMargin = 0; marginEnd = (8*d).toInt(); marginStart = if (dockPos=="left") (8*d).toInt() else 0 }.also { workspace.layoutParams = it }
             (indicator.layoutParams as LinearLayout.LayoutParams).apply { width = 0; height = 0; weight = 0f }.also { indicator.layoutParams = it }
             indicator.isVisible = false
-            (dockContainer.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.WRAP_CONTENT; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 0f; topMargin = 0; marginEnd = if (dockPos=="right") 0 else (8*d).toInt() }.also { dockContainer.layoutParams = it }
+            (dockContainer.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.WRAP_CONTENT; height = LinearLayout.LayoutParams.MATCH_PARENT; weight = 0f; topMargin = 0; marginEnd = 0; marginStart = 0 }.also { dockContainer.layoutParams = it }
             dockContainer.orientation = LinearLayout.VERTICAL
             dockContainer.gravity = android.view.Gravity.CENTER
             (dockBar.layoutParams as LinearLayout.LayoutParams).apply { width = (88 * d).toInt(); height = 0; weight = 1f }.also { dockBar.layoutParams = it }
@@ -283,27 +288,76 @@ class MainActivity : AppCompatActivity() {
             dockBar.setPadding(pad, pad, pad, pad)
             (drawerBtn.layoutParams as LinearLayout.LayoutParams).apply { marginStart = 0; topMargin = (8*d).toInt() }.also { drawerBtn.layoutParams = it }
             dockContainer.isVisible = true
+            // Reorder for left dock: dock before workspace
+            if (homeContent.indexOfChild(dockContainer) > homeContent.indexOfChild(workspace) && dockPos == "left") {
+                homeContent.removeView(dockContainer); homeContent.addView(dockContainer, 0)
+            } else if (homeContent.indexOfChild(dockContainer) < homeContent.indexOfChild(workspace) && dockPos == "right") {
+                homeContent.removeView(dockContainer); homeContent.addView(dockContainer)
+            }
         } else {
             homeContent.orientation = LinearLayout.VERTICAL
-            (workspace.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.MATCH_PARENT; height = 0; weight = 1f; marginEnd = 0; bottomMargin = 0 }.also { workspace.layoutParams = it }
+            // ensure dock is last in vertical layout
+            if (homeContent.indexOfChild(dockContainer) != homeContent.childCount - 1) { homeContent.removeView(dockContainer); homeContent.addView(dockContainer) }
+            (workspace.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.MATCH_PARENT; height = 0; weight = 1f; marginEnd = 0; marginStart = 0; bottomMargin = 0 }.also { workspace.layoutParams = it }
             (indicator.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.MATCH_PARENT; height = (20 * d).toInt(); weight = 0f }.also { indicator.layoutParams = it }
             indicator.isVisible = true
-            (dockContainer.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.MATCH_PARENT; height = LinearLayout.LayoutParams.WRAP_CONTENT; weight = 0f; topMargin = (4*d).toInt() }.also { dockContainer.layoutParams = it }
             dockContainer.orientation = LinearLayout.HORIZONTAL
             dockContainer.gravity = android.view.Gravity.CENTER_VERTICAL
-            (dockBar.layoutParams as LinearLayout.LayoutParams).apply { width = 0; height = (92 * d).toInt(); weight = 1f }.also { dockBar.layoutParams = it }
             dockBar.orientation = LinearLayout.HORIZONTAL
             dockBar.setPadding((12*d).toInt(), 0, (12*d).toInt(), 0)
             (drawerBtn.layoutParams as LinearLayout.LayoutParams).apply { marginStart = (8*d).toInt(); topMargin = 0 }.also { drawerBtn.layoutParams = it }
             dockContainer.isVisible = true
+            applyDockPlacement(landscape, dockPos, d)
         }
         val bs = (prefs.screenScale.coerceIn(50,200) / 100f)
-        homeContent.pivotX = homeContent.width / 2f
-        homeContent.pivotY = homeContent.height / 2f
-        homeContent.scaleX = bs
-        homeContent.scaleY = bs
+        homeContent.post {
+            homeContent.pivotX = homeContent.width / 2f
+            homeContent.pivotY = homeContent.height / 2f
+            homeContent.scaleX = bs
+            homeContent.scaleY = bs
+        }
         val ds = prefs.dockScale.coerceIn(70,140) / 100f
         dockContainer.scaleX = ds; dockContainer.scaleY = ds
+    }
+
+    private fun currentDockPosition(landscape: Boolean): String {
+        if (!landscape) return "bottom"
+        return if (prefs.desktopMode) prefs.landscapeDockPosition else prefs.landscapeDockSide
+    }
+
+    private fun applyDockPlacement(landscape: Boolean, dockPos: String, d: Float) {
+        val lp = dockContainer.layoutParams as LinearLayout.LayoutParams
+        when (dockPos) {
+            "bottom-left" -> {
+                lp.width = LinearLayout.LayoutParams.WRAP_CONTENT
+                lp.height = LinearLayout.LayoutParams.WRAP_CONTENT
+                lp.weight = 0f; lp.topMargin = (4*d).toInt(); lp.marginStart = (8*d).toInt(); lp.marginEnd = 0
+                lp.gravity = android.view.Gravity.START
+                dockContainer.layoutParams = lp
+                dockContainer.gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+                (dockBar.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.WRAP_CONTENT; height = (84*d).toInt(); weight = 0f }.also { dockBar.layoutParams = it }
+            }
+            "bottom-right" -> {
+                lp.width = LinearLayout.LayoutParams.WRAP_CONTENT
+                lp.height = LinearLayout.LayoutParams.WRAP_CONTENT
+                lp.weight = 0f; lp.topMargin = (4*d).toInt(); lp.marginStart = 0; lp.marginEnd = (8*d).toInt()
+                lp.gravity = android.view.Gravity.END
+                dockContainer.layoutParams = lp
+                dockContainer.gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
+                (dockBar.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.WRAP_CONTENT; height = (84*d).toInt(); weight = 0f }.also { dockBar.layoutParams = it }
+            }
+            else -> { // bottom center or portrait
+                if (!landscape || dockPos == "bottom") {
+                    lp.width = LinearLayout.LayoutParams.MATCH_PARENT
+                    lp.height = LinearLayout.LayoutParams.WRAP_CONTENT
+                    lp.weight = 0f; lp.topMargin = (4*d).toInt(); lp.marginStart = 0; lp.marginEnd = 0
+                    lp.gravity = android.view.Gravity.NO_GRAVITY
+                    dockContainer.layoutParams = lp
+                    dockContainer.gravity = android.view.Gravity.CENTER_VERTICAL
+                    (dockBar.layoutParams as LinearLayout.LayoutParams).apply { width = 0; height = (92*d).toInt(); weight = 1f }.also { dockBar.layoutParams = it }
+                }
+            }
+        }
     }
 
     private fun setupGrid() {
@@ -358,9 +412,50 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
+    private var dockMoveMode = false
+    private var dockMoveStartX = 0f
+    private var dockMoveStartY = 0f
+    private var dockMoveOrigTx = 0f
+    private var dockMoveOrigTy = 0f
+
     private fun setupDock() {
         dockBar.setOnDragListener { _, event -> handleDockDrag(event) }
-        dockContainer.setOnLongClickListener { showLandDockPicker(); true }
+        dockContainer.setOnLongClickListener {
+            dockMoveMode = true
+            dockMoveOrigTx = dockContainer.translationX
+            dockMoveOrigTy = dockContainer.translationY
+            dockContainer.animate().scaleX(dockContainer.scaleX * 1.05f).scaleY(dockContainer.scaleY * 1.05f).setDuration(120).start()
+            android.widget.Toast.makeText(this, "Перетащи док в нужное место", android.widget.Toast.LENGTH_SHORT).show()
+            true
+        }
+        dockContainer.setOnTouchListener { v, ev ->
+            if (!dockMoveMode) return@setOnTouchListener false
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { dockMoveStartX = ev.rawX; dockMoveStartY = ev.rawY; true }
+                MotionEvent.ACTION_MOVE -> {
+                    dockContainer.translationX = dockMoveOrigTx + (ev.rawX - dockMoveStartX)
+                    dockContainer.translationY = dockMoveOrigTy + (ev.rawY - dockMoveStartY)
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    dockMoveMode = false
+                    val cx = ev.rawX; val cy = ev.rawY
+                    val w = resources.displayMetrics.widthPixels; val h = resources.displayMetrics.heightPixels
+                    val pos = when {
+                        cx < w * 0.25f && cy > h * 0.6f -> "bottom-left"
+                        cx > w * 0.75f && cy > h * 0.6f -> "bottom-right"
+                        cx < w * 0.25f -> "left"
+                        cx > w * 0.75f -> "right"
+                        else -> "bottom"
+                    }
+                    prefs.landscapeDockSide = pos; prefs.landscapeDockPosition = pos
+                    dockContainer.translationX = 0f; dockContainer.translationY = 0f
+                    updateLandDockLabel(); applyOrientationLayout(); renderDock(); renderCurrentPage()
+                    true
+                }
+                else -> false
+            }
+        }
         renderDock()
     }
 
@@ -767,6 +862,28 @@ class MainActivity : AppCompatActivity() {
         updRr()
         rrBtn.setOnClickListener { showRefreshRatePicker(updRr = { updRr() }) }
 
+        findViewById<SwitchMaterial>(R.id.fullscreenSwitch).apply {
+            isChecked = prefs.fullscreenMode
+            setOnCheckedChangeListener { _, c -> prefs.fullscreenMode = c; applyFullscreenMode() }
+        }
+        findViewById<SwitchMaterial>(R.id.doubleTapLockSwitch).apply {
+            isChecked = prefs.doubleTapLock
+            setOnCheckedChangeListener { _, c -> prefs.doubleTapLock = c }
+        }
+        val lockAnimLabel = findViewById<TextView>(R.id.lockAnimLabel)
+        fun updLockAnim() { lockAnimLabel.text = "Анимация: ${lockAnimDisplayName(prefs.lockAnimation)}" }
+        updLockAnim()
+        findViewById<Button>(R.id.lockAnimBtn).setOnClickListener { showLockAnimPicker { updLockAnim() } }
+        findViewById<Button?>(R.id.lockAnimBtnAnim)?.setOnClickListener { showLockAnimPicker { updLockAnim() } }
+        findViewById<SwitchMaterial>(R.id.aodSwitch).apply {
+            isChecked = prefs.aodEnabled
+            setOnCheckedChangeListener { _, c ->
+                prefs.aodEnabled = c
+                if (c) ensureAodPermissionAndStart() else stopAodOverlay()
+            }
+        }
+        findViewById<Button>(R.id.aodSettingsBtn).setOnClickListener { showAodSettingsDialog() }
+
         settingsButton.setOnClickListener {
             showSettingsMain()
             settingsOverlay.isVisible = true
@@ -792,6 +909,360 @@ class MainActivity : AppCompatActivity() {
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
+    }
+
+    private fun showSettingsButton() {
+        if (settingsOverlay.isVisible || appDrawer.isVisible) return
+        quickPanel.isVisible = true
+        settingsButton.isVisible = true
+    }
+
+    private fun updateLandDockLabel() {
+        val p = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) currentDockPosition(true) else "bottom"
+        val label = when (p) { "left" -> "Слева"; "right" -> "Справа"; "bottom-left" -> "Снизу слева"; "bottom-right" -> "Снизу справа"; else -> "Снизу" }
+        findViewById<TextView?>(R.id.landDockLabel)?.text = "Док: $label"
+    }
+
+    private fun updateDrawerStyleLabel() {
+        findViewById<TextView?>(R.id.drawerStyleLabel)?.text = "Меню приложений: ${if (prefs.drawerStyle == "button") "кнопка" else "свайп вверх"}"
+    }
+
+    private fun updateDrawerLayoutLabel() {
+        findViewById<TextView?>(R.id.drawerLayoutLabel)?.text = "Вид меню: ${if (prefs.drawerLayout == "list") "список" else "сетка"}"
+    }
+
+    private fun applyDrawerLayout() {
+        if (!::drawerRecycler.isInitialized) return
+        val landscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val cols = if (landscape) 6 else 4
+        drawerRecycler.layoutManager = if (prefs.drawerLayout == "list") LinearLayoutManager(this) else GridLayoutManager(this, cols)
+        drawerRecycler.requestLayout()
+    }
+
+    private fun showDrawerStylePicker() {
+        val opts = arrayOf("Свайп вверх", "Кнопка в доке")
+        AlertDialog.Builder(this).setTitle("Стиль меню").setItems(opts) { _, w ->
+            prefs.drawerStyle = if (w == 1) "button" else "swipe"; updateDrawerStyleLabel(); renderDock(); applyOrientationLayout()
+        }.show()
+    }
+
+    private fun showDrawerLayoutPicker() {
+        val opts = arrayOf("Сетка", "Список")
+        AlertDialog.Builder(this).setTitle("Вид меню").setItems(opts) { _, w ->
+            prefs.drawerLayout = if (w == 1) "list" else "grid"; updateDrawerLayoutLabel(); applyDrawerLayout(); drawerAdapter.submit(allApps)
+        }.show()
+    }
+
+    private fun showDrawerSettingsDialog() {
+        val opts = arrayOf("Вид: сетка/список", "Стиль: свайп/кнопка", "Закрыть")
+        AlertDialog.Builder(this).setTitle("Меню приложений").setItems(opts) { _, w ->
+            when (w) { 0 -> showDrawerLayoutPicker(); 1 -> showDrawerStylePicker() }
+        }.show()
+    }
+
+    // ---- Lock / fullscreen / AOD ----
+
+    private fun lockAnimDisplayName(key: String): String = when (key) {
+        "pixel" -> "Pixel (в кнопку питания)"
+        "xiaomi" -> "Xiaomi / Poco"
+        "oneplus" -> "OnePlus"
+        "oukitel" -> "Oukitel"
+        "samsung" -> "Samsung (снизу вверх)"
+        "wave" -> "Волна"
+        "fire" -> "Огонь"
+        "ice" -> "Лёд"
+        "nothing" -> "Nothing (точки)"
+        "miui13" -> "MIUI 13"
+        "hyperos" -> "HyperOS"
+        "iphone" -> "iPhone"
+        "pixel2" -> "Pixel (градиент сверху/снизу)"
+        else -> "Pixel"
+    }
+
+    private fun showLockAnimPicker(onChanged: () -> Unit = {}) {
+        val opts = listOf("pixel","xiaomi","oneplus","oukitel","samsung","wave","fire","ice","nothing","miui13","hyperos","iphone","pixel2")
+        val names = opts.map { lockAnimDisplayName(it) }.toTypedArray()
+        AlertDialog.Builder(this).setTitle("Анимация блокировки").setItems(names) { _, w ->
+            prefs.lockAnimation = opts[w]
+            findViewById<TextView?>(R.id.lockAnimLabel)?.text = "Анимация: ${lockAnimDisplayName(prefs.lockAnimation)}"
+            onChanged()
+        }.show()
+    }
+
+    private fun updateUnlockLabel() {
+        findViewById<TextView?>(R.id.unlockAnimLabel)?.text = "Анимация разблокировки: ${lockAnimDisplayName(prefs.unlockAnim)}"
+    }
+    private fun showUnlockAnimPicker() {
+        val opts = listOf("pixel","xiaomi","oneplus","oukitel","samsung","wave","fire","ice","nothing","miui13","hyperos","iphone","pixel2")
+        val names = opts.map { lockAnimDisplayName(it) }.toTypedArray()
+        AlertDialog.Builder(this).setTitle("Анимация разблокировки").setItems(names) { _, w ->
+            prefs.unlockAnim = opts[w]; updateUnlockLabel()
+        }.show()
+    }
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+    private fun applyDockStyle() { try { dockBar.background = getDrawable(R.drawable.bg_dock) } catch (_: Exception) {} }
+    private fun applyVisualStyle() { applyDockStyle(); applyAccent() }
+    private fun applyAccent() {
+        try {
+            val accent = prefs.accentColor
+            settingsButton.backgroundTintList = android.content.res.ColorStateList.valueOf(accent)
+            findViewById<ImageButton?>(R.id.drawerBtn)?.setColorFilter(accent)
+        } catch (_: Exception) {}
+    }
+    private fun clearBlur() { try { if (Build.VERSION.SDK_INT >= 31) homeContent.setRenderEffect(null) } catch (_: Exception) {} }
+    private fun applyBlur(strong: Boolean = false) {
+        try { if (Build.VERSION.SDK_INT >= 31) homeContent.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(if (strong) 24f else 12f, if (strong) 24f else 12f, android.graphics.Shader.TileMode.CLAMP)) } catch (_: Exception) {}
+    }
+    private fun deviceSupportsFlagshipByDefault(): Boolean = true
+    private fun applyPowerSavingMode() {
+        val dim = if (prefs.powerSaving) 0.72f else 1f
+        try { homeContent.alpha = dim } catch (_: Exception) {}
+    }
+    private fun requestWriteSettingsPermission() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(this)) {
+                startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, android.net.Uri.parse("package:$packageName")))
+            }
+        } catch (_: Exception) {}
+    }
+    private fun setLowBrightness() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.System.canWrite(this)) {
+                Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+                Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, 60)
+            } else requestWriteSettingsPermission()
+        } catch (_: Exception) {}
+    }
+    private fun currentCornerRadii(): FloatArray {
+        val r = prefs.iconRadius.coerceIn(0,100) / 100f
+        fun pick(v: Int) = if (v >= 0) v.coerceIn(0,100) / 100f else r
+        return floatArrayOf(pick(prefs.iconRadiusTL), pick(prefs.iconRadiusTR), pick(prefs.iconRadiusBL), pick(prefs.iconRadiusBR))
+    }
+    private fun setupCornerSeekbars() { /* wired in layout; minimal stub */ }
+    private fun updateCornerPreview() { /* minimal stub */ }
+
+    private fun updateIconShapeLabel() {
+        val name = when (prefs.iconShape) { "circle" -> "круглая"; "squircle" -> "сквиркл"; "rounded" -> "скруглённая"; "square" -> "квадрат"; else -> prefs.iconShape }
+        findViewById<TextView?>(R.id.iconShapeLabel)?.text = "Форма иконок: $name"
+    }
+    private fun showIconShapePicker() {
+        val opts = listOf("circle" to "Круг", "squircle" to "Сквиркл", "rounded" to "Скруглённый квадрат", "square" to "Квадрат")
+        AlertDialog.Builder(this).setTitle("Форма иконок").setItems(opts.map{it.second}.toTypedArray()) { _, w ->
+            prefs.iconShape = opts[w].first; updateIconShapeLabel(); gridAdapter.notifyDataSetChanged(); drawerAdapter.notifyDataSetChanged(); renderDock()
+        }.show()
+    }
+
+    private fun applyFullscreenMode() {
+        try {
+            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, !prefs.fullscreenMode)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val c = window.insetsController
+                if (prefs.fullscreenMode) {
+                    c?.hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
+                    c?.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                } else {
+                    c?.show(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = if (prefs.fullscreenMode)
+                    (View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
+                else (View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
+            }
+            window.statusBarColor = Color.TRANSPARENT
+            window.navigationBarColor = Color.TRANSPARENT
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isNavigationBarContrastEnforced = false
+                window.isStatusBarContrastEnforced = false
+            }
+            findViewById<View?>(R.id.root)?.fitsSystemWindows = !prefs.fullscreenMode
+        } catch (_: Exception) {}
+    }
+
+    private fun performDoubleTapLock() {
+        if (!prefs.doubleTapLock) return
+        val accOk = LockAccessibilityService.isEnabled()
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+        val admin = ComponentName(this, LockAdminReceiver::class.java)
+        val adminOk = dpm.isAdminActive(admin)
+        if (!accOk && !adminOk) {
+            AlertDialog.Builder(this)
+                .setTitle("Нужно разрешение")
+                .setMessage("Чтобы блокировать экран двойным тапом, включи специальную возможность Vibe Launcher или выдай права администратора устройства.")
+                .setPositiveButton("Спец. возможности") { _, _ ->
+                    try { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) } catch (_: Exception) {}
+                }
+                .setNeutralButton("Администратор") { _, _ ->
+                    try {
+                        val i = Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+                        i.putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
+                        i.putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Нужно для блокировки экрана двойным тапом")
+                        startActivity(i)
+                    } catch (_: Exception) {}
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
+            return
+        }
+        playLockAnimationThenLock()
+    }
+
+    private fun playLockAnimationThenLock() {
+        try {
+            val overlay = View(this)
+            overlay.setBackgroundColor(Color.BLACK)
+            overlay.alpha = 0f
+            overlay.isClickable = true
+            overlay.isFocusable = true
+            root.addView(overlay, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+            // dim status/nav bars
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+            val anim = prefs.lockAnimation
+            val dur = 420L
+            val endAction = Runnable {
+                val locked = LockAccessibilityService.lock()
+                if (!locked) {
+                    try {
+                        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+                        if (dpm.isAdminActive(ComponentName(this, LockAdminReceiver::class.java))) dpm.lockNow()
+                    } catch (_: Exception) {}
+                }
+                overlay.postDelayed({
+                    try { root.removeView(overlay) } catch (_: Exception) {}
+                    if (!prefs.fullscreenMode) window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                    homeContent.alpha = 1f; homeContent.scaleX = (prefs.screenScale.coerceIn(50,200)/100f); homeContent.scaleY = homeContent.scaleX
+                }, 500)
+            }
+            when (anim) {
+                "pixel" -> { // shrink into power button top-right
+                    overlay.alpha = 0f
+                    homeContent.animate().scaleX(0.85f).scaleY(0.85f).alpha(0.4f).setDuration(dur).start()
+                    overlay.animate().alpha(1f).setDuration(dur).withEndAction(endAction).start()
+                }
+                "xiaomi" -> overlay.animate().alpha(1f).setDuration(450).withEndAction(endAction).start()
+                "oneplus" -> {
+                    homeContent.animate().scaleX(0.92f).scaleY(0.92f).alpha(0.5f).setDuration(300).start()
+                    overlay.animate().alpha(1f).setDuration(450).withEndAction(endAction).start()
+                }
+                "oukitel" -> {
+                    overlay.animate().alpha(0.35f).setDuration(200).withEndAction {
+                        overlay.postDelayed({ overlay.animate().alpha(1f).setDuration(250).withEndAction(endAction).start() }, 500)
+                    }.start()
+                }
+                "samsung" -> {
+                    val h = root.height.toFloat().coerceAtLeast(1f)
+                    overlay.pivotY = h; overlay.scaleY = 0f; overlay.alpha = 1f
+                    overlay.animate().scaleY(1f).setDuration(500).withEndAction(endAction).start()
+                }
+                "wave" -> {
+                    overlay.alpha = 0f
+                    overlay.animate().alpha(1f).setDuration(500).withEndAction(endAction).start()
+                    homeContent.animate().translationYBy(30f).setDuration(180).withEndAction { homeContent.animate().translationY(0f).setDuration(220).start() }.start()
+                }
+                "fire" -> {
+                    overlay.setBackgroundColor(0xFFFF5722.toInt())
+                    overlay.alpha = 0f
+                    overlay.animate().alpha(0.8f).setDuration(220).withEndAction {
+                        overlay.animate().alpha(1f).setDuration(220).withEndAction(endAction).start()
+                        overlay.setBackgroundColor(Color.BLACK)
+                    }.start()
+                }
+                "ice" -> {
+                    overlay.setBackgroundColor(0xFFB3E5FC.toInt()); overlay.alpha = 0f
+                    overlay.animate().alpha(0.7f).setDuration(260).withEndAction {
+                        overlay.setBackgroundColor(Color.BLACK)
+                        overlay.animate().alpha(1f).setDuration(260).withEndAction(endAction).start()
+                    }.start()
+                }
+                "nothing" -> {
+                    overlay.setBackgroundColor(0xFF101010.toInt()); overlay.alpha = 0f
+                    overlay.animate().alpha(1f).setDuration(550).withEndAction(endAction).start()
+                }
+                "miui13" -> overlay.animate().alpha(1f).setDuration(380).setInterpolator(DecelerateInterpolator()).withEndAction(endAction).start()
+                "hyperos" -> {
+                    overlay.alpha = 0f
+                    overlay.animate().alpha(1f).setDuration(280).withEndAction(endAction).start()
+                }
+                "iphone" -> {
+                    homeContent.animate().scaleX(0.96f).scaleY(0.96f).alpha(0.3f).setDuration(350).start()
+                    overlay.animate().alpha(1f).setDuration(350).withEndAction(endAction).start()
+                }
+                "pixel2" -> {
+                    overlay.alpha = 0f
+                    overlay.animate().alpha(1f).setDuration(460).withEndAction(endAction).start()
+                }
+                else -> overlay.animate().alpha(1f).setDuration(dur).withEndAction(endAction).start()
+            }
+        } catch (_: Exception) {
+            try { LockAccessibilityService.lock() } catch (_: Exception) {}
+        }
+    }
+
+    private fun ensureAodPermissionAndStart() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            AlertDialog.Builder(this)
+                .setTitle("Разрешение AOD")
+                .setMessage("Для Always On Display нужно разрешение «Поверх других окон».")
+                .setPositiveButton("Открыть") { _, _ ->
+                    try { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) {}
+                }
+                .setNegativeButton("Отмена") { _, _ -> prefs.aodEnabled = false; findViewById<SwitchMaterial?>(R.id.aodSwitch)?.isChecked = false }
+                .show()
+            return
+        }
+        startAodOverlay()
+    }
+
+    private var aodView: View? = null
+    private fun startAodOverlay() {
+        stopAodOverlay()
+        try {
+            val wm = getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") android.view.WindowManager.LayoutParams.TYPE_PHONE
+            val lp = android.view.WindowManager.LayoutParams(
+                android.view.WindowManager.LayoutParams.MATCH_PARENT,
+                android.view.WindowManager.LayoutParams.MATCH_PARENT,
+                type,
+                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                android.graphics.PixelFormat.TRANSLUCENT
+            )
+            val v = FrameLayout(this).apply { setBackgroundColor(0xFF000000.toInt()) }
+            val clock = TextView(this).apply {
+                text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+                setTextColor(Color.WHITE); textSize = 48f; typeface = android.graphics.Typeface.DEFAULT_BOLD
+            }
+            val date = TextView(this).apply {
+                text = java.text.SimpleDateFormat("dd.MM, EEEE", java.util.Locale.getDefault()).format(java.util.Date())
+                setTextColor(0xCCFFFFFF.toInt()); textSize = 16f
+            }
+            val col = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL; gravity = android.view.Gravity.CENTER_HORIZONTAL
+                addView(clock); addView(date)
+            }
+            val params = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT)
+            params.gravity = android.view.Gravity.CENTER
+            v.addView(col, params)
+            v.setOnClickListener { stopAodOverlay(); prefs.aodEnabled = prefs.aodEnabled /* keep enabled */ }
+            wm.addView(v, lp)
+            aodView = v
+        } catch (_: Exception) {}
+    }
+    private fun stopAodOverlay() {
+        try { aodView?.let { (getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager).removeView(it) } } catch (_: Exception) {}
+        aodView = null
+    }
+    private fun showAodSettingsDialog() {
+        val opts = arrayOf("Стиль: HyperOS 3", "Стиль: MIUI 13", "Стиль: Nothing OS", "Тап для пробуждения: двойной/одинарный", "Закрыть")
+        AlertDialog.Builder(this).setTitle("AOD").setItems(opts) { _, w ->
+            when (w) {
+                0 -> prefs.aodStyle = "hyperos"
+                1 -> prefs.aodStyle = "miui13"
+                2 -> prefs.aodStyle = "nothing"
+                3 -> { prefs.aodTapToWake = if (prefs.aodTapToWake == "double") "single" else "double"; android.widget.Toast.makeText(this, "Тап: ${if (prefs.aodTapToWake=="double") "двойной" else "одинарный"}", android.widget.Toast.LENGTH_SHORT).show() }
+            }
+            if (prefs.aodEnabled) { stopAodOverlay(); startAodOverlay() }
+        }.show()
     }
 
     private fun updateIconPackLabel() {
@@ -981,8 +1452,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showLandDockPicker() {
-        val opts = listOf("right" to "Справа", "left" to "Слева", "bottom" to "Снизу")
-        AlertDialog.Builder(this).setTitle("Док в горизонтальном режиме")
+        val opts = listOf(
+            "right" to "Справа",
+            "left" to "Слева",
+            "bottom" to "Снизу (центр)",
+            "bottom-left" to "Снизу слева",
+            "bottom-right" to "Снизу справа"
+        )
+        AlertDialog.Builder(this).setTitle("Док / положение")
             .setItems(opts.map { it.second }.toTypedArray()) { _, which ->
                 val v = opts[which].first
                 prefs.landscapeDockSide = v
@@ -1134,6 +1611,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.catRowAppearance).setOnClickListener { showSettingsCategory("appearance") }
         findViewById<View>(R.id.catRowAnimations).setOnClickListener { showSettingsCategory("animations") }
         findViewById<View>(R.id.catRowHome).setOnClickListener { showSettingsCategory("home") }
+        findViewById<View>(R.id.catRowScreen).setOnClickListener { showSettingsCategory("screen") }
         findViewById<View>(R.id.catRowDrawer).setOnClickListener { showSettingsCategory("drawer") }
         findViewById<View>(R.id.catRowPower).setOnClickListener { showSettingsCategory("power") }
         findViewById<View>(R.id.catRowAbout).setOnClickListener { showSettingsCategory("about") }
@@ -1154,7 +1632,7 @@ class MainActivity : AppCompatActivity() {
             (detail.layoutParams as FrameLayout.LayoutParams).apply { width = FrameLayout.LayoutParams.MATCH_PARENT; height = FrameLayout.LayoutParams.MATCH_PARENT; marginStart = 0; gravity = android.view.Gravity.NO_GRAVITY }
             findViewById<View>(R.id.settingsBackBtn).isVisible = true
         }
-        listOf(R.id.catAppearance, R.id.catAnimations, R.id.catHome, R.id.catDrawer, R.id.catPower, R.id.catAbout).forEach {
+        listOf(R.id.catAppearance, R.id.catAnimations, R.id.catHome, R.id.catScreen, R.id.catDrawer, R.id.catPower, R.id.catAbout).forEach {
             findViewById<View>(it).isVisible = landscape && it == R.id.catAppearance
         }
         if (landscape) findViewById<TextView>(R.id.settingsDetailTitle).text = "Внешний вид"
@@ -1167,7 +1645,8 @@ class MainActivity : AppCompatActivity() {
         val map = mapOf(
             "appearance" to (R.id.catAppearance to "Внешний вид"),
             "animations" to (R.id.catAnimations to "Анимации"),
-            "home" to (R.id.catHome to "Рабочий стол и экран"),
+            "home" to (R.id.catHome to "Рабочий стол"),
+            "screen" to (R.id.catScreen to "Экран"),
             "drawer" to (R.id.catDrawer to "Меню приложений"),
             "power" to (R.id.catPower to "Энергосбережение"),
             "about" to (R.id.catAbout to "О лаунчере")
@@ -1191,8 +1670,8 @@ class MainActivity : AppCompatActivity() {
             override fun onDoubleTap(e: MotionEvent): Boolean {
                 if (settingsOverlay.isVisible || appDrawer.isVisible) return false
                 if (isPointOnAppIcon(e.rawX, e.rawY)) return false
-                launchCameraWithGenie()
-                return true
+                if (prefs.doubleTapLock) { performDoubleTapLock(); return true }
+                return false
             }
 
             override fun onLongPress(e: MotionEvent) {
@@ -1852,6 +2331,8 @@ class MainActivity : AppCompatActivity() {
         val density = resources.displayMetrics.density
         val vertical = dockBar.orientation == LinearLayout.VERTICAL
         val landscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val dockPos = currentDockPosition(landscape)
+        val compactBottom = !vertical && (dockPos == "bottom-left" || dockPos == "bottom-right")
         val ipad = prefs.drawerIpadMode || (landscape && prefs.desktopMode)
         val slots = if (ipad) 5 else 4
         for (i in 0 until slots) {
@@ -1861,6 +2342,8 @@ class MainActivity : AppCompatActivity() {
             label.visibility = View.GONE
             val lp = if (vertical) {
                 LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+            } else if (compactBottom) {
+                LinearLayout.LayoutParams((64 * density).toInt(), (80 * density).toInt())
             } else {
                 val itemWidth = ((resources.displayMetrics.widthPixels - density * 56) / slots).toInt()
                 LinearLayout.LayoutParams(itemWidth, LinearLayout.LayoutParams.MATCH_PARENT)
