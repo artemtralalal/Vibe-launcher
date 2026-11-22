@@ -21,65 +21,105 @@ class AppGridAdapter(
     private val cornerRadii: () -> FloatArray? = { null }
 ) : RecyclerView.Adapter<AppGridAdapter.VH>() {
 
-    private val items = mutableListOf<AppEntry>()
-    private val allItems = mutableListOf<AppEntry>()
+    private val slots = MutableList<AppEntry?>(24) { null }
 
-    fun submitApps(apps: List<AppEntry>) {
-        allItems.clear()
-        allItems.addAll(apps)
-        items.clear()
-        items.addAll(apps)
+    fun submitApps(apps: List<AppEntry?>) {
+        for (i in 0 until 24) slots[i] = apps.getOrNull(i)
         notifyDataSetChanged()
     }
 
-    fun filter(query: String) {
-        val q = query.trim().lowercase()
-        items.clear()
-        if (q.isEmpty()) items.addAll(allItems)
-        else items.addAll(allItems.filter { it.label.lowercase().contains(q) })
+    // compat: submit non-null list into sequential slots
+    fun submitAppList(apps: List<AppEntry>) {
+        for (i in 0 until 24) slots[i] = apps.getOrNull(i)
         notifyDataSetChanged()
     }
 
-    fun currentItems(): List<AppEntry> = items.toList()
-    fun all(): List<AppEntry> = allItems.toList()
+    fun allSlots(): List<AppEntry?> = slots.toList()
+    fun all(): List<AppEntry> = slots.filterNotNull()
+    fun currentItems(): List<AppEntry> = all()
 
-    fun moveItem(fromKey: String, toIndex: Int) {
-        val from = allItems.indexOfFirst { it.key == fromKey }
-        if (from == -1) return
-        val item = allItems.removeAt(from)
-        val target = toIndex.coerceIn(0, allItems.size)
-        allItems.add(target, item)
-        items.clear(); items.addAll(allItems)
-        notifyDataSetChanged()
+    fun getSlot(index: Int): AppEntry? = slots.getOrNull(index)
+
+    fun setSlot(index: Int, app: AppEntry?) {
+        if (index in 0 until 24) { slots[index] = app; notifyDataSetChanged() }
     }
 
     fun removeByKey(key: String): AppEntry? {
-        val idx = allItems.indexOfFirst { it.key == key }
+        val idx = slots.indexOfFirst { it?.key == key }
         if (idx == -1) return null
-        val item = allItems.removeAt(idx)
-        items.clear(); items.addAll(allItems)
+        val item = slots[idx]
+        slots[idx] = null
         notifyDataSetChanged()
         return item
     }
 
     fun insertAt(index: Int, entry: AppEntry) {
-        val existing = allItems.indexOfFirst { it.key == entry.key }
-        if (existing != -1) allItems.removeAt(existing)
-        val target = index.coerceIn(0, allItems.size)
-        allItems.add(target, entry)
-        items.clear(); items.addAll(allItems)
+        // remove existing
+        val existing = slots.indexOfFirst { it?.key == entry.key }
+        if (existing != -1) slots[existing] = null
+        val target = index.coerceIn(0, 23)
+        if (slots[target] == null) {
+            slots[target] = entry
+        } else {
+            // find nearest empty slot
+            val empty = findNearestEmpty(target)
+            if (empty != -1) {
+                // shift towards empty to make room
+                shiftToward(target, empty)
+                slots[target] = entry
+            } else {
+                slots[target] = entry // overwrite last resort
+            }
+        }
         notifyDataSetChanged()
     }
+
+    private fun findNearestEmpty(from: Int): Int {
+        for (d in 1 until 24) {
+            val r = from + d; if (r < 24 && slots[r] == null) return r
+            val l = from - d; if (l >= 0 && slots[l] == null) return l
+        }
+        return -1
+    }
+
+    private fun shiftToward(target: Int, empty: Int) {
+        if (empty > target) {
+            for (i in empty downTo target + 1) slots[i] = slots[i - 1]
+        } else {
+            for (i in empty until target) slots[i] = slots[i + 1]
+        }
+        slots[target] = null
+    }
+
+    fun moveItem(fromKey: String, toIndex: Int) {
+        val from = slots.indexOfFirst { it?.key == fromKey }
+        if (from == -1) return
+        val item = slots[from] ?: return
+        slots[from] = null
+        insertAt(toIndex, item)
+    }
+
+    fun filter(query: String) { /* no-op for fixed slots */ }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_app, parent, false)
         return VH(view)
     }
 
-    override fun getItemCount(): Int = items.size
+    override fun getItemCount(): Int = 24
 
     override fun onBindViewHolder(holder: VH, position: Int) {
-        val item = items[position]
+        val item = slots[position]
+        if (item == null) {
+            holder.icon.setImageDrawable(null)
+            holder.icon.alpha = 0f
+            holder.label.text = ""
+            holder.label.visibility = View.GONE
+            holder.itemView.setOnClickListener { }
+            holder.itemView.setOnLongClickListener { onEmptyLongPress(); true }
+            return
+        }
+        holder.icon.alpha = 1f
         holder.icon.setImageDrawable(item.icon)
         holder.label.text = item.label
         holder.label.visibility = if (showLabels()) View.VISIBLE else View.GONE
