@@ -21,27 +21,47 @@ class AppGridAdapter(
     private val cornerRadii: () -> FloatArray? = { null }
 ) : RecyclerView.Adapter<AppGridAdapter.VH>() {
 
-    private val slots = MutableList<AppEntry?>(24) { null }
+    var pageSize: Int = 24
+        private set
+    private val slots = MutableList(pageSize) { null as AppEntry? }
+
+    fun resize(newSize: Int) {
+        val n = newSize.coerceIn(8, 48)
+        if (n == pageSize) return
+        if (n > slots.size) {
+            while (slots.size < n) slots.add(null)
+        } else if (n < slots.size) {
+            while (slots.size > n) slots.removeAt(slots.lastIndex)
+        }
+        pageSize = n
+        notifyDataSetChanged()
+    }
 
     fun submitApps(apps: List<AppEntry?>) {
-        for (i in 0 until 24) slots[i] = apps.getOrNull(i)
+        ensureSize()
+        for (i in 0 until pageSize) slots[i] = apps.getOrNull(i)
         notifyDataSetChanged()
     }
 
-    // compat: submit non-null list into sequential slots
     fun submitAppList(apps: List<AppEntry>) {
-        for (i in 0 until 24) slots[i] = apps.getOrNull(i)
+        ensureSize()
+        for (i in 0 until pageSize) slots[i] = apps.getOrNull(i)
         notifyDataSetChanged()
     }
 
-    fun allSlots(): List<AppEntry?> = slots.toList()
-    fun all(): List<AppEntry> = slots.filterNotNull()
+    private fun ensureSize() {
+        while (slots.size < pageSize) slots.add(null)
+        if (slots.size > pageSize) slots.subList(pageSize, slots.size).clear()
+    }
+
+    fun allSlots(): List<AppEntry?> = slots.take(pageSize).toList()
+    fun all(): List<AppEntry> = slots.take(pageSize).filterNotNull()
     fun currentItems(): List<AppEntry> = all()
 
     fun getSlot(index: Int): AppEntry? = slots.getOrNull(index)
 
     fun setSlot(index: Int, app: AppEntry?) {
-        if (index in 0 until 24) { slots[index] = app; notifyDataSetChanged() }
+        if (index in 0 until pageSize) { slots[index] = app; notifyDataSetChanged() }
     }
 
     fun removeByKey(key: String): AppEntry? {
@@ -54,29 +74,26 @@ class AppGridAdapter(
     }
 
     fun insertAt(index: Int, entry: AppEntry) {
-        // remove existing
         val existing = slots.indexOfFirst { it?.key == entry.key }
         if (existing != -1) slots[existing] = null
-        val target = index.coerceIn(0, 23)
+        val target = index.coerceIn(0, pageSize - 1)
         if (slots[target] == null) {
             slots[target] = entry
         } else {
-            // find nearest empty slot
             val empty = findNearestEmpty(target)
             if (empty != -1) {
-                // shift towards empty to make room
                 shiftToward(target, empty)
                 slots[target] = entry
             } else {
-                slots[target] = entry // overwrite last resort
+                slots[target] = entry
             }
         }
         notifyDataSetChanged()
     }
 
     private fun findNearestEmpty(from: Int): Int {
-        for (d in 1 until 24) {
-            val r = from + d; if (r < 24 && slots[r] == null) return r
+        for (d in 1 until pageSize) {
+            val r = from + d; if (r < pageSize && slots[r] == null) return r
             val l = from - d; if (l >= 0 && slots[l] == null) return l
         }
         return -1
@@ -106,10 +123,10 @@ class AppGridAdapter(
         return VH(view)
     }
 
-    override fun getItemCount(): Int = 24
+    override fun getItemCount(): Int = pageSize
 
     override fun onBindViewHolder(holder: VH, position: Int) {
-        val item = slots[position]
+        val item = slots.getOrNull(position)
         if (item == null) {
             holder.icon.setImageDrawable(null)
             holder.icon.alpha = 0f
