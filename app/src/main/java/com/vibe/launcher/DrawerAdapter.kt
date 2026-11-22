@@ -11,7 +11,8 @@ class DrawerAdapter(
     private val onClick: (AppEntry, View) -> Unit,
     private val onLongPress: (AppEntry, View) -> Boolean,
     private val shape: () -> String = { "circle" },
-    private val cornerRadii: () -> FloatArray? = { null }
+    private val cornerRadii: () -> FloatArray? = { null },
+    private val iconScale: () -> Int = { 100 }
 ) : RecyclerView.Adapter<DrawerAdapter.VH>() {
 
     private val items = mutableListOf<AppEntry>()
@@ -31,6 +32,11 @@ class DrawerAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val item = items[position]
+        val scale = iconScale().coerceIn(60, 140) / 100f
+        val base = (56 * holder.itemView.resources.displayMetrics.density).toInt()
+        val sz = (base * scale).toInt().coerceAtLeast(1)
+        val lp = holder.icon.layoutParams
+        if (lp.width != sz || lp.height != sz) { lp.width = sz; lp.height = sz; holder.icon.layoutParams = lp }
         holder.icon.setImageDrawable(item.icon)
         holder.label.text = item.label
         AppGridAdapter.applyShape(holder.icon, shape(), cornerRadii())
