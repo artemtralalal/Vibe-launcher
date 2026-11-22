@@ -72,7 +72,7 @@ class MainActivity : AppCompatActivity() {
 
     private val allApps = mutableListOf<AppEntry>()
     private val dockApps = arrayListOf<AppEntry?>(null, null, null, null)
-    private val pages = mutableListOf<MutableList<AppEntry>>()
+    private val pages = mutableListOf<MutableList<AppEntry?>>()
     private var currentPageIndex = 0
     private val pageSize = 24
 
@@ -241,11 +241,14 @@ class MainActivity : AppCompatActivity() {
         renderDock()
     }
 
+    private fun newPage(): MutableList<AppEntry?> = MutableList(pageSize) { null }
+
     private fun ensurePages() {
-        if (pages.isEmpty()) pages.add(mutableListOf())
+        if (pages.isEmpty()) pages.add(newPage())
+        pages.forEach { p -> while (p.size < pageSize) p.add(null); if (p.size > pageSize) p.subList(pageSize, p.size).clear() }
     }
 
-    private fun currentPageItems(): MutableList<AppEntry> {
+    private fun currentPageItems(): MutableList<AppEntry?> {
         ensurePages()
         currentPageIndex = currentPageIndex.coerceIn(0, pages.lastIndex)
         return pages[currentPageIndex]
@@ -283,10 +286,10 @@ class MainActivity : AppCompatActivity() {
         val next = currentPageIndex + delta
         if (next < 0) return
         if (next > pages.lastIndex) {
-            if (fromDrag) pages.add(mutableListOf()) else return
+            if (fromDrag) pages.add(newPage()) else return
         }
         if (next == currentPageIndex) return
-        pages[currentPageIndex] = gridAdapter.all().toMutableList()
+        pages[currentPageIndex] = gridAdapter.allSlots().toMutableList()
         currentPageIndex = next
         renderCurrentPage()
     }
@@ -928,9 +931,13 @@ class MainActivity : AppCompatActivity() {
             val rest = allApps.filter { it.key !in used }
             pages.clear()
             if (rest.isEmpty()) {
-                pages.add(mutableListOf())
+                pages.add(newPage())
             } else {
-                rest.chunked(pageSize).forEach { chunk -> pages.add(chunk.toMutableList()) }
+                rest.chunked(pageSize).forEach { chunk ->
+                    val page = newPage()
+                    chunk.forEachIndexed { i, app -> page[i] = app }
+                    pages.add(page)
+                }
             }
             currentPageIndex = 0
             renderCurrentPage()
@@ -944,7 +951,7 @@ class MainActivity : AppCompatActivity() {
             prefs.layoutInitialized = true
             for (i in 0 until 4) dockApps[i] = null
             pages.clear()
-            pages.add(mutableListOf())
+            pages.add(newPage())
             currentPageIndex = 0
             renderCurrentPage()
             renderDock()
@@ -1261,20 +1268,26 @@ class MainActivity : AppCompatActivity() {
                 pages.clear()
                 if (savedPages.isNotEmpty()) {
                     savedPages.forEach { pageKeys ->
-                        val page = pageKeys.mapNotNull { byKey[it] }.filter { it.key !in used }.distinctBy { it.key }.toMutableList()
-                        used.addAll(page.map { it.key })
+                        val page = MutableList<AppEntry?>(pageSize) { null }
+                        for (i in 0 until pageSize) {
+                            val k = pageKeys.getOrNull(i)
+                            val app = if (k != null) byKey[k] else null
+                            if (app != null && app.key !in used) {
+                                page[i] = app
+                                used.add(app.key)
+                            }
+                        }
                         pages.add(page)
                     }
                 }
-                if (pages.isEmpty()) pages.add(mutableListOf())
-                // drop empty trailing pages but keep at least one
-                while (pages.size > 1 && pages.last().isEmpty()) pages.removeAt(pages.lastIndex)
+                if (pages.isEmpty()) pages.add(newPage())
+                while (pages.size > 1 && pages.last().all { it == null }) pages.removeAt(pages.lastIndex)
                 currentPageIndex = prefs.currentPage.coerceIn(0, pages.lastIndex)
                 renderCurrentPage()
             } else {
                 for (i in 0 until 4) dockApps[i] = null
                 pages.clear()
-                pages.add(mutableListOf())
+                pages.add(newPage())
                 currentPageIndex = 0
                 renderCurrentPage()
             }
@@ -1381,7 +1394,7 @@ class MainActivity : AppCompatActivity() {
         val cellH = (first?.height?.toFloat() ?: (100f * resources.displayMetrics.density)).coerceAtLeast(1f)
         val col = ((x - gridRecycler.paddingLeft) / cellW).toInt().coerceIn(0, cols - 1)
         val row = ((y - padTop + gridRecycler.computeVerticalScrollOffset()) / cellH).toInt().coerceAtLeast(0)
-        return (row * cols + col).coerceIn(0, gridAdapter.itemCount)
+        return (row * cols + col).coerceIn(0, 23)
     }
 
     private fun handleGridDrag(event: android.view.DragEvent): Boolean {
@@ -1482,8 +1495,8 @@ class MainActivity : AppCompatActivity() {
     private fun removeAppFromPages(key: String, exceptPage: Int = -1) {
         pages.forEachIndexed { i, p ->
             if (i != exceptPage) {
-                val idx = p.indexOfFirst { it.key == key }
-                if (idx >= 0) p.removeAt(idx)
+                val idx = p.indexOfFirst { it?.key == key }
+                if (idx >= 0) p[idx] = null
             }
         }
     }
@@ -1491,70 +1504,103 @@ class MainActivity : AppCompatActivity() {
     private fun applyPendingDropNow(key: String, toDock: Int?, toGrid: Int, fromDock: Int?, fromDrawer: Boolean, fromPage: Int) {
         val app = findApp(key) ?: return
         ensurePages()
+        val targetSlot = toGrid.coerceIn(0, pageSize - 1)
 
         if (toDock != null) {
             if (fromDock == toDock) return
             val replaced = dockApps[toDock]
+            // remove from source
             if (fromDock != null) {
-                dockApps[fromDock] = replaced
+                dockApps[fromDock] = null
             } else if (!fromDrawer) {
-                // remove from source page
-                if (fromPage >= 0 && fromPage < pages.size && fromPage != currentPageIndex) {
-                    pages[fromPage].removeAll { it.key == key }
+                removeFromPageSlot(key, fromPage)
+            }
+            // place replaced back to source grid slot if possible
+            if (replaced != null && replaced.key != app.key) {
+                if (fromDock != null) {
+                    dockApps[fromDock] = replaced
+                } else if (!fromDrawer) {
+                    placeAppInSlot(replaced, fromPage, if (fromPage == currentPageIndex) targetSlot else 0)
                 } else {
-                    gridAdapter.removeByKey(key)
+                    placeAppInSlot(replaced, currentPageIndex, firstEmptySlot(currentPageIndex))
                 }
-                if (replaced != null) addToCurrentPage(replaced, gridAdapter.itemCount)
-            } else {
-                if (replaced != null) addToCurrentPage(replaced, gridAdapter.itemCount)
             }
             dockApps[toDock] = app
         } else {
+            // drop to grid slot
+            val currentSlots = gridAdapter.allSlots().toMutableList()
+            // remove app from source
+            var sourcePage = fromPage
+            var sourceSlot = -1
             if (fromDock != null) {
                 dockApps[fromDock] = null
             } else if (!fromDrawer) {
                 if (fromPage >= 0 && fromPage < pages.size && fromPage != currentPageIndex) {
-                    pages[fromPage].removeAll { it.key == key }
+                    sourceSlot = pages[fromPage].indexOfFirst { it?.key == key }
+                    if (sourceSlot >= 0) pages[fromPage][sourceSlot] = null
                 } else {
-                    gridAdapter.removeByKey(key)
+                    sourceSlot = currentSlots.indexOfFirst { it?.key == key }
+                    if (sourceSlot >= 0) currentSlots[sourceSlot] = null
                 }
             }
-            // if app exists elsewhere on other pages, remove duplicates
+            // also clear duplicates on other pages
             removeAppFromPages(key, exceptPage = currentPageIndex)
-            addToCurrentPage(app, toGrid)
+            // occupy target
+            val occupant = currentSlots[targetSlot]
+            if (occupant == null || occupant.key == key) {
+                currentSlots[targetSlot] = app
+            } else {
+                // swap: put occupant into source slot if available, else first empty
+                currentSlots[targetSlot] = app
+                if (!fromDrawer && fromDock == null && sourcePage == currentPageIndex && sourceSlot >= 0 && sourceSlot != targetSlot) {
+                    currentSlots[sourceSlot] = occupant
+                } else if (!fromDrawer && fromDock == null && sourcePage >= 0 && sourcePage != currentPageIndex && sourceSlot >= 0) {
+                    pages[sourcePage][sourceSlot] = occupant
+                } else {
+                    val empty = currentSlots.indexOfFirst { it == null }
+                    if (empty >= 0) currentSlots[empty] = occupant
+                    else placeOverflowOnNextPage(occupant)
+                }
+            }
+            pages[currentPageIndex] = currentSlots
+            gridAdapter.submitApps(currentSlots)
         }
     }
 
-    private fun addToCurrentPage(app: AppEntry, index: Int) {
-        ensurePages()
-        // remove if already on current page (gridAdapter handles this but be safe)
-        val cur = gridAdapter.all().toMutableList().apply { removeAll { it.key == app.key } }
-        val insertAt = index.coerceIn(0, cur.size)
-        cur.add(insertAt, app)
-        // overflow to next page
-        if (cur.size > pageSize) {
-            val overflow = cur.removeAt(cur.lastIndex)
-            pages[currentPageIndex] = cur
-            gridAdapter.submitApps(cur.toList())
-            placeOverflowOnNextPage(overflow)
+    private fun removeFromPageSlot(key: String, page: Int) {
+        if (page >= 0 && page < pages.size) {
+            val idx = pages[page].indexOfFirst { it?.key == key }
+            if (idx >= 0) pages[page][idx] = null
+            if (page == currentPageIndex) gridAdapter.removeByKey(key)
         } else {
-            pages[currentPageIndex] = cur
-            gridAdapter.submitApps(cur.toList())
+            gridAdapter.removeByKey(key)
         }
+    }
+
+    private fun placeAppInSlot(app: AppEntry, page: Int, preferred: Int) {
+        ensurePages()
+        if (page < 0 || page >= pages.size) return
+        removeAppFromPages(app.key, exceptPage = -1)
+        val p = pages[page]
+        val slot = if (preferred in 0 until pageSize && p[preferred] == null) preferred else p.indexOfFirst { it == null }
+        if (slot >= 0) p[slot] = app else placeOverflowOnNextPage(app)
+        if (page == currentPageIndex) gridAdapter.submitApps(pages[page])
+    }
+
+    private fun firstEmptySlot(page: Int): Int {
+        if (page < 0 || page >= pages.size) return 0
+        return pages[page].indexOfFirst { it == null }.let { if (it >= 0) it else 0 }
     }
 
     private fun placeOverflowOnNextPage(app: AppEntry) {
         var target = currentPageIndex + 1
-        if (target >= pages.size) pages.add(mutableListOf())
-        // avoid duplicates
-        pages.forEach { p -> p.removeAll { it.key == app.key } }
-        if (pages[target].size >= pageSize) {
-            val ov = pages[target].removeAt(pages[target].lastIndex)
-            pages[target].add(0, app)
-            if (target + 1 >= pages.size) pages.add(mutableListOf())
-            pages[target + 1].add(0, ov)
-        } else {
-            pages[target].add(0, app)
+        if (target >= pages.size) pages.add(newPage())
+        removeAppFromPages(app.key, exceptPage = -1)
+        val slot = pages[target].indexOfFirst { it == null }
+        if (slot >= 0) pages[target][slot] = app else {
+            if (target + 1 >= pages.size) pages.add(newPage())
+            val s2 = pages[target + 1].indexOfFirst { it == null }
+            if (s2 >= 0) pages[target + 1][s2] = app
         }
     }
 
@@ -1604,12 +1650,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun persistLayout() {
         ensurePages()
-        pages[currentPageIndex] = gridAdapter.all().toMutableList()
-        while (pages.size > 1 && pages.last().isEmpty()) pages.removeAt(pages.lastIndex)
+        pages[currentPageIndex] = gridAdapter.allSlots().toMutableList()
+        while (pages.size > 1 && pages.last().all { it == null }) pages.removeAt(pages.lastIndex)
         val clamped = currentPageIndex.coerceIn(0, pages.lastIndex)
         val changed = clamped != currentPageIndex
         currentPageIndex = clamped
-        prefs.savePages(pages.map { p -> p.map { it.key } })
+        prefs.savePages(pages.map { p -> p.map { it?.key } })
         prefs.currentPage = currentPageIndex
         prefs.saveDockOrder(dockApps.mapNotNull { it?.key })
         if (changed) renderCurrentPage() else updatePageIndicator()
