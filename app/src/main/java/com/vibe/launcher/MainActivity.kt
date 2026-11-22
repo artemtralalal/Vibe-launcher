@@ -74,7 +74,7 @@ class MainActivity : AppCompatActivity() {
     private val dockApps = arrayListOf<AppEntry?>(null, null, null, null)
     private val pages = mutableListOf<MutableList<AppEntry?>>()
     private var currentPageIndex = 0
-    private val pageSize = 24
+    private var pageSize = 24
 
     private var draggedKey: String? = null
     private var draggedFromDock: Int? = null
@@ -91,6 +91,7 @@ class MainActivity : AppCompatActivity() {
     private var pageDragStartX = 0f
     private var pageDragStartY = 0f
     private var pageDragDx = 0f
+    private var dragGridOverlay: DragGridOverlay? = null
 
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -201,8 +202,16 @@ class MainActivity : AppCompatActivity() {
         val d = resources.displayMetrics.density
 
         val cols = if (landscape) prefs.landscapeGridCols.coerceIn(4, 8) else prefs.portraitGridCols.coerceIn(3, 6)
+        val rows = prefs.homeGridRows.coerceIn(4, 8)
+        val newPageSize = (cols * rows).coerceIn(8, 48)
         val gridPad = if (landscape) prefs.landscapeGridPadding else prefs.portraitGridPadding
         val iconScale = if (landscape) prefs.landscapeIconScale.coerceIn(60, 120) / 100f else 1f
+
+        if (newPageSize != pageSize) {
+            pageSize = newPageSize
+            gridAdapter.resize(pageSize)
+            normalizePages()
+        }
 
         gridRecycler.setPadding((gridPad * d).toInt(), 0, (gridPad * d).toInt(), (8 * d).toInt())
         val lm = gridRecycler.layoutManager
@@ -317,6 +326,22 @@ class MainActivity : AppCompatActivity() {
     private fun ensurePages() {
         if (pages.isEmpty()) pages.add(newPage())
         pages.forEach { p -> while (p.size < pageSize) p.add(null); if (p.size > pageSize) p.subList(pageSize, p.size).clear() }
+    }
+
+    private fun normalizePages() {
+        ensurePages()
+        // collect overflow items from pages that got trimmed
+        val overflow = mutableListOf<AppEntry>()
+        pages.forEach { p ->
+            while (p.size > pageSize) {
+                val it = p.removeAt(p.lastIndex)
+                if (it != null) overflow.add(it)
+            }
+            while (p.size < pageSize) p.add(null)
+        }
+        overflow.forEach { app -> placeOverflowOnNextPage(app) }
+        while (pages.size > 1 && pages.last().all { it == null }) pages.removeAt(pages.lastIndex)
+        currentPageIndex = currentPageIndex.coerceIn(0, pages.lastIndex.coerceAtLeast(0))
     }
 
     private fun currentPageItems(): MutableList<AppEntry?> {
@@ -533,9 +558,8 @@ class MainActivity : AppCompatActivity() {
         bindSeek(findViewById(R.id.openScaleSeek), (prefs.openScale * 100).toInt(), 20, 100) { prefs.openScale = it / 100f }
         bindSeek(findViewById(R.id.closeScaleSeek), (prefs.closeScale * 100).toInt(), 20, 100) { prefs.closeScale = it / 100f }
         bindSeek(findViewById(R.id.closeTySeek), prefs.closeArcHeight.toInt(), 0, 600) { prefs.closeArcHeight = it.toFloat() }
-        bindSeek(findViewById(R.id.overshootSeek), (prefs.openOvershoot * 100).toInt(), 0, 150) {
-            prefs.openOvershoot = it / 100f
-            prefs.closeOvershoot = it / 120f
+        bindSeek(findViewById(R.id.overshootSeek), (prefs.closeOvershoot * 100).toInt(), 0, 150) {
+            prefs.closeOvershoot = it / 100f
         }
 
         updateIconPackLabel()
@@ -564,6 +588,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.drawerLayoutBtn).setOnClickListener { showDrawerLayoutPicker() }
         updateLandDockLabel()
         findViewById<Button>(R.id.landDockBtn).setOnClickListener { showLandDockPicker() }
+        bindSeek(findViewById(R.id.gridRowsSeek), prefs.homeGridRows - 4, 0, 4) { prefs.homeGridRows = it + 4; applyOrientationLayout(); renderCurrentPage(); persistLayout() }
         bindSeek(findViewById(R.id.portColsSeek), prefs.portraitGridCols - 3, 0, 3) { prefs.portraitGridCols = it + 3; applyOrientationLayout(); renderCurrentPage() }
         bindSeek(findViewById(R.id.portPadSeek), prefs.portraitGridPadding, 0, 40) { prefs.portraitGridPadding = it; applyOrientationLayout() }
         bindSeek(findViewById(R.id.landColsSeek), prefs.landscapeGridCols - 4, 0, 4) { prefs.landscapeGridCols = it + 4; applyOrientationLayout(); renderCurrentPage() }
@@ -1521,9 +1546,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun gridDropIndex(x: Float, y: Float): Int {
         val child = gridRecycler.findChildViewUnder(x, y)
-        if (child != null) return gridRecycler.getChildAdapterPosition(child).coerceAtLeast(0)
-        // estimate from grid position
-        val cols = 4
+        if (child != null) return gridRecycler.getChildAdapterPosition(child).coerceIn(0, pageSize - 1)
+        val cols = (gridRecycler.layoutManager as? GridLayoutManager)?.spanCount ?: 4
         val padTop = gridRecycler.paddingTop.toFloat()
         val usableW = (gridRecycler.width - gridRecycler.paddingLeft - gridRecycler.paddingRight).toFloat().coerceAtLeast(1f)
         val cellW = usableW / cols
@@ -1531,11 +1555,12 @@ class MainActivity : AppCompatActivity() {
         val cellH = (first?.height?.toFloat() ?: (100f * resources.displayMetrics.density)).coerceAtLeast(1f)
         val col = ((x - gridRecycler.paddingLeft) / cellW).toInt().coerceIn(0, cols - 1)
         val row = ((y - padTop + gridRecycler.computeVerticalScrollOffset()) / cellH).toInt().coerceAtLeast(0)
-        return (row * cols + col).coerceIn(0, 23)
+        return (row * cols + col).coerceIn(0, pageSize - 1)
     }
 
     private fun handleGridDrag(event: android.view.DragEvent): Boolean {
         when (event.action) {
+            android.view.DragEvent.ACTION_DRAG_STARTED -> showDragGrid()
             android.view.DragEvent.ACTION_DRAG_LOCATION -> {
                 val edge = 56f * resources.displayMetrics.density
                 val w = gridRecycler.width.toFloat()
@@ -1587,6 +1612,7 @@ class MainActivity : AppCompatActivity() {
         val slotView = dockBar.getChildAt(slot)
         when (event.action) {
             android.view.DragEvent.ACTION_DRAG_STARTED -> {
+                showDragGrid()
                 slotView?.foreground = android.graphics.drawable.GradientDrawable().apply {
                     cornerRadius = 18f * resources.displayMetrics.density
                     setStroke((2 * resources.displayMetrics.density).toInt(), 0x55FFFFFF)
@@ -1741,6 +1767,62 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun showDragGrid() {
+        try {
+            val ws = findViewById<android.widget.FrameLayout>(R.id.workspaceContainer)
+            if (dragGridOverlay == null) {
+                dragGridOverlay = DragGridOverlay(this).apply {
+                    layoutParams = android.widget.FrameLayout.LayoutParams(android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT)
+                    isClickable = false; isFocusable = false
+                }
+                ws.addView(dragGridOverlay)
+            }
+            val cols = (gridRecycler.layoutManager as? GridLayoutManager)?.spanCount ?: 4
+            dragGridOverlay?.cols = cols
+            dragGridOverlay?.rows = ((pageSize + cols - 1) / cols).coerceAtLeast(1)
+            dragGridOverlay?.visibility = View.VISIBLE
+            dragGridOverlay?.bringToFront()
+            // keep grid above overlay
+            gridRecycler.bringToFront()
+            findViewById<View>(R.id.pageEdgeLeft).bringToFront()
+            findViewById<View>(R.id.pageEdgeRight).bringToFront()
+            dragGridOverlay?.invalidate()
+        } catch (_: Exception) { }
+    }
+
+    private fun hideDragGrid() {
+        try { dragGridOverlay?.visibility = View.GONE } catch (_: Exception) { }
+    }
+
+    private fun ensureAppOnHome(key: String, fromDock: Int?, preferredPage: Int) {
+        val app = findApp(key) ?: return
+        val onHome = gridAdapter.allSlots().any { it?.key == key } || pages.any { p -> p.any { it?.key == key } } || dockApps.any { it?.key == key }
+        if (onHome) return
+        if (fromDock != null) {
+            if (dockApps[fromDock] == null) { dockApps[fromDock] = app; return }
+            val emptyDock = dockApps.indexOfFirst { it == null }
+            if (emptyDock >= 0) { dockApps[emptyDock] = app; return }
+        }
+        ensurePages()
+        val targetPage = preferredPage.coerceIn(0, pages.lastIndex)
+        fun placeOn(pageIdx: Int): Int {
+            val p = pages[pageIdx]
+            val empty = p.indexOfFirst { it == null }
+            if (empty >= 0) { p[empty] = app; if (pageIdx == currentPageIndex) gridAdapter.submitApps(p); return empty }
+            return -1
+        }
+        var slot = placeOn(targetPage)
+        if (slot < 0) {
+            for (i in pages.indices) { slot = placeOn(i); if (slot >= 0) { if (i == currentPageIndex) gridAdapter.submitApps(pages[i]); break } }
+        }
+        if (slot < 0) {
+            pages.add(newPage())
+            val idx = pages.lastIndex
+            pages[idx][0] = app
+        }
+        if (targetPage == currentPageIndex) renderCurrentPage()
+    }
+
     private fun resetDragState() {
         if (draggedKey == null && !draggedFromDrawer) {
             for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.alpha = 1f
@@ -1761,8 +1843,14 @@ class MainActivity : AppCompatActivity() {
 
         root.post {
             try {
+                var placed = false
                 if (dropped && pKey != null) {
                     applyPendingDropNow(pKey, pDock, pGrid, fromDock, fromDrawer, fromPage)
+                    placed = true
+                }
+                if (!placed && key != null && !fromDrawer) {
+                    ensureAppOnHome(key, fromDock, if (fromPage >= 0) fromPage else currentPageIndex)
+                    placed = true
                 }
                 dockBar.setBackgroundResource(R.drawable.bg_dock)
                 for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.alpha = 1f
@@ -1780,7 +1868,8 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 renderDock()
-                if (dropped) persistLayout()
+                if (placed) persistLayout()
+                hideDragGrid()
             } catch (_: Exception) { }
         }
     }
@@ -1878,7 +1967,7 @@ class MainActivity : AppCompatActivity() {
             .translationX(prefs.openTranslateX)
             .translationY(prefs.openTranslateY)
             .setDuration(prefs.openDuration.toLong())
-            .setInterpolator(OvershootInterpolator(prefs.openOvershoot))
+            .setInterpolator(DecelerateInterpolator(1.4f))
             .withEndAction {
                 if (openAnimating) {
                     openAnimating = false
@@ -1995,11 +2084,25 @@ class MainActivity : AppCompatActivity() {
     private fun bounceTargetIcon(key: String?) {
         if (key == null) return
         val view = findIconViewByKey(key) ?: return
+        val overshoot = prefs.closeOvershoot.coerceIn(0f, 1.5f)
+        val arcOn = prefs.closeArcHeight > 10f
         view.animate().cancel()
-        view.scaleX = 0.85f
-        view.scaleY = 0.85f
-        view.animate().scaleX(1f).scaleY(1f).setDuration(220)
-            .setInterpolator(OvershootInterpolator(1.4f)).start()
+        view.translationY = 0f
+        if (arcOn && overshoot > 0.01f) {
+            val drop = (6f + overshoot * 18f) * resources.displayMetrics.density
+            view.scaleX = 0.88f; view.scaleY = 0.88f
+            view.translationY = -drop * 0.35f
+            view.animate().scaleX(1f).scaleY(1f).translationY(drop).setDuration(140)
+                .setInterpolator(DecelerateInterpolator(1.2f))
+                .withEndAction {
+                    view.animate().translationY(0f).setDuration(260)
+                        .setInterpolator(OvershootInterpolator(1.2f + overshoot)).start()
+                }.start()
+        } else {
+            view.scaleX = 0.92f; view.scaleY = 0.92f
+            view.animate().scaleX(1f).scaleY(1f).setDuration(180)
+                .setInterpolator(DecelerateInterpolator(1.5f)).start()
+        }
     }
 
     private fun findIconViewByKey(key: String): View? {
