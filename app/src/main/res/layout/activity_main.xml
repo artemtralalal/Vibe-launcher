@@ -392,6 +392,11 @@
                         <SeekBar android:id="@+id/landPadSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="40"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Горизонт.: масштаб иконок" android:textColor="#CCFFFFFF"/>
                         <SeekBar android:id="@+id/landScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="60"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Масштаб экрана (лаунчер)" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/screenScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="150"/>
+                        <TextView android:id="@+id/screenScaleLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="100%" android:textColor="#99FFFFFF" android:textSize="12sp"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Частота обновления (предпочтение)" android:textColor="#CCFFFFFF"/>
+                        <Button android:id="@+id/refreshRateBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Гц: Авто" />
                     </LinearLayout>
 
                     <LinearLayout android:id="@+id/catDrawer" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
@@ -542,6 +547,7 @@
             android:padding="16dp">
             <TextView android:id="@+id/folderTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Папка" android:textColor="@color/white" android:textSize="18sp" android:textStyle="bold"/>
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/folderRecycler" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp"/>
+            <TextView android:id="@+id/folderResizeHandle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="end" android:padding="8dp" android:text="⇲ Размер" android:textColor="#CCFFFFFF" android:textSize="13sp"/>
         </LinearLayout>
     </FrameLayout>
 
