@@ -1784,7 +1784,7 @@ class MainActivity : AppCompatActivity() {
             val sz = (base * scale).toInt().coerceAtLeast(1)
             val ilp = icon.layoutParams
             ilp.width = sz; ilp.height = sz; icon.layoutParams = ilp
-            item.clipChildren = false; item.clipToPadding = false
+            (item as? ViewGroup)?.clipChildren = false; (item as? ViewGroup)?.clipToPadding = false
             if (ipad && i == 4) {
                 icon.setImageDrawable(getDockFolderIcon())
                 AppGridAdapter.applyShape(icon, prefs.iconShape, currentCornerRadii())
@@ -2695,14 +2695,14 @@ class MainActivity : AppCompatActivity() {
         overlay.animate().cancel()
         if (prefs.animPreset == "genie") {
             overlay.pivotX = overlay.width / 2f
-            overlay.pivotY = overlay.height.toFloat()
+            overlay.pivotY = overlay.height / 2f
             overlay.animate()
                 .scaleX(1f).scaleY(1f)
                 .translationX(prefs.openTranslateX)
                 .translationY(prefs.openTranslateY)
                 .rotationX(0f).rotationY(0f)
-                .setDuration(prefs.openDuration.toLong())
-                .setInterpolator(DecelerateInterpolator(1.8f))
+                .setDuration(prefs.openDuration.toLong().coerceAtLeast(280L))
+                .setInterpolator(android.view.animation.OvershootInterpolator(0.7f))
                 .withEndAction { if (openAnimating) { openAnimating = false; onEnd() } }
                 .start()
         } else {
@@ -2880,17 +2880,26 @@ class MainActivity : AppCompatActivity() {
 
         overlay.animate().cancel()
         if (prefs.animPreset == "genie") {
-            // Simple genie-like suction to target
             overlay.pivotX = overlay.width / 2f
-            overlay.pivotY = overlay.height.toFloat()
+            overlay.pivotY = overlay.height / 2f
+            val gDur = dur.coerceAtLeast(260L)
             overlay.animate()
-                .translationX(tX).translationY(tY)
-                .scaleX(sX.coerceAtLeast(0.05f)).scaleY(sY.coerceAtLeast(0.02f))
-                .rotationX(0f).rotationY(0f)
-                .setDuration(dur)
-                .setInterpolator(DecelerateInterpolator(2.0f))
-                .withEndAction { finishClose() }
-                .start()
+                .translationX(tX).translationY(tY * 0.55f)
+                .scaleX(((1f + sX) / 2f)).scaleY(((1f + sY) / 2f))
+                .setDuration((gDur * 0.45f).toLong())
+                .setInterpolator(DecelerateInterpolator(1.6f))
+                .withEndAction {
+                    morphToIcon()
+                    overlay.animate().cancel()
+                    overlay.animate()
+                        .translationX(tX).translationY(tY)
+                        .scaleX(sX).scaleY(sY)
+                        .rotationX(0f).rotationY(0f)
+                        .setDuration((gDur * 0.55f).toLong())
+                        .setInterpolator(DecelerateInterpolator(2.2f))
+                        .withEndAction { finishClose() }
+                        .start()
+                }.start()
         } else {
             overlay.animate()
                 .translationX(midTX).translationY(midTY)
