@@ -323,6 +323,10 @@
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/flagshipSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Флагманские анимации" android:textColor="@color/white" />
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/blurSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Расширенные текстуры" android:textColor="@color/white" />
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/tiltSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="false" android:text="Эксперимент: наклон окон (iOS 26)" android:textColor="@color/white" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Интенсивность наклона" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/tiltIntensitySeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закругление окон" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/windowCornerSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="60"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Открытие: длительность" android:textColor="#CCFFFFFF" android:layout_marginTop="12dp"/>
                         <SeekBar android:id="@+id/openDurationSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="600"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закрытие: длительность" android:textColor="#CCFFFFFF"/>
