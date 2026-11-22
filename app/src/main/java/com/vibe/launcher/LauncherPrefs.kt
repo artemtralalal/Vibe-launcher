@@ -132,6 +132,10 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getInt("refresh_rate_pref", 0) // 0 auto
         set(v) = prefs.edit().putInt("refresh_rate_pref", v).apply()
 
+    var dockScale: Int
+        get() = prefs.getInt("dock_scale", 100)
+        set(v) = prefs.edit().putInt("dock_scale", v.coerceIn(70, 140)).apply()
+
     var powerSaving: Boolean
         get() = prefs.getBoolean("power_saving", false)
         set(v) = prefs.edit().putBoolean("power_saving", v).apply()
@@ -234,18 +238,19 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getBoolean("icon_press_anim", true)
         set(v) = prefs.edit().putBoolean("icon_press_anim", v).apply()
 
-    fun savePages(pages: List<List<String?>>) {
+    fun savePages(pages: List<List<String?>>, mode: String = "portrait") {
         val arr = JSONArray()
         pages.forEach { page ->
             val p = JSONArray()
             page.forEach { p.put(it ?: "") }
             arr.put(p)
         }
-        prefs.edit().putString(KEY_PAGES, arr.toString()).apply()
+        prefs.edit().putString(KEY_PAGES + "_" + mode, arr.toString()).apply()
+        if (mode == "portrait") prefs.edit().putString(KEY_PAGES, arr.toString()).apply()
     }
 
-    fun loadPages(): List<List<String?>> {
-        val raw = prefs.getString(KEY_PAGES, null)
+    fun loadPages(mode: String = "portrait"): List<List<String?>> {
+        val raw = prefs.getString(KEY_PAGES + "_" + mode, null) ?: if (mode == "portrait") prefs.getString(KEY_PAGES, null) else null
         if (raw != null) {
             return try {
                 val arr = JSONArray(raw)
@@ -255,7 +260,7 @@ class LauncherPrefs(context: Context) {
                 }
             } catch (_: Exception) { emptyList() }
         }
-        // Migration from old single grid
+        if (mode != "portrait") return emptyList()
         val old = loadList(KEY_GRID)
         if (old.isEmpty()) return emptyList()
         val slots = MutableList<String?>(24) { null }
@@ -268,12 +273,17 @@ class LauncherPrefs(context: Context) {
         savePages(listOf(keys))
     }
 
-    fun saveDockOrder(keys: List<String>) {
-        prefs.edit().putString(KEY_DOCK, JSONArray(keys).toString()).apply()
+    fun saveDockOrder(keys: List<String>, mode: String = "portrait") {
+        prefs.edit().putString(KEY_DOCK + "_" + mode, JSONArray(keys).toString()).apply()
+        if (mode == "portrait") prefs.edit().putString(KEY_DOCK, JSONArray(keys).toString()).apply()
     }
 
     fun loadGridOrder(): List<String> = loadPages().firstOrNull()?.filterNotNull() ?: emptyList()
-    fun loadDockOrder(): List<String> = loadList(KEY_DOCK)
+    fun loadDockOrder(mode: String = "portrait"): List<String> {
+        val raw = prefs.getString(KEY_DOCK + "_" + mode, null) ?: if (mode == "portrait") prefs.getString(KEY_DOCK, null) else null
+        if (raw == null) return emptyList()
+        return try { val arr = JSONArray(raw); List(arr.length()) { i -> arr.optString(i) }.filter { it.isNotBlank() } } catch (_: Exception) { emptyList() }
+    }
 
     private fun loadList(key: String): List<String> {
         val raw = prefs.getString(key, null) ?: return emptyList()
