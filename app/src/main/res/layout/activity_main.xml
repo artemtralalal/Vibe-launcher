@@ -278,6 +278,14 @@
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Касание" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
             </LinearLayout>
+            <LinearLayout android:id="@+id/catRowDesktop" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Рабочий стол и обои" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/catRowIsland" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Dynamic Island" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
+            </LinearLayout>
             <LinearLayout android:id="@+id/catRowAbout" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="16dp">
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="О лаунчере" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
@@ -552,6 +560,38 @@
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Может снизить FPS. Оставляет лёгкие следы при движении иконки." android:textColor="#99FFFFFF" android:textSize="12sp"/>
                     </LinearLayout>
 
+                    <LinearLayout android:id="@+id/catDesktop" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Размытие обоев при разблокировке" android:textColor="@color/white" android:textStyle="bold"/>
+                        <Button android:id="@+id/wallUnlockBlurModeBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Режим: с размытия в нормальные"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Интенсивность размытия" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/wallUnlockBlurSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Приближение/отдаление обоев" android:textColor="@color/white" android:textStyle="bold"/>
+                        <Button android:id="@+id/wallZoomModeBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Режим: приближение"/>
+                        <SeekBar android:id="@+id/wallZoomSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Живые обои / видео (MVP)" android:textColor="@color/white" android:textStyle="bold"/>
+                        <Button android:id="@+id/wallPickVideoBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Выбрать видео обои"/>
+                        <Button android:id="@+id/wallPickLockVideoBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Выбрать видео разблокировки"/>
+                        <TextView android:id="@+id/wallVideoStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Видео не выбрано" android:textColor="#99FFFFFF" android:textSize="12sp"/>
+                    </LinearLayout>
+
+                    <LinearLayout android:id="@+id/catIsland" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/islandEnabledSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Включить Dynamic Island" android:textColor="@color/white"/>
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/islandAlwaysSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Всегда показывать" android:textColor="@color/white"/>
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/islandRightHandSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Режим правой руки (вертикальный)" android:textColor="@color/white"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Позиция X / Y / ширина / высота" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/islandXSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                        <SeekBar android:id="@+id/islandYSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                        <SeekBar android:id="@+id/islandWSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                        <SeekBar android:id="@+id/islandHSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Интенсивность 3D-нажатия" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/islandPressSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <Button android:id="@+id/islandMusicPermBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Разрешение музыки/уведомлений"/>
+                        <Button android:id="@+id/islandTestUnlockBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Тест: разблокировка"/>
+                        <Button android:id="@+id/islandTestMusicBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Тест: музыка"/>
+                        <Button android:id="@+id/islandTestFlashBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Тест: фонарик"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="MVP: остров в лаунчере с анимациями/градиентами/тестами. Полная системная интеграция звонков/музыки/записи требует доп. разрешений и сервисов." android:textColor="#99FFFFFF" android:textSize="12sp"/>
+                    </LinearLayout>
+
                     <LinearLayout android:id="@+id/catAbout" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
                         <LinearLayout android:id="@+id/aboutCardBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/bg_settings_panel" android:orientation="vertical" android:padding="16dp">
                             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Vibe Launcher" android:textColor="@color/white" android:textSize="20sp" android:textStyle="bold"/>
@@ -572,6 +612,21 @@
         android:clickable="false"
         android:focusable="false"
         android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/dynamicIsland"
+        android:layout_width="120dp"
+        android:layout_height="36dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_dock"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:visibility="gone">
+        <TextView android:id="@+id/dynamicIslandText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Vibe" android:textColor="@color/white" android:textSize="12sp" android:textStyle="bold"/>
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/volumePanel"
