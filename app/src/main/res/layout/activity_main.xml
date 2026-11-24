@@ -467,58 +467,6 @@
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Масштаб значка при закрытии (только уменьшение)" android:textColor="#CCFFFFFF"/>
                         <SeekBar android:id="@+id/closeIconScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="50"/>
 
-                        <Button android:id="@+id/newAnimStudioBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Студия анимаций" />
-                        <LinearLayout android:id="@+id/animStudioBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/bg_settings_panel" android:padding="10dp" android:layout_marginTop="8dp">
-                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Студия анимаций (3D/деформация)" android:textColor="@color/white" android:textStyle="bold"/>
-                            <com.vibe.launcher.AnimStudioPreview android:id="@+id/animSimPreviewView" android:layout_width="match_parent" android:layout_height="260dp" android:layout_marginTop="8dp" />
-                            <TextView android:id="@+id/animSimPointsLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Точки" android:textColor="#CCFFFFFF" android:textSize="12sp" android:layout_marginTop="6dp"/>
-                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                                <Button android:id="@+id/animSimModePointsBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Точки"/>
-                                <Button android:id="@+id/animSimModeCornersBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Углы"/>
-                            </LinearLayout>
-                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                                <Button android:id="@+id/animSimTargetWindowBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Окно"/>
-                                <Button android:id="@+id/animSimTargetIconBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Иконка"/>
-                            </LinearLayout>
-                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                                <Button android:id="@+id/animSimPresetCloseBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Закрытие"/>
-                                <Button android:id="@+id/animSimPresetOpenBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Открытие"/>
-                                <Button android:id="@+id/animSimPresetReturnBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Возврат"/>
-                            </LinearLayout>
-                            <TextView android:id="@+id/animSimPressureLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сила нажатия" android:textColor="#CCFFFFFF"/>
-                            <SeekBar android:id="@+id/animSimPressureSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
-                            <TextView android:id="@+id/animSimSpeedLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Скорость" android:textColor="#CCFFFFFF"/>
-                            <SeekBar android:id="@+id/animSimSpeedSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="180"/>
-                            <TextView android:id="@+id/animSimScaleLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Масштаб" android:textColor="#CCFFFFFF"/>
-                            <SeekBar android:id="@+id/animSimScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="150"/>
-                            <TextView android:id="@+id/animSimOffsetLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Смещение" android:textColor="#CCFFFFFF"/>
-                            <SeekBar android:id="@+id/animSimOffsetXSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
-                            <SeekBar android:id="@+id/animSimOffsetYSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
-                            <TextView android:id="@+id/animSimPerspLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Перспектива" android:textColor="#CCFFFFFF"/>
-                            <SeekBar android:id="@+id/animSimPerspXSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
-                            <SeekBar android:id="@+id/animSimPerspYSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
-                            <SeekBar android:id="@+id/animSimPerspZSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
-                            <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/animSimSyncCornersSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Синхронизировать углы" android:textColor="@color/white"/>
-                            <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/animSimFullscreenSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Полноэкранный предпросмотр" android:textColor="@color/white"/>
-                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                                <Button android:id="@+id/animSimAddPointBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Точка"/>
-                                <Button android:id="@+id/animSimClearPointsBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Очистить"/>
-                            </LinearLayout>
-                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                                <Button android:id="@+id/animSimResetCornersBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Сброс углов"/>
-                                <Button android:id="@+id/animSimPickIconBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Иконка"/>
-                            </LinearLayout>
-                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                                <Button android:id="@+id/animSimPlayCloseBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="▶ Закрытие"/>
-                                <Button android:id="@+id/animSimPlayOpenBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="▶ Открытие"/>
-                            </LinearLayout>
-                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                                <Button android:id="@+id/animSimSavePresetBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Сохранить"/>
-                                <Button android:id="@+id/animSimPresetListBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Пресеты"/>
-                            </LinearLayout>
-                            <Button android:id="@+id/animSimApplyAppBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Применить к приложению"/>
-                        </LinearLayout>
-
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Зум при открытии/закрытии приложения" android:textColor="@color/white" android:textStyle="bold"/>
                         <Button android:id="@+id/openZoomModeBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Открытие: без зума" />
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сила зума открытия" android:textColor="#CCFFFFFF"/>
@@ -626,24 +574,6 @@
                         <Button android:id="@+id/touchFxOverlayPermBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Разрешение поверх окон"/>
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/motionBlurSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Бета: motion blur иконки при закрытии" android:textColor="@color/white"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Может снизить FPS. Оставляет лёгкие следы при движении иконки." android:textColor="#99FFFFFF" android:textSize="12sp"/>
-                    </LinearLayout>
-
-                    <LinearLayout android:id="@+id/catSound" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
-                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/unlockSoundSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Звук разблокировки" android:textColor="@color/white" />
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Громкость UI-звуков" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
-                        <SeekBar android:id="@+id/uiSoundVolumeSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
-                    </LinearLayout>
-
-                    <LinearLayout android:id="@+id/catTouch" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
-                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/touchFxSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Эффекты касания" android:textColor="@color/white" />
-                        <Button android:id="@+id/touchFxStyleBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Стиль касания: Android" />
-                        <Button android:id="@+id/touchFxEndBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Анимация исчезновения: Уменьшение" />
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Размер" android:textColor="#CCFFFFFF"/>
-                        <SeekBar android:id="@+id/touchFxSizeSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="90"/>
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Скорость" android:textColor="#CCFFFFFF"/>
-                        <SeekBar android:id="@+id/touchFxSpeedSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="90"/>
-                        <Button android:id="@+id/touchFxOverlayPermBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Разрешение поверх других окон (для всех приложений)" />
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Для эффектов поверх всех приложений нужен overlay-сервис. В лаунчере эффекты работают сразу." android:textColor="#99FFFFFF" android:textSize="12sp"/>
                     </LinearLayout>
 
                     <LinearLayout android:id="@+id/catDesktop" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
