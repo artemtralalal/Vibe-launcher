@@ -131,22 +131,27 @@ class AnimStudioPreview @JvmOverloads constructor(
         canvas.save()
         val cx = r.centerX(); val cy = r.centerY()
         val t = if (target == "icon") tilt else floatArrayOf(0f,0f,0f)
-        val cam = Camera(); cam.save(); cam.rotateX(t[0]); cam.rotateY(t[1]); cam.rotateZ(t[2])
+        val cam = Camera(); cam.save(); cam.rotateX(t[0]); cam.rotateY(t[1]); cam.rotateZ(t[2]); cam.translate(0f,0f, -20f)
         val m = Matrix(); cam.getMatrix(m); cam.restore()
         m.preTranslate(-cx, -cy); m.postTranslate(cx, cy)
         canvas.concat(m)
         val rr = RectF(r)
-        canvas.drawRoundRect(rr, 22f, 22f, iconPaint)
-        canvas.drawRoundRect(rr, 22f, 22f, borderPaint)
+        // 3D shadow/depth
+        val shadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x55000000; maskFilter = BlurMaskFilter(12f, BlurMaskFilter.Blur.NORMAL) }
+        canvas.drawRoundRect(RectF(rr.left+6, rr.top+10, rr.right+6, rr.bottom+10), 24f, 24f, shadow)
+        val base = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = LinearGradient(rr.left, rr.top, rr.right, rr.bottom, 0xFF6EE7FF.toInt(), 0xFF3B82F6.toInt(), Shader.TileMode.CLAMP) }
+        canvas.drawRoundRect(rr, 24f, 24f, base)
+        val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 3f; color = 0x88FFFFFF.toInt() }
+        canvas.drawRoundRect(rr, 24f, 24f, edge)
         if (testIcon != null) {
             val src = Rect(0,0,testIcon!!.width, testIcon!!.height)
-            val dst = RectF(r.left+8,r.top+8,r.right-8,r.bottom-8)
+            val dst = RectF(r.left+10,r.top+10,r.right-10,r.bottom-10)
             canvas.drawBitmap(testIcon!!, src, dst, null)
         } else {
-            textPaint.textSize = 34f
-            canvas.drawText("☎", r.centerX(), r.centerY() + 4f, textPaint)
-            smallPaint.textSize = 18f
-            canvas.drawText("Vibe Dialer", r.centerX(), r.bottom - 10f, smallPaint)
+            textPaint.textSize = 36f
+            canvas.drawText("☎", r.centerX(), r.centerY() + 6f, textPaint)
+            smallPaint.textSize = 16f
+            canvas.drawText("Vibe Dialer", r.centerX(), r.bottom - 12f, smallPaint)
         }
         canvas.restore()
     }
@@ -165,6 +170,7 @@ class AnimStudioPreview @JvmOverloads constructor(
         val r = activeRect(); val pts = cornerPoints(r)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                parent?.requestDisallowInterceptTouchEvent(true)
                 dragCorner = pts.indexOfFirst { hypot(it.x - event.x, it.y - event.y) < 44f }
                 if (dragCorner < 0 && mode == "points") {
                     val nx = (event.x/width.coerceAtLeast(1)).coerceIn(0f,1f)
@@ -175,6 +181,7 @@ class AnimStudioPreview @JvmOverloads constructor(
                 return dragCorner >= 0
             }
             MotionEvent.ACTION_MOVE -> {
+                parent?.requestDisallowInterceptTouchEvent(true)
                 if (dragCorner >= 0) {
                     val dx = (event.x - (if (dragCorner==0||dragCorner==3) r.left else r.right)) / r.width().coerceAtLeast(1f)
                     val dy = (event.y - (if (dragCorner<2) r.top else r.bottom)) / r.height().coerceAtLeast(1f)
@@ -183,7 +190,7 @@ class AnimStudioPreview @JvmOverloads constructor(
                     onChanged?.invoke(); invalidate(); return true
                 }
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { dragCorner = -1 }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { dragCorner = -1; parent?.requestDisallowInterceptTouchEvent(false) }
         }
         return super.onTouchEvent(event)
     }
