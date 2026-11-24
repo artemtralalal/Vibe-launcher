@@ -1526,18 +1526,38 @@ class MainActivity : AppCompatActivity() {
 
     private fun currentAnimPoints(): MutableList<AnimPoint> = if (animSimTarget == "icon") animIconPoints else animWinPoints
 
-    private fun computeAnimTilt(points: List<AnimPoint>, pressure: Int): FloatArray {
-        val p = pressure.coerceIn(0, 200) / 100f
-        if (!prefs.animStudioEnabled || p <= 0.01f || points.isEmpty()) return floatArrayOf(0f, 0f, 0f)
-        var rx = 0f; var ry = 0f; var rz = 0f
-        points.forEach { pt ->
-            val dx = (pt.x - 0.5f); val dy = (pt.y - 0.5f); val s = pt.strength * p
-            rx += (-dy) * 35f * s; ry += dx * 35f * s; rz += dx * -8f * s
+    private fun parseCorners(s: String): FloatArray {
+        val out = FloatArray(8)
+        if (s.isBlank()) return out
+        val parts = s.split(";")
+        for (i in 0 until minOf(4, parts.size)) {
+            val a = parts[i].split(","); if (a.size >= 2) { out[i*2] = a[0].toFloatOrNull() ?: 0f; out[i*2+1] = a[1].toFloatOrNull() ?: 0f }
         }
-        rx += prefs.animStudioPerspX.coerceIn(-100, 100) / 100f * 25f * p
-        ry += prefs.animStudioPerspY.coerceIn(-100, 100) / 100f * 25f * p
-        rz += prefs.animStudioPerspZ.coerceIn(-100, 100) / 100f * 20f * p
-        return floatArrayOf(rx.coerceIn(-80f,80f), ry.coerceIn(-80f,80f), rz.coerceIn(-45f,45f))
+        return out
+    }
+
+    private fun computeAnimTilt(points: List<AnimPoint>, pressure: Int, target: String = "window"): FloatArray {
+        val p = pressure.coerceIn(0, 200) / 100f
+        val enabled = prefs.animStudioEnabled
+        var rx = 0f; var ry = 0f; var rz = 0f
+        if (enabled && p > 0.01f) {
+            points.forEach { pt ->
+                val dx = (pt.x - 0.5f); val dy = (pt.y - 0.5f); val s = pt.strength * p
+                rx += (-dy) * 35f * s; ry += dx * 35f * s; rz += dx * -8f * s
+            }
+            rx += prefs.animStudioPerspX.coerceIn(-100, 100) / 100f * 25f * p
+            ry += prefs.animStudioPerspY.coerceIn(-100, 100) / 100f * 25f * p
+            rz += prefs.animStudioPerspZ.coerceIn(-100, 100) / 100f * 20f * p
+            val c = parseCorners(if (target == "icon") prefs.animStudioIconCorners else prefs.animStudioWindowCorners)
+            val tlx=c[0]; val tly=c[1]; val trx=c[2]; val try_=c[3]; val brx=c[4]; val bry=c[5]; val blx=c[6]; val bly=c[7]
+            rx += ((tly + try_) - (bly + bry)) * 90f * p
+            ry += ((trx + brx) - (tlx + blx)) * 90f * p
+            rz += ((try_ - tly) + (bry - bly)) * 30f * p
+        }
+        val sc = (prefs.animStudioScale.coerceIn(50,200) / 100f)
+        val ox = (prefs.animStudioOffsetX.coerceIn(0,200) - 100) / 100f
+        val oy = (prefs.animStudioOffsetY.coerceIn(0,200) - 100) / 100f
+        return floatArrayOf(rx.coerceIn(-80f,80f), ry.coerceIn(-80f,80f), rz.coerceIn(-45f,45f), sc, ox, oy)
     }
 
     private fun persistAnimPoints() {
@@ -1585,26 +1605,50 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupAnimStudio() {
         val btn = findViewById<Button?>(R.id.newAnimStudioBtn) ?: return
-        val preview = findViewById<FrameLayout?>(R.id.animSimPreview) ?: return
-        val win = findViewById<View?>(R.id.animSimWindow) ?: return
-        val icon = findViewById<View?>(R.id.animSimIcon) ?: return
+        val preview = findViewById<AnimStudioPreview?>(R.id.animSimPreviewView) ?: return
         val pointsLabel = findViewById<TextView?>(R.id.animSimPointsLabel) ?: return
         val pressureSeek = findViewById<SeekBar?>(R.id.animSimPressureSeek) ?: return
+        val speedSeek = findViewById<SeekBar?>(R.id.animSimSpeedSeek) ?: return
+        val scaleSeek = findViewById<SeekBar?>(R.id.animSimScaleSeek) ?: return
+        val oxSeek = findViewById<SeekBar?>(R.id.animSimOffsetXSeek) ?: return
+        val oySeek = findViewById<SeekBar?>(R.id.animSimOffsetYSeek) ?: return
         val px = findViewById<SeekBar?>(R.id.animSimPerspXSeek) ?: return
         val py = findViewById<SeekBar?>(R.id.animSimPerspYSeek) ?: return
         val pz = findViewById<SeekBar?>(R.id.animSimPerspZSeek) ?: return
+        val syncCorners = findViewById<SwitchMaterial?>(R.id.animSimSyncCornersSwitch)
+        val fullSwitch = findViewById<SwitchMaterial?>(R.id.animSimFullscreenSwitch)
 
         animWinPoints.clear(); animWinPoints.addAll(parseAnimPoints(prefs.animStudioWindowPoints))
         animIconPoints.clear(); animIconPoints.addAll(parseAnimPoints(prefs.animStudioIconPoints))
+        preview.points = currentAnimPoints().map { AnimStudioPreview.PPoint(it.x, it.y, it.strength) }.toMutableList()
+        preview.target = animSimTarget
+        preview.loadCorners(if (animSimTarget=="icon") prefs.animStudioIconCorners else prefs.animStudioWindowCorners)
         pressureSeek.progress = prefs.animStudioPressure.coerceIn(0, 200)
+        speedSeek.progress = prefs.animStudioSpeed.coerceIn(20,200)
+        scaleSeek.progress = prefs.animStudioScale.coerceIn(50,200)
+        oxSeek.progress = prefs.animStudioOffsetX.coerceIn(0,200)
+        oySeek.progress = prefs.animStudioOffsetY.coerceIn(0,200)
         px.progress = (prefs.animStudioPerspX + 100).coerceIn(0, 200)
         py.progress = (prefs.animStudioPerspY + 100).coerceIn(0, 200)
         pz.progress = (prefs.animStudioPerspZ + 100).coerceIn(0, 200)
+        syncCorners?.isChecked = prefs.animStudioSyncCorners
+        fullSwitch?.isChecked = prefs.animStudioFullscreen
 
-        fun refreshSim() {
-            pointsLabel.text = "Точки: окно ${animWinPoints.size} / иконка ${animIconPoints.size} • цель: ${if (animSimTarget=="icon") "иконка" else "окно"}"
-            applyAnimPointsToView(win, animWinPoints, prefs.animStudioPressure)
-            applyAnimPointsToView(icon, animIconPoints, prefs.animStudioPressure)
+        fun persistCorners() {
+            if (animSimTarget == "icon") prefs.animStudioIconCorners = preview.cornersString() else prefs.animStudioWindowCorners = preview.cornersString()
+        }
+        fun refreshSim(reloadCorners: Boolean = false) {
+            preview.points = currentAnimPoints().map { AnimStudioPreview.PPoint(it.x, it.y, it.strength) }.toMutableList()
+            preview.target = animSimTarget
+            if (reloadCorners) preview.loadCorners(if (animSimTarget=="icon") prefs.animStudioIconCorners else prefs.animStudioWindowCorners)
+            pointsLabel.text = "Точки: окно ${animWinPoints.size}/иконка ${animIconPoints.size} • цель: ${if(animSimTarget=="icon") "иконка" else "окно"} • режим: ${if(preview.mode=="corners") "углы" else "точки"} • пресет: ${prefs.animStudioPreset}"
+            preview.invalidate()
+        }
+
+        preview.onChanged = {
+            // sync points back
+            val list = currentAnimPoints(); list.clear(); list.addAll(preview.points.map { AnimPoint(it.x,it.y,it.strength) })
+            persistAnimPoints(); persistCorners(); refreshSim()
         }
 
         btn.setOnClickListener {
@@ -1614,46 +1658,43 @@ class MainActivity : AppCompatActivity() {
         }
         updateAnimStudioVisibility()
 
-        preview.setOnTouchListener { v, e ->
-            if (e.actionMasked == MotionEvent.ACTION_DOWN) {
-                if (!prefs.animStudioEnabled) prefs.animStudioEnabled = true
-                val nx = (e.x / v.width.coerceAtLeast(1)).coerceIn(0f, 1f)
-                val ny = (e.y / v.height.coerceAtLeast(1)).coerceIn(0f, 1f)
-                val list = currentAnimPoints()
-                if (list.size < 4) { list.add(AnimPoint(nx, ny, 1f)); persistAnimPoints(); refreshSim() }
-            }
-            true
-        }
-
+        findViewById<Button?>(R.id.animSimModePointsBtn)?.setOnClickListener { preview.mode = "points"; refreshSim() }
+        findViewById<Button?>(R.id.animSimModeCornersBtn)?.setOnClickListener { preview.mode = "corners"; refreshSim() }
+        findViewById<Button?>(R.id.animSimTargetWindowBtn)?.setOnClickListener { persistCorners(); animSimTarget = "window"; refreshSim(true) }
+        findViewById<Button?>(R.id.animSimTargetIconBtn)?.setOnClickListener { persistCorners(); animSimTarget = "icon"; refreshSim(true) }
+        findViewById<Button?>(R.id.animSimPresetCloseBtn)?.setOnClickListener { prefs.animStudioPreset = "close"; refreshSim() }
+        findViewById<Button?>(R.id.animSimPresetOpenBtn)?.setOnClickListener { prefs.animStudioPreset = "open"; refreshSim() }
+        findViewById<Button?>(R.id.animSimPresetReturnBtn)?.setOnClickListener { prefs.animStudioPreset = "return"; refreshSim() }
         findViewById<Button?>(R.id.animSimAddPointBtn)?.setOnClickListener {
-            val list = currentAnimPoints()
-            if (list.size < 4) { list.add(AnimPoint(0.5f, 0.8f, 1f)); prefs.animStudioEnabled = true; persistAnimPoints(); refreshSim() }
+            val list = currentAnimPoints(); if (list.size < 6) { list.add(AnimPoint(0.5f,0.8f,1f)); prefs.animStudioEnabled = true; persistAnimPoints(); refreshSim() }
         }
-        findViewById<Button?>(R.id.animSimClearPointsBtn)?.setOnClickListener {
-            currentAnimPoints().clear(); persistAnimPoints(); refreshSim()
-        }
-        findViewById<Button?>(R.id.animSimTargetWindowBtn)?.setOnClickListener { animSimTarget = "window"; refreshSim() }
-        findViewById<Button?>(R.id.animSimTargetIconBtn)?.setOnClickListener { animSimTarget = "icon"; refreshSim() }
+        findViewById<Button?>(R.id.animSimClearPointsBtn)?.setOnClickListener { currentAnimPoints().clear(); persistAnimPoints(); refreshSim() }
+        findViewById<Button?>(R.id.animSimResetCornersBtn)?.setOnClickListener { preview.resetCorners(); persistCorners() }
 
         pressureSeek.setOnSeekBarChangeListener(simpleSeek { prefs.animStudioPressure = it.coerceIn(0,200); prefs.animStudioEnabled = it > 0; refreshSim() })
+        speedSeek.setOnSeekBarChangeListener(simpleSeek { prefs.animStudioSpeed = it.coerceIn(20,200) })
+        scaleSeek.setOnSeekBarChangeListener(simpleSeek { prefs.animStudioScale = it.coerceIn(50,200) })
+        oxSeek.setOnSeekBarChangeListener(simpleSeek { prefs.animStudioOffsetX = it.coerceIn(0,200) })
+        oySeek.setOnSeekBarChangeListener(simpleSeek { prefs.animStudioOffsetY = it.coerceIn(0,200) })
         px.setOnSeekBarChangeListener(simpleSeek { prefs.animStudioPerspX = it - 100; refreshSim() })
         py.setOnSeekBarChangeListener(simpleSeek { prefs.animStudioPerspY = it - 100; refreshSim() })
         pz.setOnSeekBarChangeListener(simpleSeek { prefs.animStudioPerspZ = it - 100; refreshSim() })
+        syncCorners?.setOnCheckedChangeListener { _, c -> prefs.animStudioSyncCorners = c }
+        fullSwitch?.setOnCheckedChangeListener { _, c -> prefs.animStudioFullscreen = c }
 
         findViewById<Button?>(R.id.animSimPlayCloseBtn)?.setOnClickListener {
-            win.animate().cancel(); win.alpha = 1f; win.scaleX = 1f; win.scaleY = 1f; win.translationX = 0f; win.translationY = 0f
-            applyAnimPointsToView(win, animWinPoints, prefs.animStudioPressure)
-            win.animate().scaleX(0.2f).scaleY(0.2f).translationY(180f * resources.displayMetrics.density).alpha(0f).setDuration(450)
-                .withEndAction { win.alpha = 1f; win.scaleX = 1f; win.scaleY = 1f; win.translationX = 0f; win.translationY = 0f; applyAnimPointsToView(win, animWinPoints, prefs.animStudioPressure) }.start()
-            icon.animate().cancel(); icon.scaleX = 0.85f; icon.scaleY = 0.85f
-            icon.animate().scaleX(1f).scaleY(1f).setDuration(350).setInterpolator(OvershootInterpolator(1.2f)).start()
+            preview.animate().cancel(); preview.scaleX=1f; preview.scaleY=1f; preview.alpha=1f; preview.translationY=0f
+            preview.animate().scaleX(0.15f).scaleY(0.15f).translationY(120f*resources.displayMetrics.density).alpha(0.3f)
+                .setDuration((450f * 100f / prefs.animStudioSpeed.coerceIn(20,200)).toLong())
+                .withEndAction { preview.alpha=1f; preview.scaleX=1f; preview.scaleY=1f; preview.translationY=0f }.start()
         }
         findViewById<Button?>(R.id.animSimPlayOpenBtn)?.setOnClickListener {
-            win.animate().cancel(); win.alpha = 0f; win.scaleX = 0.2f; win.scaleY = 0.2f; win.translationY = 180f * resources.displayMetrics.density
-            win.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f).setDuration(450).setInterpolator(DecelerateInterpolator(1.6f))
-                .withEndAction { applyAnimPointsToView(win, animWinPoints, prefs.animStudioPressure) }.start()
+            preview.animate().cancel(); preview.alpha=0.3f; preview.scaleX=0.15f; preview.scaleY=0.15f; preview.translationY=120f*resources.displayMetrics.density
+            preview.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+                .setDuration((450f * 100f / prefs.animStudioSpeed.coerceIn(20,200)).toLong())
+                .setInterpolator(DecelerateInterpolator(1.6f)).start()
         }
-        preview.post { refreshSim() }
+        preview.post { refreshSim(true) }
     }
 
     private fun simpleSeek(onChange: (Int) -> Unit) = object : SeekBar.OnSeekBarChangeListener {
@@ -3876,16 +3917,19 @@ class MainActivity : AppCompatActivity() {
         val dockRotX = if (dockTilt) -(14f + 12f * sFactor) else 0f
         val dockRotY = if (dockTilt) ((startTX - tX) / screenW.coerceAtLeast(1f) * 18f).coerceIn(-10f, 10f) else 0f
         val studioWinPts = if (animWinPoints.isEmpty()) parseAnimPoints(prefs.animStudioWindowPoints) else animWinPoints
-        val studioWin = computeAnimTilt(studioWinPts, prefs.animStudioPressure)
+        val studioWin = computeAnimTilt(studioWinPts, prefs.animStudioPressure, "window")
         val arriveRotX = (if (dockTilt) dockRotX * 0.55f else if (tilt && newClose) -10f * ti else 0f) + studioWin[0]
         val arriveRotY = (if (dockTilt) dockRotY * 0.55f else if (tilt && newClose) 5f * ti else 0f) + studioWin[1]
 
-        val upDur = (dur * (if (newClose) (0.30f + 0.18f * sFactor) else 0.38f)).toLong().coerceAtLeast(60L)
-        val downDur = (dur - upDur).coerceAtLeast(60L)
-        val midTX = startTX + (tX - startTX) * 0.45f
-        val midTY = startTY + (tY - startTY) * (if (newClose) (0.25f - 0.10f * sFactor) else 0.35f) - arcH
-        val midSX = startSX + (sX - startSX) * 0.45f
-        val midSY = startSY + (sY - startSY) * 0.45f
+        val speedF = (prefs.animStudioSpeed.coerceIn(20,200) / 100f)
+        val upDur = ((dur * (if (newClose) (0.30f + 0.18f * sFactor) else 0.38f)) / speedF).toLong().coerceAtLeast(60L)
+        val downDur = (((dur - (dur * (if (newClose) (0.30f + 0.18f * sFactor) else 0.38f))) / speedF).toLong()).coerceAtLeast(60L)
+        val studioOx = studioWin[4] * screenW * 0.15f
+        val studioOy = studioWin[5] * screenH * 0.15f
+        val midTX = startTX + (tX - startTX) * 0.45f + studioOx
+        val midTY = startTY + (tY - startTY) * (if (newClose) (0.25f - 0.10f * sFactor) else 0.35f) - arcH + studioOy
+        val midSX = (startSX + (sX - startSX) * 0.45f) * studioWin[3].coerceIn(0.5f,1.5f)
+        val midSY = (startSY + (sY - startSY) * 0.45f) * studioWin[3].coerceIn(0.5f,1.5f)
 
         fun finishClose(arriveRotX: Float = 0f, arriveRotY: Float = 0f, arriveRz: Float = 0f) {
             overlay.isVisible = false
@@ -3995,7 +4039,7 @@ class MainActivity : AppCompatActivity() {
         val newClose = prefs.newCloseAnim
         val iconScale = if (newClose) prefs.closeIconScale.coerceIn(50, 100) / 100f else 1f
         val iconPts = if (animIconPoints.isEmpty()) parseAnimPoints(prefs.animStudioIconPoints) else animIconPoints
-        val studioIcon = computeAnimTilt(iconPts, prefs.animStudioPressure)
+        val studioIcon = computeAnimTilt(iconPts, prefs.animStudioPressure, "icon")
         val finalRotX = arriveRotX + studioIcon[0]
         val finalRotY = arriveRotY + studioIcon[1]
         val finalRotZ = arriveRz + studioIcon[2]
