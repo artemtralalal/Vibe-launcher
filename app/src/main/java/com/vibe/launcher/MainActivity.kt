@@ -208,6 +208,7 @@ class MainActivity : AppCompatActivity() {
         setupBack()
         setupPageEdges()
         setupVolumePanel()
+        updateIslandVisibility()
         setupAbout()
         applyOrientationLayout()
         loadFoldersFromPrefs()
@@ -790,6 +791,52 @@ class MainActivity : AppCompatActivity() {
         b.text = if (prefs.iconPressAnim) "Press scale + fly (ON)" else "Press scale + fly (OFF)"
     }
 
+    private fun updateIslandVisibility() {
+        val island = findViewById<View?>(R.id.dynamicIsland) ?: return
+        island.isVisible = prefs.islandEnabled && (prefs.islandAlways || island.alpha > 0f)
+        if (prefs.islandEnabled && prefs.islandAlways) { island.alpha = 1f }
+        updateIslandLayout()
+    }
+
+    private fun updateIslandLayout() {
+        val island = findViewById<View?>(R.id.dynamicIsland) ?: return
+        val text = findViewById<TextView?>(R.id.dynamicIslandText)
+        val d = resources.displayMetrics.density
+        val w = (80f + prefs.islandW.coerceIn(20,200) * 0.8f) * d
+        val h = (28f + prefs.islandH.coerceIn(20,200) * 0.25f) * d
+        val lp = island.layoutParams as? FrameLayout.LayoutParams ?: return
+        lp.width = w.toInt(); lp.height = h.toInt()
+        lp.gravity = if (prefs.islandRightHand) android.view.Gravity.END or android.view.Gravity.TOP else android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL
+        lp.topMargin = ((8 + prefs.islandY.coerceIn(0,200) * 0.8f) * d).toInt()
+        lp.marginEnd = if (prefs.islandRightHand) ((8 + prefs.islandX.coerceIn(0,200) * 0.5f) * d).toInt() else 0
+        lp.marginStart = if (!prefs.islandRightHand) (((prefs.islandX.coerceIn(0,200)-100) * 1.2f) * d).toInt() else 0
+        island.layoutParams = lp
+        island.background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = h / 2f
+            setColor(0xFF101010.toInt())
+            setStroke((2*d).toInt(), 0x55FFFFFF)
+        }
+        text?.textSize = if (prefs.islandRightHand) 11f else 12f
+    }
+
+    private fun showIslandState(state: String) {
+        val island = findViewById<View?>(R.id.dynamicIsland) ?: return
+        val text = findViewById<TextView?>(R.id.dynamicIslandText) ?: return
+        prefs.islandEnabled = true
+        island.isVisible = true
+        island.alpha = 1f
+        val bg = island.background as? android.graphics.drawable.GradientDrawable
+        when (state) {
+            "unlock" -> { text.text = "🔓 Разблокировано"; bg?.colors = intArrayOf(0xFF101010.toInt(), 0xFF1E8E3E.toInt()) }
+            "music" -> { text.text = "♪ Музыка"; bg?.colors = intArrayOf(0xFF101010.toInt(), 0xFFFF8C00.toInt()) }
+            "flash" -> { text.text = "⚡ Фонарик"; bg?.colors = intArrayOf(0xFF101010.toInt(), 0xFFFFE082.toInt()) }
+        }
+        bg?.orientation = android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT
+        island.scaleX = 0.9f; island.scaleY = 0.9f
+        island.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(OvershootInterpolator(1.1f)).start()
+        if (!prefs.islandAlways) island.postDelayed({ if (!prefs.islandAlways) island.animate().alpha(0f).setDuration(250).withEndAction { island.isVisible = prefs.islandAlways; island.alpha = 1f }.start() }, 2500)
+    }
+
     private fun setupVolumePanel() {
         volumePanel = findViewById(R.id.volumePanel)
         touchFxView = findViewById(R.id.touchFxView)
@@ -887,6 +934,26 @@ class MainActivity : AppCompatActivity() {
             try { startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) {}
         }
         findViewById<SwitchMaterial?>(R.id.motionBlurSwitch)?.apply { isChecked = prefs.motionBlurBeta; setOnCheckedChangeListener { _, c -> prefs.motionBlurBeta = c } }
+
+        findViewById<Button?>(R.id.wallUnlockBlurModeBtn)?.setOnClickListener { prefs.wallUnlockBlurMode = if (prefs.wallUnlockBlurMode == "from") "to" else "from"; (it as? Button)?.text = "Режим: ${if (prefs.wallUnlockBlurMode=="from") "с размытия в нормальные" else "в размытие"}" }
+        bindSeek(findViewById(R.id.wallUnlockBlurSeek), prefs.wallUnlockBlur, 0, 100) { prefs.wallUnlockBlur = it }
+        findViewById<Button?>(R.id.wallZoomModeBtn)?.setOnClickListener { prefs.wallZoomMode = if (prefs.wallZoomMode == "in") "out" else "in"; (it as? Button)?.text = "Режим: ${if (prefs.wallZoomMode=="in") "приближение" else "отдаление"}" }
+        bindSeek(findViewById(R.id.wallZoomSeek), prefs.wallZoom, 0, 100) { prefs.wallZoom = it }
+        findViewById<Button?>(R.id.wallPickVideoBtn)?.setOnClickListener { android.widget.Toast.makeText(this, "Выбор видео обоев (MVP) — будет в следующем патче", android.widget.Toast.LENGTH_SHORT).show() }
+        findViewById<Button?>(R.id.wallPickLockVideoBtn)?.setOnClickListener { android.widget.Toast.makeText(this, "Выбор видео разблокировки (MVP) — будет в следующем патче", android.widget.Toast.LENGTH_SHORT).show() }
+
+        findViewById<SwitchMaterial?>(R.id.islandEnabledSwitch)?.apply { isChecked = prefs.islandEnabled; setOnCheckedChangeListener { _, c -> prefs.islandEnabled = c; updateIslandVisibility() } }
+        findViewById<SwitchMaterial?>(R.id.islandAlwaysSwitch)?.apply { isChecked = prefs.islandAlways; setOnCheckedChangeListener { _, c -> prefs.islandAlways = c; updateIslandVisibility() } }
+        findViewById<SwitchMaterial?>(R.id.islandRightHandSwitch)?.apply { isChecked = prefs.islandRightHand; setOnCheckedChangeListener { _, c -> prefs.islandRightHand = c; updateIslandLayout() } }
+        bindSeek(findViewById(R.id.islandXSeek), prefs.islandX, 0, 200) { prefs.islandX = it; updateIslandLayout() }
+        bindSeek(findViewById(R.id.islandYSeek), prefs.islandY, 0, 200) { prefs.islandY = it; updateIslandLayout() }
+        bindSeek(findViewById(R.id.islandWSeek), prefs.islandW, 20, 200) { prefs.islandW = it; updateIslandLayout() }
+        bindSeek(findViewById(R.id.islandHSeek), prefs.islandH, 20, 200) { prefs.islandH = it; updateIslandLayout() }
+        bindSeek(findViewById(R.id.islandPressSeek), prefs.islandPress, 0, 100) { prefs.islandPress = it }
+        findViewById<Button?>(R.id.islandMusicPermBtn)?.setOnClickListener { try { startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")) } catch (_: Exception) {} }
+        findViewById<Button?>(R.id.islandTestUnlockBtn)?.setOnClickListener { showIslandState("unlock") }
+        findViewById<Button?>(R.id.islandTestMusicBtn)?.setOnClickListener { showIslandState("music") }
+        findViewById<Button?>(R.id.islandTestFlashBtn)?.setOnClickListener { showIslandState("flash") }
         val labelsSwitch = findViewById<SwitchMaterial>(R.id.labelsSwitch)
         labelsSwitch.isChecked = prefs.showLabels
         labelsSwitch.setOnCheckedChangeListener { _, c -> prefs.showLabels = c; gridAdapter.notifyDataSetChanged() }
@@ -1831,6 +1898,13 @@ class MainActivity : AppCompatActivity() {
             scaleLabel?.text = "Масштаб: ${prefs.animStudioScale}%"
             offsetLabel?.text = "Смещение X: ${prefs.animStudioOffsetX - 100} / Y: ${prefs.animStudioOffsetY - 100}"
             perspLabel?.text = "Перспектива X: ${prefs.animStudioPerspX} / Y: ${prefs.animStudioPerspY} / Z: ${prefs.animStudioPerspZ}"
+            findViewById<Button?>(R.id.animSimModePointsBtn)?.alpha = if (preview.mode=="points") 1f else 0.5f
+            findViewById<Button?>(R.id.animSimModeCornersBtn)?.alpha = if (preview.mode=="corners") 1f else 0.5f
+            findViewById<Button?>(R.id.animSimTargetWindowBtn)?.alpha = if (animSimTarget=="window") 1f else 0.5f
+            findViewById<Button?>(R.id.animSimTargetIconBtn)?.alpha = if (animSimTarget=="icon") 1f else 0.5f
+            findViewById<Button?>(R.id.animSimPresetCloseBtn)?.alpha = if (prefs.animStudioPreset=="close") 1f else 0.5f
+            findViewById<Button?>(R.id.animSimPresetOpenBtn)?.alpha = if (prefs.animStudioPreset=="open") 1f else 0.5f
+            findViewById<Button?>(R.id.animSimPresetReturnBtn)?.alpha = if (prefs.animStudioPreset=="return") 1f else 0.5f
             preview.invalidate()
         }
 
@@ -2264,6 +2338,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.catRowPower).setOnClickListener { showSettingsCategory("power") }
         findViewById<View>(R.id.catRowSound).setOnClickListener { showSettingsCategory("sound") }
         findViewById<View>(R.id.catRowTouch).setOnClickListener { showSettingsCategory("touch") }
+        findViewById<View>(R.id.catRowDesktop).setOnClickListener { showSettingsCategory("desktop") }
+        findViewById<View>(R.id.catRowIsland).setOnClickListener { showSettingsCategory("island") }
         findViewById<View>(R.id.catRowAbout).setOnClickListener { showSettingsCategory("about") }
     }
 
@@ -2282,7 +2358,7 @@ class MainActivity : AppCompatActivity() {
             (detail.layoutParams as FrameLayout.LayoutParams).apply { width = FrameLayout.LayoutParams.MATCH_PARENT; height = FrameLayout.LayoutParams.MATCH_PARENT; marginStart = 0; gravity = android.view.Gravity.NO_GRAVITY }
             findViewById<View>(R.id.settingsBackBtn).isVisible = true
         }
-        listOf(R.id.catAppearance, R.id.catAnimations, R.id.catHome, R.id.catDock, R.id.catScreen, R.id.catDrawer, R.id.catPower, R.id.catSound, R.id.catTouch, R.id.catAbout).forEach {
+        listOf(R.id.catAppearance, R.id.catAnimations, R.id.catHome, R.id.catDock, R.id.catScreen, R.id.catDrawer, R.id.catPower, R.id.catSound, R.id.catTouch, R.id.catDesktop, R.id.catIsland, R.id.catAbout).forEach {
             findViewById<View>(it).isVisible = landscape && it == R.id.catAppearance
         }
         if (landscape) findViewById<TextView>(R.id.settingsDetailTitle).text = "Внешний вид"
@@ -2302,6 +2378,8 @@ class MainActivity : AppCompatActivity() {
             "power" to (R.id.catPower to "Энергосбережение"),
             "sound" to (R.id.catSound to "Звук"),
             "touch" to (R.id.catTouch to "Касание"),
+            "desktop" to (R.id.catDesktop to "Рабочий стол и обои"),
+            "island" to (R.id.catIsland to "Dynamic Island"),
             "about" to (R.id.catAbout to "О лаунчере")
         )
         if (landscape) {
@@ -4137,6 +4215,12 @@ class MainActivity : AppCompatActivity() {
         val dockRotY = if (dockTilt) ((startTX - tX) / screenW.coerceAtLeast(1f) * 18f).coerceIn(-10f, 10f) else 0f
         val studioWinPts = if (animWinPoints.isEmpty()) parseAnimPoints(prefs.animStudioWindowPoints) else animWinPoints
         val studioWin = computeAnimTilt(studioWinPts, prefs.animStudioPressure, "window")
+        if (prefs.newCloseAnim && studioWinPts.isEmpty() && prefs.animStudioPressure == 0) {
+            val iconTop = bounds[1] < screenH * 0.33f
+            val iconBottom = bounds[1] > screenH * 0.66f
+            studioWin[0] = when { iconTop -> -16f * ti; iconBottom -> 10f * ti; else -> -8f * ti }
+            studioWin[1] = ((bounds[0] - screenW/2f) / screenW.coerceAtLeast(1f)) * 10f
+        }
         val arriveRotX = (if (dockTilt) dockRotX * 0.55f else if (tilt && newClose) -10f * ti else 0f) + studioWin[0]
         val arriveRotY = (if (dockTilt) dockRotY * 0.55f else if (tilt && newClose) 5f * ti else 0f) + studioWin[1]
 
