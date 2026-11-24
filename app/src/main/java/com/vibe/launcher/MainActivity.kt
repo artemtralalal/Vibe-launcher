@@ -103,6 +103,7 @@ class MainActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == Intent.ACTION_USER_PRESENT) {
                 stopAodOverlay()
+                playUnlockSuperVideo()
                 playUnlockAnimation()
             }
         }
@@ -119,6 +120,21 @@ class MainActivity : AppCompatActivity() {
 
     private val wallpaperPickLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) showWallpaperTargetDialog(uri)
+    }
+    private val wallVideoPickLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
+            prefs.wallVideoUri = uri.toString()
+            applyWallpaperVideo()
+            findViewById<TextView?>(R.id.wallVideoStatus)?.text = "Видео обоев выбрано"
+        }
+    }
+    private val wallLockVideoPickLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
+            prefs.wallLockVideoUri = uri.toString()
+            findViewById<TextView?>(R.id.wallVideoStatus)?.text = "Видео разблокировки выбрано"
+        }
     }
     private var pendingIconEditKey: String? = null
     private val iconPickLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -156,6 +172,22 @@ class MainActivity : AppCompatActivity() {
     private val volumeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "android.media.VOLUME_CHANGED_ACTION") showVolumePanel()
+        }
+    }
+    private val islandReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != "com.vibe.launcher.ISLAND_EVENT") return
+            val state = intent.getStringExtra("state") ?: return
+            if (state == "idle") {
+                if (!prefs.islandAlways) {
+                    islandState = "idle"
+                    findViewById<View?>(R.id.dynamicIsland)?.post(islandHideRunnable)
+                } else showIslandState("idle")
+            } else {
+                showIslandState(state)
+                val title = intent.getStringExtra("title")
+                if (!title.isNullOrBlank()) findViewById<TextView?>(R.id.dynamicIslandText)?.text = title.take(18)
+            }
         }
     }
 
@@ -209,6 +241,8 @@ class MainActivity : AppCompatActivity() {
         setupPageEdges()
         setupVolumePanel()
         updateIslandVisibility()
+        setupIslandInteractions()
+        applyWallpaperVideo()
         setupAbout()
         applyOrientationLayout()
         loadFoldersFromPrefs()
@@ -221,12 +255,17 @@ class MainActivity : AppCompatActivity() {
         try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
         try { registerReceiver(screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF)) } catch (_: Exception) {}
         try { registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) } catch (_: Exception) {}
+        try {
+            val f = IntentFilter("com.vibe.launcher.ISLAND_EVENT")
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(islandReceiver, f, Context.RECEIVER_NOT_EXPORTED) else registerReceiver(islandReceiver, f)
+        } catch (_: Exception) {}
     }
 
     override fun onDestroy() {
         try { unregisterReceiver(unlockReceiver) } catch (_: Exception) {}
         try { unregisterReceiver(screenOffReceiver) } catch (_: Exception) {}
         try { unregisterReceiver(volumeReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(islandReceiver) } catch (_: Exception) {}
         try { unlockPlayer?.release() } catch (_: Exception) {}
         super.onDestroy()
     }
@@ -791,50 +830,208 @@ class MainActivity : AppCompatActivity() {
         b.text = if (prefs.iconPressAnim) "Press scale + fly (ON)" else "Press scale + fly (OFF)"
     }
 
+    private var islandState: String = "idle"
+    private var islandExpandedState: Boolean = false
+
     private fun updateIslandVisibility() {
         val island = findViewById<View?>(R.id.dynamicIsland) ?: return
-        island.isVisible = prefs.islandEnabled && (prefs.islandAlways || island.alpha > 0f)
-        if (prefs.islandEnabled && prefs.islandAlways) { island.alpha = 1f }
+        island.isVisible = prefs.islandEnabled && (prefs.islandAlways || island.alpha > 0f || islandState != "idle")
+        if (prefs.islandEnabled && prefs.islandAlways && islandState == "idle") {
+            showIslandState("idle")
+        }
         updateIslandLayout()
     }
 
     private fun updateIslandLayout() {
         val island = findViewById<View?>(R.id.dynamicIsland) ?: return
+        val compact = findViewById<View?>(R.id.islandCompact) ?: return
         val text = findViewById<TextView?>(R.id.dynamicIslandText)
         val d = resources.displayMetrics.density
-        val w = (80f + prefs.islandW.coerceIn(20,200) * 0.8f) * d
-        val h = (28f + prefs.islandH.coerceIn(20,200) * 0.25f) * d
+        val baseW = (80f + prefs.islandW.coerceIn(20,200) * 0.8f) * d
+        val baseH = (28f + prefs.islandH.coerceIn(20,200) * 0.25f) * d
+        val w = if (prefs.islandRightHand && !islandExpandedState) baseH else baseW
+        val h = if (prefs.islandRightHand && !islandExpandedState) baseW else baseH
         val lp = island.layoutParams as? FrameLayout.LayoutParams ?: return
-        lp.width = w.toInt(); lp.height = h.toInt()
+        lp.width = FrameLayout.LayoutParams.WRAP_CONTENT; lp.height = FrameLayout.LayoutParams.WRAP_CONTENT
         lp.gravity = if (prefs.islandRightHand) android.view.Gravity.END or android.view.Gravity.TOP else android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL
         lp.topMargin = ((8 + prefs.islandY.coerceIn(0,200) * 0.8f) * d).toInt()
         lp.marginEnd = if (prefs.islandRightHand) ((8 + prefs.islandX.coerceIn(0,200) * 0.5f) * d).toInt() else 0
         lp.marginStart = if (!prefs.islandRightHand) (((prefs.islandX.coerceIn(0,200)-100) * 1.2f) * d).toInt() else 0
         island.layoutParams = lp
-        island.background = android.graphics.drawable.GradientDrawable().apply {
-            cornerRadius = h / 2f
-            setColor(0xFF101010.toInt())
-            setStroke((2*d).toInt(), 0x55FFFFFF)
-        }
+        val clp = compact.layoutParams
+        clp.width = w.toInt(); clp.height = h.toInt()
+        compact.layoutParams = clp
+        compact.background = islandBgForState(islandState, h/2f)
         text?.textSize = if (prefs.islandRightHand) 11f else 12f
+        if (prefs.islandRightHand && !islandExpandedState) {
+            compact.rotation = 90f; text?.rotation = -90f
+        } else { compact.rotation = 0f; text?.rotation = 0f }
+        val expanded = findViewById<View?>(R.id.islandExpanded)
+        expanded?.isVisible = islandExpandedState
+        compact.isVisible = !islandExpandedState
+    }
+
+    private fun islandBgForState(state: String, radius: Float): android.graphics.drawable.GradientDrawable {
+        val d = resources.displayMetrics.density
+        return android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = radius
+            orientation = android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT
+            when (state) {
+                "unlock" -> colors = intArrayOf(0xFF101010.toInt(), 0xFF1E8E3E.toInt())
+                "music" -> colors = intArrayOf(0xFF101010.toInt(), 0xFFFF8C00.toInt())
+                "flash" -> colors = intArrayOf(0xFF101010.toInt(), 0xFFFFE082.toInt())
+                "call" -> colors = intArrayOf(0xFF1E8E3E.toInt(), 0xFF101010.toInt(), 0xFFD93025.toInt())
+                "record" -> colors = intArrayOf(0xFF101010.toInt(), 0xFFD93025.toInt())
+                else -> { setColor(0xFF101010.toInt()) }
+            }
+            setStroke((1.5f*d).toInt(), 0x66FFFFFF)
+        }
     }
 
     private fun showIslandState(state: String) {
         val island = findViewById<View?>(R.id.dynamicIsland) ?: return
+        val compact = findViewById<View?>(R.id.islandCompact) ?: return
         val text = findViewById<TextView?>(R.id.dynamicIslandText) ?: return
+        val icon = findViewById<View?>(R.id.islandIcon)
+        islandState = state
         prefs.islandEnabled = true
         island.isVisible = true
         island.alpha = 1f
-        val bg = island.background as? android.graphics.drawable.GradientDrawable
+        islandExpandedState = false
+        findViewById<View?>(R.id.islandExpanded)?.isVisible = false
+        compact.isVisible = true
+        val bg = islandBgForState(state, compact.height.coerceAtLeast(1) / 2f)
+        compact.background = bg
         when (state) {
-            "unlock" -> { text.text = "🔓 Разблокировано"; bg?.colors = intArrayOf(0xFF101010.toInt(), 0xFF1E8E3E.toInt()) }
-            "music" -> { text.text = "♪ Музыка"; bg?.colors = intArrayOf(0xFF101010.toInt(), 0xFFFF8C00.toInt()) }
-            "flash" -> { text.text = "⚡ Фонарик"; bg?.colors = intArrayOf(0xFF101010.toInt(), 0xFFFFE082.toInt()) }
+            "unlock" -> { text.text = "Разблокировано"; icon?.setBackgroundColor(0xFF1E8E3E.toInt()) }
+            "music" -> { text.text = "Музыка"; icon?.setBackgroundColor(0xFFFF8C00.toInt()) }
+            "flash" -> { text.text = "Фонарик"; icon?.setBackgroundColor(0xFFFFE082.toInt()) }
+            "call" -> { text.text = "Звонок"; icon?.setBackgroundColor(0xFF1E8E3E.toInt()) }
+            "record" -> { text.text = "Запись"; icon?.setBackgroundColor(0xFFD93025.toInt()) }
+            else -> { text.text = "Vibe"; icon?.setBackgroundColor(0x55FFFFFF) }
         }
-        bg?.orientation = android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT
-        island.scaleX = 0.9f; island.scaleY = 0.9f
-        island.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(OvershootInterpolator(1.1f)).start()
-        if (!prefs.islandAlways) island.postDelayed({ if (!prefs.islandAlways) island.animate().alpha(0f).setDuration(250).withEndAction { island.isVisible = prefs.islandAlways; island.alpha = 1f }.start() }, 2500)
+        updateIslandLayout()
+        compact.scaleX = 0.92f; compact.scaleY = 0.92f
+        compact.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(OvershootInterpolator(1.1f)).start()
+        if (!prefs.islandAlways && state != "idle") {
+            island.removeCallbacks(islandHideRunnable)
+            island.postDelayed(islandHideRunnable, 3000)
+        }
+    }
+
+    private val islandHideRunnable = Runnable {
+        if (!prefs.islandAlways && !islandExpandedState) {
+            val island = findViewById<View?>(R.id.dynamicIsland) ?: return@Runnable
+            island.animate().alpha(0f).setDuration(250).withEndAction {
+                island.isVisible = prefs.islandAlways
+                island.alpha = 1f
+                if (prefs.islandAlways) showIslandState("idle")
+            }.start()
+        }
+    }
+
+    private fun setupIslandInteractions() {
+        val compact = findViewById<View?>(R.id.islandCompact) ?: return
+        val expanded = findViewById<View?>(R.id.islandExpanded) ?: return
+        val island = findViewById<View?>(R.id.dynamicIsland) ?: return
+        compact.setOnClickListener {
+            when (islandState) {
+                "flash" -> toggleFlashlight()
+                "music" -> expandIsland()
+                "call" -> expandIsland()
+                "record" -> expandIsland()
+                else -> if (prefs.islandAlways) expandIsland()
+            }
+        }
+        compact.setOnLongClickListener {
+            val intensity = prefs.islandPress.coerceIn(0,100) / 100f
+            compact.cameraDistance = resources.displayMetrics.density * 5000f
+            compact.animate().rotationXBy(-8f * intensity).scaleX(0.96f).scaleY(0.96f).setDuration(120).withEndAction {
+                compact.animate().rotationX(0f).scaleX(1f).scaleY(1f).setDuration(180).start()
+                expandIsland()
+            }.start()
+            true
+        }
+        findViewById<Button?>(R.id.islandAction2)?.setOnClickListener { collapseIsland() }
+        findViewById<Button?>(R.id.islandAction1)?.setOnClickListener {
+            when (islandState) {
+                "flash" -> toggleFlashlight()
+                "music" -> { try { val i = Intent("com.android.music.musicservicecommand"); i.putExtra("command","togglepause"); sendBroadcast(i) } catch (_: Exception) {} }
+                "call" -> collapseIsland()
+                else -> collapseIsland()
+            }
+        }
+    }
+
+    private fun expandIsland() {
+        val island = findViewById<View?>(R.id.dynamicIsland) ?: return
+        val compact = findViewById<View?>(R.id.islandCompact) ?: return
+        val expanded = findViewById<View?>(R.id.islandExpanded) ?: return
+        islandExpandedState = true
+        compact.isVisible = false
+        expanded.isVisible = true
+        expanded.alpha = 0f; expanded.scaleX = 0.92f; expanded.scaleY = 0.92f
+        expanded.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(DecelerateInterpolator(1.5f)).start()
+        val title = findViewById<TextView?>(R.id.islandExpandedTitle)
+        val sub = findViewById<TextView?>(R.id.islandExpandedSub)
+        val a1 = findViewById<Button?>(R.id.islandAction1)
+        when (islandState) {
+            "music" -> { title?.text = "Музыка"; sub?.text = "Управление воспроизведением"; a1?.text = "Пауза/Плей" }
+            "flash" -> { title?.text = "Фонарик"; sub?.text = "Нажмите, чтобы выключить"; a1?.text = "Выкл" }
+            "call" -> { title?.text = "Звонок"; sub?.text = "Быстрые действия"; a1?.text = "Сбросить" }
+            "record" -> { title?.text = "Запись экрана"; sub?.text = "Идёт запись"; a1?.text = "Ок" }
+            else -> { title?.text = "Dynamic Island"; sub?.text = "Нет активных событий"; a1?.text = "Ок" }
+        }
+        updateIslandLayout()
+    }
+
+    private fun collapseIsland() {
+        val compact = findViewById<View?>(R.id.islandCompact) ?: return
+        val expanded = findViewById<View?>(R.id.islandExpanded) ?: return
+        islandExpandedState = false
+        expanded.animate().alpha(0f).scaleX(0.96f).scaleY(0.96f).setDuration(180).withEndAction {
+            expanded.isVisible = false; compact.isVisible = true; compact.alpha = 1f
+            updateIslandLayout()
+        }.start()
+    }
+
+    private var flashlightOn = false
+    private fun toggleFlashlight() {
+        try {
+            val cm = getSystemService(Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
+            val id = cm.cameraIdList.firstOrNull() ?: return
+            flashlightOn = !flashlightOn
+            cm.setTorchMode(id, flashlightOn)
+            if (flashlightOn) showIslandState("flash") else { showIslandState("idle"); if (!prefs.islandAlways) findViewById<View?>(R.id.dynamicIsland)?.postDelayed(islandHideRunnable, 800) }
+        } catch (_: Exception) {
+            android.widget.Toast.makeText(this, "Фонарик недоступен", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun playUnlockSuperVideo() {
+        try {
+            val uriStr = prefs.wallLockVideoUri
+            if (uriStr.isBlank()) return
+            val vv = findViewById<android.widget.VideoView?>(R.id.wallpaperVideo) ?: return
+            val uri = android.net.Uri.parse(uriStr)
+            vv.setVideoURI(uri)
+            vv.isVisible = true
+            vv.alpha = 1f
+            vv.setOnPreparedListener { mp -> mp.isLooping = false; mp.setVolume(0f,0f); vv.start() }
+            vv.setOnCompletionListener { applyWallpaperVideo(); vv.alpha = 1f }
+        } catch (_: Exception) {}
+    }
+
+    private fun applyWallpaperVideo() {
+        try {
+            val vv = findViewById<android.widget.VideoView?>(R.id.wallpaperVideo) ?: return
+            val uriStr = prefs.wallVideoUri
+            if (uriStr.isBlank()) { vv.stopPlayback(); vv.isVisible = false; return }
+            val uri = android.net.Uri.parse(uriStr)
+            vv.setVideoURI(uri)
+            vv.setOnPreparedListener { mp -> mp.isLooping = true; mp.setVolume(0f,0f); vv.start() }
+            vv.isVisible = true
+        } catch (_: Exception) {}
     }
 
     private fun setupVolumePanel() {
@@ -939,8 +1136,14 @@ class MainActivity : AppCompatActivity() {
         bindSeek(findViewById(R.id.wallUnlockBlurSeek), prefs.wallUnlockBlur, 0, 100) { prefs.wallUnlockBlur = it }
         findViewById<Button?>(R.id.wallZoomModeBtn)?.setOnClickListener { prefs.wallZoomMode = if (prefs.wallZoomMode == "in") "out" else "in"; (it as? Button)?.text = "Режим: ${if (prefs.wallZoomMode=="in") "приближение" else "отдаление"}" }
         bindSeek(findViewById(R.id.wallZoomSeek), prefs.wallZoom, 0, 100) { prefs.wallZoom = it }
-        findViewById<Button?>(R.id.wallPickVideoBtn)?.setOnClickListener { android.widget.Toast.makeText(this, "Выбор видео обоев (MVP) — будет в следующем патче", android.widget.Toast.LENGTH_SHORT).show() }
-        findViewById<Button?>(R.id.wallPickLockVideoBtn)?.setOnClickListener { android.widget.Toast.makeText(this, "Выбор видео разблокировки (MVP) — будет в следующем патче", android.widget.Toast.LENGTH_SHORT).show() }
+        findViewById<Button?>(R.id.wallPickVideoBtn)?.setOnClickListener { try { wallVideoPickLauncher.launch(arrayOf("video/*")) } catch (_: Exception) {} }
+        findViewById<Button?>(R.id.wallPickLockVideoBtn)?.setOnClickListener { try { wallLockVideoPickLauncher.launch(arrayOf("video/*")) } catch (_: Exception) {} }
+        findViewById<TextView?>(R.id.wallVideoStatus)?.text = when {
+            prefs.wallLockVideoUri.isNotBlank() && prefs.wallVideoUri.isNotBlank() -> "Видео обоев и разблокировки выбраны"
+            prefs.wallVideoUri.isNotBlank() -> "Видео обоев выбрано"
+            prefs.wallLockVideoUri.isNotBlank() -> "Видео разблокировки выбрано"
+            else -> "Видео не выбрано"
+        }
 
         findViewById<SwitchMaterial?>(R.id.islandEnabledSwitch)?.apply { isChecked = prefs.islandEnabled; setOnCheckedChangeListener { _, c -> prefs.islandEnabled = c; updateIslandVisibility() } }
         findViewById<SwitchMaterial?>(R.id.islandAlwaysSwitch)?.apply { isChecked = prefs.islandAlways; setOnCheckedChangeListener { _, c -> prefs.islandAlways = c; updateIslandVisibility() } }
@@ -1005,6 +1208,24 @@ class MainActivity : AppCompatActivity() {
         bindSeek(findViewById(R.id.closeIconScaleSeek), (100 - prefs.closeIconScale.coerceIn(50, 100)), 0, 50) {
             prefs.closeIconScale = 100 - it
         }
+        fun updZoomLabels() {
+            val om = when (prefs.openZoomMode) { "in" -> "приближение"; "out" -> "отдаление"; else -> "без зума" }
+            val cm = when (prefs.closeZoomMode) { "in" -> "приближение"; "out" -> "отдаление"; else -> "без зума" }
+            findViewById<Button?>(R.id.openZoomModeBtn)?.text = "Открытие: $om"
+            findViewById<Button?>(R.id.closeZoomModeBtn)?.text = "Закрытие: $cm"
+        }
+        updZoomLabels()
+        findViewById<Button?>(R.id.openZoomModeBtn)?.setOnClickListener {
+            val modes = arrayOf("none","in","out"); val labels = arrayOf("Без зума","Приближение","Отдаление")
+            AlertDialog.Builder(this).setTitle("Зум при открытии").setItems(labels) { _, w -> prefs.openZoomMode = modes[w]; updZoomLabels() }.show()
+        }
+        findViewById<Button?>(R.id.closeZoomModeBtn)?.setOnClickListener {
+            val modes = arrayOf("none","in","out"); val labels = arrayOf("Без зума","Приближение","Отдаление")
+            AlertDialog.Builder(this).setTitle("Зум при закрытии").setItems(labels) { _, w -> prefs.closeZoomMode = modes[w]; updZoomLabels() }.show()
+        }
+        bindSeek(findViewById(R.id.openZoomAmountSeek), prefs.openZoomAmount, 0, 100) { prefs.openZoomAmount = it }
+        bindSeek(findViewById(R.id.openZoomSpeedSeek), (prefs.openZoomSpeed - 20).coerceIn(0,180), 0, 180) { prefs.openZoomSpeed = it + 20 }
+        bindSeek(findViewById(R.id.closeZoomAmountSeek), prefs.closeZoomAmount, 0, 100) { prefs.closeZoomAmount = it }
         setupAnimStudio()
 
         updateIconPackLabel()
@@ -1892,14 +2113,16 @@ class MainActivity : AppCompatActivity() {
             preview.perspX = prefs.animStudioPerspX; preview.perspY = prefs.animStudioPerspY; preview.perspZ = prefs.animStudioPerspZ
             if (reloadCorners) preview.loadCorners(if (animSimTarget=="icon") prefs.animStudioIconCorners else prefs.animStudioWindowCorners)
             val pLabel = when(prefs.animStudioPreset){ "open"->"открытие"; "return"->"возврат в иконку"; else->"закрытие" }
-            pointsLabel.text = "Цель: ${if(animSimTarget=="icon") "иконка" else "окно"} • Режим: ${if(preview.mode=="corners") "углы/перспектива" else "точки нажатия"} • Пресет: $pLabel\nТочки: окно ${animWinPoints.size}, иконка ${animIconPoints.size}. Красные = нажатие, зелёные = углы."
+            val modeLabel = when(preview.mode){ "corners"->"углы/перспектива"; "deform"->"деформация/джин"; else->"точки нажатия" }
+            pointsLabel.text = "Цель: ${if(animSimTarget=="icon") "иконка" else "окно"} • Режим: $modeLabel • Пресет: $pLabel\nТочки: окно ${animWinPoints.size}, иконка ${animIconPoints.size}. Красные = нажатие, зелёные = углы, жёлтая = цель."
             pressureLabel?.text = "Сила нажатия: ${prefs.animStudioPressure}% (0 = без наклона, 200 = сильно)"
             speedLabel?.text = "Скорость: ${prefs.animStudioSpeed}%"
             scaleLabel?.text = "Масштаб: ${prefs.animStudioScale}%"
             offsetLabel?.text = "Смещение X: ${prefs.animStudioOffsetX - 100} / Y: ${prefs.animStudioOffsetY - 100}"
             perspLabel?.text = "Перспектива X: ${prefs.animStudioPerspX} / Y: ${prefs.animStudioPerspY} / Z: ${prefs.animStudioPerspZ}"
             findViewById<Button?>(R.id.animSimModePointsBtn)?.alpha = if (preview.mode=="points") 1f else 0.5f
-            findViewById<Button?>(R.id.animSimModeCornersBtn)?.alpha = if (preview.mode=="corners") 1f else 0.5f
+            findViewById<Button?>(R.id.animSimModeCornersBtn)?.alpha = if (preview.mode=="corners" || preview.mode=="deform") 1f else 0.5f
+            findViewById<Button?>(R.id.animSimModeCornersBtn)?.text = if (preview.mode=="deform") "Деформ" else "Углы"
             findViewById<Button?>(R.id.animSimTargetWindowBtn)?.alpha = if (animSimTarget=="window") 1f else 0.5f
             findViewById<Button?>(R.id.animSimTargetIconBtn)?.alpha = if (animSimTarget=="icon") 1f else 0.5f
             findViewById<Button?>(R.id.animSimPresetCloseBtn)?.alpha = if (prefs.animStudioPreset=="close") 1f else 0.5f
@@ -1922,7 +2145,11 @@ class MainActivity : AppCompatActivity() {
         updateAnimStudioVisibility()
 
         findViewById<Button?>(R.id.animSimModePointsBtn)?.setOnClickListener { preview.mode = "points"; refreshSim() }
-        findViewById<Button?>(R.id.animSimModeCornersBtn)?.setOnClickListener { preview.mode = "corners"; refreshSim() }
+        findViewById<Button?>(R.id.animSimModeCornersBtn)?.setOnClickListener {
+            preview.mode = when (preview.mode) { "corners" -> "deform"; "deform" -> "corners"; else -> "corners" }
+            if (preview.mode == "deform") { preview.previewProgress = 0f; android.animation.ValueAnimator.ofFloat(0f,1f).apply { duration=900; addUpdateListener { preview.previewProgress = it.animatedValue as Float; preview.invalidate() }; repeatCount=1; repeatMode=android.animation.ValueAnimator.REVERSE; start() } }
+            refreshSim()
+        }
         findViewById<Button?>(R.id.animSimTargetWindowBtn)?.setOnClickListener { persistCorners(); animSimTarget = "window"; refreshSim(true) }
         findViewById<Button?>(R.id.animSimTargetIconBtn)?.setOnClickListener { persistCorners(); animSimTarget = "icon"; refreshSim(true) }
         findViewById<Button?>(R.id.animSimPresetCloseBtn)?.setOnClickListener { saveCurrentPreset(); prefs.animStudioPreset = "close"; loadCurrentPreset(); refreshSim(true) }
@@ -2716,6 +2943,34 @@ class MainActivity : AppCompatActivity() {
                 root.postDelayed({ clearBlur() }, 700)
             }
             playUnlockSound(anim)
+            // Wallpaper blur/zoom on unlock
+            val wb = prefs.wallUnlockBlur.coerceIn(0,100)
+            if (wb > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val maxR = (wb / 100f) * 60f
+                if (prefs.wallUnlockBlurMode == "from") {
+                    homeContent.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(maxR.coerceAtLeast(1f), maxR.coerceAtLeast(1f), Shader.TileMode.CLAMP))
+                    val animBlur = android.animation.ValueAnimator.ofFloat(maxR, 0.1f).apply {
+                        duration = 500; addUpdateListener { v -> val r = (v.animatedValue as Float).coerceAtLeast(0.1f); homeContent.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(r,r,Shader.TileMode.CLAMP)) }
+                        addListener(object: android.animation.AnimatorListenerAdapter() { override fun onAnimationEnd(animation: android.animation.Animator) { homeContent.setRenderEffect(null) } })
+                    }
+                    animBlur.start()
+                } else {
+                    val animBlur = android.animation.ValueAnimator.ofFloat(0.1f, maxR.coerceAtLeast(1f)).apply {
+                        duration = 500; addUpdateListener { v -> val r = (v.animatedValue as Float).coerceAtLeast(0.1f); homeContent.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(r,r,Shader.TileMode.CLAMP)) }
+                        addListener(object: android.animation.AnimatorListenerAdapter() { override fun onAnimationEnd(animation: android.animation.Animator) { root.postDelayed({ homeContent.setRenderEffect(null) }, 300) } })
+                    }
+                    animBlur.start()
+                }
+            }
+            val wz = prefs.wallZoom.coerceIn(0,100)
+            if (wz > 0) {
+                val zf = 1f + wz/100f * 0.08f
+                val fromZ = if (prefs.wallZoomMode == "in") 1f else zf
+                val toZ = if (prefs.wallZoomMode == "in") zf else 1f
+                homeContent.scaleX = fromZ * (prefs.screenScale.coerceIn(50,200)/100f)
+                homeContent.scaleY = fromZ * (prefs.screenScale.coerceIn(50,200)/100f)
+                homeContent.animate().scaleX(toZ * (prefs.screenScale.coerceIn(50,200)/100f)).scaleY(toZ * (prefs.screenScale.coerceIn(50,200)/100f)).setDuration(550).setInterpolator(DecelerateInterpolator(2f)).start()
+            }
 
             if (anim == "ripple") {
                 val ripple = View(this)
@@ -4498,12 +4753,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun scaleHomeForOpen(opening: Boolean, duration: Long = 260L) {
         val bs = (prefs.screenScale.coerceIn(50,200) / 100f)
-        homeContent.animate().cancel()
-        if (opening) {
-            homeContent.animate().scaleX(0.88f * bs).scaleY(0.88f * bs).alpha(0.72f).setDuration(duration).start()
-        } else {
-            homeContent.animate().scaleX(bs).scaleY(bs).alpha(1f).setDuration(duration).start()
+        val zoomMode = if (opening) prefs.openZoomMode else prefs.closeZoomMode
+        val zoomAmt = if (opening) prefs.openZoomAmount else prefs.closeZoomAmount
+        val zoomF = 1f + (zoomAmt.coerceIn(0,100) / 100f) * 0.18f
+        val target = when (zoomMode) {
+            "in" -> bs * zoomF
+            "out" -> bs / zoomF
+            else -> if (opening) 0.88f * bs else bs
         }
+        val alpha = if (opening) 0.72f else 1f
+        val speed = (if (opening) prefs.openZoomSpeed else 100).coerceIn(20,200) / 100f
+        val dur = (duration / speed).toLong().coerceAtLeast(80L)
+        homeContent.animate().cancel()
+        homeContent.animate().scaleX(target).scaleY(target).alpha(alpha).setDuration(dur).start()
     }
 
     private fun glassBg(radiusDp: Float = 20f, alpha: Int = 0x55, light: Boolean = prefs.lightMode): Drawable {
