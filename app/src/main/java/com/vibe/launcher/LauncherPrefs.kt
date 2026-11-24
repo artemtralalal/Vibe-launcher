@@ -139,6 +139,31 @@ class LauncherPrefs(context: Context) {
     var animStudioPreset: String
         get() = prefs.getString("anim_studio_preset", "close") ?: "close"
         set(v) = prefs.edit().putString("anim_studio_preset", v).apply()
+
+    var unlockSound: Boolean
+        get() = prefs.getBoolean("unlock_sound", false)
+        set(v) = prefs.edit().putBoolean("unlock_sound", v).apply()
+    var uiSoundVolume: Int
+        get() = prefs.getInt("ui_sound_vol", 70)
+        set(v) = prefs.edit().putInt("ui_sound_vol", v.coerceIn(0,100)).apply()
+    var touchFxEnabled: Boolean
+        get() = prefs.getBoolean("touch_fx", false)
+        set(v) = prefs.edit().putBoolean("touch_fx", v).apply()
+    var touchFxStyle: String
+        get() = prefs.getString("touch_fx_style", "android") ?: "android"
+        set(v) = prefs.edit().putString("touch_fx_style", v).apply()
+    var touchFxEnd: String
+        get() = prefs.getString("touch_fx_end", "shrink") ?: "shrink"
+        set(v) = prefs.edit().putString("touch_fx_end", v).apply()
+    var touchFxSize: Int
+        get() = prefs.getInt("touch_fx_size", 50)
+        set(v) = prefs.edit().putInt("touch_fx_size", v.coerceIn(10,100)).apply()
+    var touchFxSpeed: Int
+        get() = prefs.getInt("touch_fx_speed", 50)
+        set(v) = prefs.edit().putInt("touch_fx_speed", v.coerceIn(10,100)).apply()
+    var motionBlurBeta: Boolean
+        get() = prefs.getBoolean("motion_blur_beta", false)
+        set(v) = prefs.edit().putBoolean("motion_blur_beta", v).apply()
     var blurEnabled: Boolean
         get() = prefs.getBoolean("blur_enabled", true)
         set(v) = prefs.edit().putBoolean("blur_enabled", v).apply()
