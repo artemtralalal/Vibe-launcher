@@ -222,14 +222,6 @@ class MainActivity : AppCompatActivity() {
         try { registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) } catch (_: Exception) {}
     }
 
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (prefs.touchFxEnabled && ev.actionMasked == MotionEvent.ACTION_DOWN) {
-            touchFxView?.isVisible = true
-            touchFxView?.addTouch(ev.rawX, ev.rawY, prefs.touchFxStyle, prefs.touchFxEnd, prefs.touchFxSize, prefs.touchFxSpeed)
-        }
-        return super.dispatchTouchEvent(ev)
-    }
-
     override fun onDestroy() {
         try { unregisterReceiver(unlockReceiver) } catch (_: Exception) {}
         try { unregisterReceiver(screenOffReceiver) } catch (_: Exception) {}
@@ -2366,6 +2358,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (prefs.touchFxEnabled && ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            touchFxView?.isVisible = true
+            touchFxView?.addTouch(ev.rawX, ev.rawY, prefs.touchFxStyle, prefs.touchFxEnd, prefs.touchFxSize, prefs.touchFxSpeed)
+        }
         handlePageDrag(ev)
         if (::globalDetector.isInitialized) globalDetector.onTouchEvent(ev)
         return super.dispatchTouchEvent(ev)
