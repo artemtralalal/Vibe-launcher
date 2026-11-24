@@ -362,38 +362,47 @@
                     <LinearLayout android:id="@+id/catAnimations" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
                         <Button android:id="@+id/newAnimStudioBtn" android:layout_width="match_parent" android:layout_height="52dp" android:text="Новые анимации" android:textAllCaps="false" android:textStyle="bold" android:textColor="#FF111827" android:background="@drawable/bg_new_anim_btn" android:layout_marginBottom="8dp"/>
                         <LinearLayout android:id="@+id/animStudioBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone" android:background="@drawable/bg_anim_grid" android:padding="10dp">
-                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Студия анимаций" android:textColor="@color/white" android:textStyle="bold" android:textSize="20sp"/>
-                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Прилёт и улёт иконок / перспектива" android:textColor="#CCFFFFFF" android:textSize="12sp" android:layout_marginBottom="8dp"/>
-                            <FrameLayout android:id="@+id/animSimPreview" android:layout_width="match_parent" android:layout_height="220dp" android:background="#14FFFFFF">
-                                <View android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/bg_anim_grid"/>
-                                <LinearLayout android:id="@+id/animSimWindow" android:layout_width="170dp" android:layout_height="120dp" android:layout_gravity="center" android:background="@drawable/bg_glass_panel" android:gravity="center" android:orientation="vertical">
-                                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Окно" android:textColor="@color/white" android:textStyle="bold"/>
-                                </LinearLayout>
-                                <LinearLayout android:id="@+id/animSimIcon" android:layout_width="64dp" android:layout_height="64dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="10dp" android:background="@drawable/bg_glass_button" android:gravity="center" android:orientation="vertical">
-                                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="☎" android:textSize="24sp"/>
-                                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Vibe" android:textColor="@color/white" android:textSize="8sp"/>
-                                </LinearLayout>
-                            </FrameLayout>
+                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Прилёт и улёт иконок" android:textColor="@color/white" android:textStyle="bold" android:textSize="22sp"/>
+                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Редактор перспективы, точек нажатия, углов и траектории" android:textColor="#CCFFFFFF" android:textSize="12sp" android:layout_marginBottom="8dp"/>
+                            <com.vibe.launcher.AnimStudioPreview android:id="@+id/animSimPreviewView" android:layout_width="match_parent" android:layout_height="240dp" android:background="#10141C"/>
                             <TextView android:id="@+id/animSimPointsLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Точки: 0" android:textColor="@color/white" android:layout_marginTop="8dp"/>
                             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                                <Button android:id="@+id/animSimAddPointBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Добавить точку"/>
-                                <Button android:id="@+id/animSimClearPointsBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Очистить"/>
+                                <Button android:id="@+id/animSimModePointsBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Точки"/>
+                                <Button android:id="@+id/animSimModeCornersBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Углы/перспектива"/>
                             </LinearLayout>
                             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
                                 <Button android:id="@+id/animSimTargetWindowBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Окно"/>
                                 <Button android:id="@+id/animSimTargetIconBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Иконка"/>
                             </LinearLayout>
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                                <Button android:id="@+id/animSimPresetCloseBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Закрытие"/>
+                                <Button android:id="@+id/animSimPresetOpenBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Открытие"/>
+                                <Button android:id="@+id/animSimPresetReturnBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Возврат"/>
+                            </LinearLayout>
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                                <Button android:id="@+id/animSimAddPointBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Добавить точку"/>
+                                <Button android:id="@+id/animSimClearPointsBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Очистить"/>
+                                <Button android:id="@+id/animSimResetCornersBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Сброс углов"/>
+                            </LinearLayout>
                             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сила нажатия (0-200%)" android:textColor="#CCFFFFFF"/>
                             <SeekBar android:id="@+id/animSimPressureSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Скорость анимации" android:textColor="#CCFFFFFF"/>
+                            <SeekBar android:id="@+id/animSimSpeedSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Масштаб / Смещение X / Смещение Y" android:textColor="#CCFFFFFF"/>
+                            <SeekBar android:id="@+id/animSimScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                            <SeekBar android:id="@+id/animSimOffsetXSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                            <SeekBar android:id="@+id/animSimOffsetYSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
                             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Перспектива X / Y / Z" android:textColor="#CCFFFFFF"/>
                             <SeekBar android:id="@+id/animSimPerspXSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
                             <SeekBar android:id="@+id/animSimPerspYSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
                             <SeekBar android:id="@+id/animSimPerspZSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                            <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/animSimSyncCornersSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Синхронизировать углы с экраном" android:textColor="@color/white"/>
+                            <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/animSimFullscreenSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Игнорировать статус-бар/навигацию (полный экран)" android:textColor="@color/white"/>
                             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                                <Button android:id="@+id/animSimPlayCloseBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Симуляция закрытия"/>
-                                <Button android:id="@+id/animSimPlayOpenBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Симуляция открытия"/>
+                                <Button android:id="@+id/animSimPlayCloseBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Превью закрытия"/>
+                                <Button android:id="@+id/animSimPlayOpenBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Превью открытия"/>
                             </LinearLayout>
-                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="По умолчанию: 0, без наклона, отключено. Точки — зоны нажатия, влияют на 3D-наклон." android:textColor="#99FFFFFF" android:textSize="11sp"/>
+                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="По умолчанию: 0, без наклона, отключено. Точки — зоны нажатия, зелёные ручки — углы перспективы. Настройка применяется к окну/иконке отдельно." android:textColor="#99FFFFFF" android:textSize="11sp"/>
                         </LinearLayout>
 
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/flagshipSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Флагманские анимации" android:textColor="@color/white" />
