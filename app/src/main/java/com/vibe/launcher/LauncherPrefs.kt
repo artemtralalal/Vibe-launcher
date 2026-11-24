@@ -90,6 +90,22 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getInt("close_icon_scale", 100)
         set(v) = prefs.edit().putInt("close_icon_scale", v.coerceIn(50, 100)).apply()
 
+    var openZoomMode: String
+        get() = prefs.getString("open_zoom_mode", "none") ?: "none" // none|in|out
+        set(v) = prefs.edit().putString("open_zoom_mode", v).apply()
+    var openZoomAmount: Int
+        get() = prefs.getInt("open_zoom_amount", 20)
+        set(v) = prefs.edit().putInt("open_zoom_amount", v.coerceIn(0, 100)).apply()
+    var openZoomSpeed: Int
+        get() = prefs.getInt("open_zoom_speed", 100)
+        set(v) = prefs.edit().putInt("open_zoom_speed", v.coerceIn(20, 200)).apply()
+    var closeZoomMode: String
+        get() = prefs.getString("close_zoom_mode", "none") ?: "none"
+        set(v) = prefs.edit().putString("close_zoom_mode", v).apply()
+    var closeZoomAmount: Int
+        get() = prefs.getInt("close_zoom_amount", 20)
+        set(v) = prefs.edit().putInt("close_zoom_amount", v.coerceIn(0, 100)).apply()
+
     // Animation Studio
     var animStudioEnabled: Boolean
         get() = prefs.getBoolean("anim_studio_on", false)
@@ -177,6 +193,12 @@ class LauncherPrefs(context: Context) {
     var wallZoom: Int
         get() = prefs.getInt("wall_zoom", 20)
         set(v) = prefs.edit().putInt("wall_zoom", v.coerceIn(0,100)).apply()
+    var wallVideoUri: String
+        get() = prefs.getString("wall_video_uri", "") ?: ""
+        set(v) = prefs.edit().putString("wall_video_uri", v).apply()
+    var wallLockVideoUri: String
+        get() = prefs.getString("wall_lock_video_uri", "") ?: ""
+        set(v) = prefs.edit().putString("wall_lock_video_uri", v).apply()
 
     var islandEnabled: Boolean
         get() = prefs.getBoolean("island_enabled", false)
