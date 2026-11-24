@@ -150,6 +150,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var volumePanel: View
+    private var touchFxView: TouchFxView? = null
     private lateinit var audioManager: android.media.AudioManager
     private var volumeHideRunnable: Runnable? = null
     private val volumeReceiver = object : BroadcastReceiver() {
@@ -219,6 +220,14 @@ class MainActivity : AppCompatActivity() {
         try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
         try { registerReceiver(screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF)) } catch (_: Exception) {}
         try { registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) } catch (_: Exception) {}
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (prefs.touchFxEnabled && ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            touchFxView?.isVisible = true
+            touchFxView?.addTouch(ev.rawX, ev.rawY, prefs.touchFxStyle, prefs.touchFxEnd, prefs.touchFxSize, prefs.touchFxSpeed)
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     override fun onDestroy() {
@@ -791,6 +800,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupVolumePanel() {
         volumePanel = findViewById(R.id.volumePanel)
+        touchFxView = findViewById(R.id.touchFxView)
+        touchFxView?.isVisible = prefs.touchFxEnabled
         audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
         fun bindVol(seekId: Int, stream: Int) {
             val sb = findViewById<SeekBar>(seekId)
@@ -822,10 +833,12 @@ class MainActivity : AppCompatActivity() {
                 sb.max = audioManager.getStreamMaxVolume(stream)
                 sb.progress = audioManager.getStreamVolume(stream)
             }
-            volumePanel.alpha = 0f
-            volumePanel.isVisible = true
             volumePanel.animate().cancel()
-            volumePanel.animate().alpha(1f).setDuration(150).start()
+            volumePanel.alpha = 0f
+            volumePanel.translationX = 40f * resources.displayMetrics.density
+            volumePanel.scaleX = 0.92f; volumePanel.scaleY = 0.92f
+            volumePanel.isVisible = true
+            volumePanel.animate().alpha(1f).translationX(0f).scaleX(1f).scaleY(1f).setDuration(180).setInterpolator(DecelerateInterpolator(1.8f)).start()
             scheduleVolumeHide()
         } catch (_: Exception) { }
     }
@@ -833,7 +846,9 @@ class MainActivity : AppCompatActivity() {
     private fun scheduleVolumeHide() {
         volumeHideRunnable?.let { root.removeCallbacks(it) }
         volumeHideRunnable = Runnable {
-            if (::volumePanel.isInitialized) volumePanel.animate().alpha(0f).setDuration(200).withEndAction { volumePanel.isVisible = false }.start()
+            if (::volumePanel.isInitialized) volumePanel.animate().alpha(0f).translationX(40f * resources.displayMetrics.density).scaleX(0.9f).scaleY(0.9f).setDuration(220).withEndAction {
+                volumePanel.isVisible = false; volumePanel.translationX = 0f; volumePanel.scaleX = 1f; volumePanel.scaleY = 1f
+            }.start()
         }
         root.postDelayed(volumeHideRunnable!!, 2000)
     }
