@@ -166,6 +166,7 @@ class MainActivity : AppCompatActivity() {
     private val animWinPoints = mutableListOf<AnimPoint>()
     private val animIconPoints = mutableListOf<AnimPoint>()
     private var animSimTarget: String = "window"
+    private var animStudioAppKey: String? = null
     private var pendingLaunch = false
     private var openAnimating = false
     private var cameraGeniePending = false
@@ -860,6 +861,25 @@ class MainActivity : AppCompatActivity() {
         powerSwitch.setOnCheckedChangeListener { _, c -> prefs.powerSaving = c; applyPowerSavingMode() }
         findViewById<Button>(R.id.powerBrightnessPermBtn).setOnClickListener { requestWriteSettingsPermission() }
         findViewById<Button>(R.id.powerBrightnessLowBtn).setOnClickListener { setLowBrightness() }
+        findViewById<SwitchMaterial?>(R.id.unlockSoundSwitch)?.apply { isChecked = prefs.unlockSound; setOnCheckedChangeListener { _, c -> prefs.unlockSound = c } }
+        bindSeek(findViewById(R.id.uiSoundVolumeSeek), prefs.uiSoundVolume, 0, 100) { prefs.uiSoundVolume = it }
+        findViewById<SwitchMaterial?>(R.id.touchFxSwitch)?.apply { isChecked = prefs.touchFxEnabled; setOnCheckedChangeListener { _, c -> prefs.touchFxEnabled = c } }
+        findViewById<Button?>(R.id.touchFxStyleBtn)?.setOnClickListener {
+            val opts = arrayOf("Android","Фейерверк","Синяя вспышка MIUI","iOS 26 стекло")
+            val vals = arrayOf("android","fireworks","miui","ios")
+            AlertDialog.Builder(this).setTitle("Стиль касания").setItems(opts){_,w-> prefs.touchFxStyle = vals[w]; (it as? Button)?.text = "Стиль касания: ${opts[w]}" }.show()
+        }
+        findViewById<Button?>(R.id.touchFxEndBtn)?.setOnClickListener {
+            val opts = arrayOf("Уменьшение","Расплывание","Распадание","Liquid Glass")
+            val vals = arrayOf("shrink","fade","burst","liquid")
+            AlertDialog.Builder(this).setTitle("Анимация исчезновения").setItems(opts){_,w-> prefs.touchFxEnd = vals[w]; (it as? Button)?.text = "Анимация исчезновения: ${opts[w]}" }.show()
+        }
+        bindSeek(findViewById(R.id.touchFxSizeSeek), prefs.touchFxSize, 10, 100) { prefs.touchFxSize = it }
+        bindSeek(findViewById(R.id.touchFxSpeedSeek), prefs.touchFxSpeed, 10, 100) { prefs.touchFxSpeed = it }
+        findViewById<Button?>(R.id.touchFxOverlayPermBtn)?.setOnClickListener {
+            try { startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) } catch (_: Exception) {}
+        }
+        findViewById<SwitchMaterial?>(R.id.motionBlurSwitch)?.apply { isChecked = prefs.motionBlurBeta; setOnCheckedChangeListener { _, c -> prefs.motionBlurBeta = c } }
         val labelsSwitch = findViewById<SwitchMaterial>(R.id.labelsSwitch)
         labelsSwitch.isChecked = prefs.showLabels
         labelsSwitch.setOnCheckedChangeListener { _, c -> prefs.showLabels = c; gridAdapter.notifyDataSetChanged() }
@@ -1621,6 +1641,90 @@ class MainActivity : AppCompatActivity() {
         btn?.text = if (on) "Новые анимации: ВКЛ" else "Новые анимации: ВЫКЛ"
     }
 
+    private fun animPresetSp() = getSharedPreferences("launcher_prefs", MODE_PRIVATE)
+
+    private fun builtinAnimPresets(): List<Pair<String, () -> Unit>> = listOf(
+        "iOS 26" to {
+            prefs.animStudioEnabled = true; prefs.animStudioPressure = 120; prefs.animStudioPerspX = 20; prefs.animStudioPerspY = 0; prefs.animStudioPerspZ = 0
+            animWinPoints.clear(); animWinPoints.add(AnimPoint(0.5f,0.15f,1f)); animIconPoints.clear(); animIconPoints.add(AnimPoint(0.5f,0.2f,0.8f))
+            prefs.animStudioWindowCorners = ""; prefs.animStudioIconCorners = ""; persistAnimPoints()
+        },
+        "Samsung" to {
+            prefs.animStudioEnabled = true; prefs.animStudioPressure = 60; prefs.animStudioPerspX = 0; prefs.animStudioPerspY = 0; prefs.animStudioPerspZ = 0
+            animWinPoints.clear(); animIconPoints.clear(); prefs.animStudioWindowCorners = ""; prefs.animStudioIconCorners = ""; persistAnimPoints()
+        },
+        "Xiaomi HyperOS 5" to {
+            prefs.animStudioEnabled = true; prefs.animStudioPressure = 140; prefs.animStudioPerspX = -35; prefs.animStudioPerspY = 0; prefs.animStudioPerspZ = 0
+            animWinPoints.clear(); animWinPoints.add(AnimPoint(0.5f,0.85f,1f)); animWinPoints.add(AnimPoint(0.5f,0.15f,0.7f))
+            animIconPoints.clear(); prefs.animStudioWindowCorners=""; prefs.animStudioIconCorners=""; persistAnimPoints()
+        }
+    )
+
+    private fun showAnimPresetList(onApplied: () -> Unit) {
+        val sp = animPresetSp()
+        val user = sp.getStringSet("anim_user_presets", emptySet())?.toMutableList()?.sorted()?.toMutableList() ?: mutableListOf()
+        val builtins = builtinAnimPresets().map { it.first }
+        val names = (builtins + user.take(50 - builtins.size)).toTypedArray()
+        AlertDialog.Builder(this).setTitle("Пресеты анимаций")
+            .setItems(names) { _, which ->
+                if (which < builtins.size) {
+                    builtinAnimPresets()[which].second(); onApplied()
+                } else {
+                    val name = names[which]
+                    val key = "anim_preset_$name"
+                    sp.getString(key, null)?.let { loadAnimPresetJson(it); onApplied() }
+                }
+            }
+            .setNegativeButton("Закрыть", null)
+            .show()
+    }
+
+    private fun saveAnimPresetJson(name: String) {
+        val sp = animPresetSp()
+        val obj = org.json.JSONObject()
+        obj.put("winPts", saveAnimPoints(animWinPoints)); obj.put("iconPts", saveAnimPoints(animIconPoints))
+        obj.put("winC", prefs.animStudioWindowCorners); obj.put("iconC", prefs.animStudioIconCorners)
+        obj.put("pressure", prefs.animStudioPressure); obj.put("px", prefs.animStudioPerspX); obj.put("py", prefs.animStudioPerspY); obj.put("pz", prefs.animStudioPerspZ)
+        obj.put("speed", prefs.animStudioSpeed); obj.put("scale", prefs.animStudioScale); obj.put("ox", prefs.animStudioOffsetX); obj.put("oy", prefs.animStudioOffsetY)
+        val set = sp.getStringSet("anim_user_presets", emptySet())?.toMutableSet() ?: mutableSetOf()
+        if (set.size < 50) set.add(name)
+        sp.edit().putString("anim_preset_$name", obj.toString()).putStringSet("anim_user_presets", set).apply()
+    }
+
+    private fun loadAnimPresetJson(json: String) {
+        try {
+            val o = org.json.JSONObject(json)
+            animWinPoints.clear(); animWinPoints.addAll(parseAnimPoints(o.optString("winPts")))
+            animIconPoints.clear(); animIconPoints.addAll(parseAnimPoints(o.optString("iconPts")))
+            prefs.animStudioWindowCorners = o.optString("winC"); prefs.animStudioIconCorners = o.optString("iconC")
+            prefs.animStudioPressure = o.optInt("pressure", 0); prefs.animStudioPerspX = o.optInt("px",0); prefs.animStudioPerspY = o.optInt("py",0); prefs.animStudioPerspZ = o.optInt("pz",0)
+            prefs.animStudioSpeed = o.optInt("speed",100); prefs.animStudioScale = o.optInt("scale",100); prefs.animStudioOffsetX = o.optInt("ox",100); prefs.animStudioOffsetY = o.optInt("oy",100)
+            prefs.animStudioEnabled = prefs.animStudioPressure > 0 || animWinPoints.isNotEmpty() || animIconPoints.isNotEmpty()
+            persistAnimPoints()
+        } catch (_: Exception) {}
+    }
+
+    private fun showPerAppAnimEditor(app: AppEntry) {
+        animStudioAppKey = app.key
+        settingsOverlay.isVisible = true
+        showSettingsCategory("animations")
+        android.widget.Toast.makeText(this, "Настройка анимации: ${app.label}. Настрой и нажми 'Для приложения'.", android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    private fun applyAnimToApp(appKey: String) {
+        val name = "app_${appKey.take(20)}_${System.currentTimeMillis()%10000}"
+        saveAnimPresetJson(name)
+        animPresetSp().edit().putString("app_anim_$appKey", name).apply()
+        android.widget.Toast.makeText(this, "Анимация сохранена для приложения", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    private fun loadAppAnimIfAny(appKey: String) {
+        val sp = animPresetSp()
+        val name = sp.getString("app_anim_$appKey", null) ?: return
+        val json = sp.getString("anim_preset_$name", null) ?: return
+        loadAnimPresetJson(json)
+    }
+
     private fun setupAnimStudio() {
         val btn = findViewById<Button?>(R.id.newAnimStudioBtn) ?: return
         val preview = findViewById<AnimStudioPreview?>(R.id.animSimPreviewView) ?: return
@@ -1743,8 +1847,25 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button?>(R.id.animSimPresetCloseBtn)?.setOnClickListener { saveCurrentPreset(); prefs.animStudioPreset = "close"; loadCurrentPreset(); refreshSim(true) }
         findViewById<Button?>(R.id.animSimPresetOpenBtn)?.setOnClickListener { saveCurrentPreset(); prefs.animStudioPreset = "open"; loadCurrentPreset(); refreshSim(true) }
         findViewById<Button?>(R.id.animSimPresetReturnBtn)?.setOnClickListener { saveCurrentPreset(); prefs.animStudioPreset = "return"; loadCurrentPreset(); refreshSim(true) }
-        findViewById<Button?>(R.id.animSimSavePresetBtn)?.setOnClickListener { saveCurrentPreset(); android.widget.Toast.makeText(this, "Пресет сохранён: ${prefs.animStudioPreset}", android.widget.Toast.LENGTH_SHORT).show() }
+        findViewById<Button?>(R.id.animSimSavePresetBtn)?.setOnClickListener {
+            val input = android.widget.EditText(this).apply { hint = "Имя пресета"; setText(prefs.animStudioPreset) }
+            AlertDialog.Builder(this).setTitle("Сохранить пресет").setView(input)
+                .setPositiveButton("Сохранить") { _, _ ->
+                    val name = input.text.toString().trim().ifBlank { "preset_${System.currentTimeMillis()%100000}" }
+                    saveCurrentPreset(); saveAnimPresetJson(name)
+                    android.widget.Toast.makeText(this, "Пресет сохранён: $name", android.widget.Toast.LENGTH_SHORT).show()
+                }.setNegativeButton("Отмена", null).show()
+        }
+        findViewById<Button?>(R.id.animSimPresetListBtn)?.setOnClickListener {
+            showAnimPresetList { loadCurrentPreset(); refreshSim(true) }
+        }
         findViewById<Button?>(R.id.animSimPickIconBtn)?.setOnClickListener { try { animStudioIconPickLauncher.launch(arrayOf("image/*")) } catch (_: Exception) {} }
+        findViewById<Button?>(R.id.animSimApplyAppBtn)?.setOnClickListener {
+            val key = animStudioAppKey
+            if (key != null) { applyAnimToApp(key) } else {
+                android.widget.Toast.makeText(this, "Зажми иконку приложения → «Настроить анимацию открытия»", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
         findViewById<Button?>(R.id.animSimAddPointBtn)?.setOnClickListener {
             val list = currentAnimPoints(); if (list.size < 6) { list.add(AnimPoint(0.5f,0.8f,1f)); prefs.animStudioEnabled = true; persistAnimPoints(); refreshSim() }
         }
@@ -2134,6 +2255,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.catRowScreen).setOnClickListener { showSettingsCategory("screen") }
         findViewById<View>(R.id.catRowDrawer).setOnClickListener { showSettingsCategory("drawer") }
         findViewById<View>(R.id.catRowPower).setOnClickListener { showSettingsCategory("power") }
+        findViewById<View>(R.id.catRowSound).setOnClickListener { showSettingsCategory("sound") }
+        findViewById<View>(R.id.catRowTouch).setOnClickListener { showSettingsCategory("touch") }
         findViewById<View>(R.id.catRowAbout).setOnClickListener { showSettingsCategory("about") }
     }
 
@@ -2152,7 +2275,7 @@ class MainActivity : AppCompatActivity() {
             (detail.layoutParams as FrameLayout.LayoutParams).apply { width = FrameLayout.LayoutParams.MATCH_PARENT; height = FrameLayout.LayoutParams.MATCH_PARENT; marginStart = 0; gravity = android.view.Gravity.NO_GRAVITY }
             findViewById<View>(R.id.settingsBackBtn).isVisible = true
         }
-        listOf(R.id.catAppearance, R.id.catAnimations, R.id.catHome, R.id.catDock, R.id.catScreen, R.id.catDrawer, R.id.catPower, R.id.catAbout).forEach {
+        listOf(R.id.catAppearance, R.id.catAnimations, R.id.catHome, R.id.catDock, R.id.catScreen, R.id.catDrawer, R.id.catPower, R.id.catSound, R.id.catTouch, R.id.catAbout).forEach {
             findViewById<View>(it).isVisible = landscape && it == R.id.catAppearance
         }
         if (landscape) findViewById<TextView>(R.id.settingsDetailTitle).text = "Внешний вид"
@@ -2170,6 +2293,8 @@ class MainActivity : AppCompatActivity() {
             "screen" to (R.id.catScreen to "Экран"),
             "drawer" to (R.id.catDrawer to "Меню приложений"),
             "power" to (R.id.catPower to "Энергосбережение"),
+            "sound" to (R.id.catSound to "Звук"),
+            "touch" to (R.id.catTouch to "Касание"),
             "about" to (R.id.catAbout to "О лаунчере")
         )
         if (landscape) {
@@ -3271,6 +3396,7 @@ class MainActivity : AppCompatActivity() {
             }
             addOption("На страницу...") { showPageManager(app.key) }
             addOption("Изменить иконку") { showIconEditDialog(app) }
+            addOption("Настроить анимацию открытия") { showPerAppAnimEditor(app) }
             if (!fromDrawer) {
                 addOption("Убрать с рабочего стола") {
                     animateShatter(view) {
@@ -3735,6 +3861,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchApp(app: AppEntry, iconView: View, fromDrawer: Boolean) {
+        loadAppAnimIfAny(app.key)
         val intent = Intent(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(ComponentName(app.packageName, app.activityName))
