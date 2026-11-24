@@ -76,6 +76,19 @@ class LauncherPrefs(context: Context) {
     var closeOvershoot: Float
         get() = prefs.getFloat("close_overshoot", 0.4f)
         set(v) = prefs.edit().putFloat("close_overshoot", v).apply()
+
+    var newCloseAnim: Boolean
+        get() = prefs.getBoolean("new_close_anim", true)
+        set(v) = prefs.edit().putBoolean("new_close_anim", v).apply()
+    var closeStrength: Int
+        get() = prefs.getInt("close_strength", 50)
+        set(v) = prefs.edit().putInt("close_strength", v.coerceIn(0, 100)).apply()
+    var closeRandomStrength: Boolean
+        get() = prefs.getBoolean("close_random_strength", false)
+        set(v) = prefs.edit().putBoolean("close_random_strength", v).apply()
+    var closeIconScale: Int
+        get() = prefs.getInt("close_icon_scale", 100)
+        set(v) = prefs.edit().putInt("close_icon_scale", v.coerceIn(50, 100)).apply()
     var blurEnabled: Boolean
         get() = prefs.getBoolean("blur_enabled", true)
         set(v) = prefs.edit().putBoolean("blur_enabled", v).apply()
