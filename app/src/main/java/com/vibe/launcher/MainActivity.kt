@@ -3710,7 +3710,7 @@ class MainActivity : AppCompatActivity() {
         val arcH = prefs.closeArcHeight.coerceIn(0f, 900f) * (if (newClose) (0.25f + 1.25f * sFactor) else 1f)
         val tilt = (prefs.tiltAnimation && !prefs.powerSaving) || newClose
         val ti = prefs.tiltIntensity.coerceIn(0, 100) / 50f * (if (newClose) (0.5f + 1.2f * sFactor) else 1f)
-        val fromDock = dockApps.any { it.key == lastLaunchKey }
+        val fromDock = dockApps.any { it?.key == lastLaunchKey }
         val dockTilt = newClose && fromDock
         val dockRotX = if (dockTilt) (14f + 10f * sFactor) else 0f
         val dockRotY = if (dockTilt) ((startTX - tX) / screenW.coerceAtLeast(1f) * 18f).coerceIn(-10f, 10f) else 0f
