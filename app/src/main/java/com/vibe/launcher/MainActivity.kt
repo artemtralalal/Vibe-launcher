@@ -3874,6 +3874,7 @@ class MainActivity : AppCompatActivity() {
             overlay.translationX = 0f
             overlay.translationY = 0f
         }
+        val app = lastLaunchKey?.let { findApp(it) }
         val closeBg = if (app != null) {
             val icon = app.icon.constantState?.newDrawable()?.mutate() ?: app.icon
             val bg = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.RECTANGLE; cornerRadius = prefs.windowCornerRadius.coerceIn(0, 60) * resources.displayMetrics.density; setColor(lastLaunchColor) }
@@ -3901,7 +3902,6 @@ class MainActivity : AppCompatActivity() {
 
         val dur = prefs.closeDuration.toLong().coerceAtLeast(120L)
         scaleHomeForOpen(false, dur)
-        val app = lastLaunchKey?.let { findApp(it) }
 
         val startTX = overlay.translationX
         val startTY = overlay.translationY
