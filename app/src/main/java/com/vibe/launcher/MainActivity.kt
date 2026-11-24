@@ -876,6 +876,19 @@ class MainActivity : AppCompatActivity() {
             prefs.closeOvershoot = it / 100f
         }
 
+        findViewById<SwitchMaterial>(R.id.newCloseAnimSwitch).apply {
+            isChecked = prefs.newCloseAnim
+            setOnCheckedChangeListener { _, c -> prefs.newCloseAnim = c }
+        }
+        bindSeek(findViewById(R.id.closeStrengthSeek), prefs.closeStrength.coerceIn(0, 100), 0, 100) { prefs.closeStrength = it }
+        findViewById<SwitchMaterial>(R.id.closeRandomSwitch).apply {
+            isChecked = prefs.closeRandomStrength
+            setOnCheckedChangeListener { _, c -> prefs.closeRandomStrength = c }
+        }
+        bindSeek(findViewById(R.id.closeIconScaleSeek), (100 - prefs.closeIconScale.coerceIn(50, 100)), 0, 50) {
+            prefs.closeIconScale = 100 - it
+        }
+
         updateIconPackLabel()
         findViewById<Button>(R.id.pickIconPackBtn).setOnClickListener { showIconPackPicker() }
         findViewById<Button>(R.id.wallpaperBtn).setOnClickListener { openWallpaperPicker() }
@@ -3498,6 +3511,12 @@ class MainActivity : AppCompatActivity() {
         val overlay = animationOverlay
         overlay.animate().cancel()
         overlay.background = roundedBg(prefs.accentColor)
+        overlay.clipToOutline = true
+        val sr = prefs.windowCornerRadius.coerceIn(0, 60) * resources.displayMetrics.density
+        overlay.outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) { outline.setRoundRect(0, 0, view.width, view.height, sr) }
+        }
+        overlay.invalidateOutline()
         overlay.isVisible = true
         overlay.alpha = 0f
         overlay.scaleX = 0.2f; overlay.scaleY = 0.2f
@@ -3519,6 +3538,12 @@ class MainActivity : AppCompatActivity() {
 
         val overlay = animationOverlay
         overlay.background = roundedBg(color)
+        overlay.clipToOutline = true
+        val openRadius = prefs.windowCornerRadius.coerceIn(0, 60) * resources.displayMetrics.density
+        overlay.outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) { outline.setRoundRect(0, 0, view.width, view.height, openRadius) }
+        }
+        overlay.invalidateOutline()
         overlay.isVisible = true
         overlay.alpha = 1f
 
@@ -3661,7 +3686,9 @@ class MainActivity : AppCompatActivity() {
                 outline.setRoundRect(0, 0, view.width, view.height, startRadius)
             }
         }
-        if (prefs.tiltAnimation && !prefs.powerSaving) {
+        overlay.invalidateOutline()
+        val newClose = prefs.newCloseAnim
+        if ((prefs.tiltAnimation || newClose) && !prefs.powerSaving) {
             overlay.cameraDistance = resources.displayMetrics.density * 7000f
             overlay.pivotX = overlay.width / 2f
             overlay.pivotY = overlay.height / 2f
@@ -3678,14 +3705,20 @@ class MainActivity : AppCompatActivity() {
         val startTY = overlay.translationY
         val startSX = overlay.scaleX
         val startSY = overlay.scaleY
-        val arcH = prefs.closeArcHeight.coerceIn(0f, 900f)
-        val tilt = prefs.tiltAnimation && !prefs.powerSaving
-        val ti = prefs.tiltIntensity.coerceIn(0, 100) / 50f
+        val strength = if (newClose) (if (prefs.closeRandomStrength) (20..100).random() else prefs.closeStrength.coerceIn(0,100)) else 50
+        val sFactor = strength / 100f
+        val arcH = prefs.closeArcHeight.coerceIn(0f, 900f) * (if (newClose) (0.25f + 1.25f * sFactor) else 1f)
+        val tilt = (prefs.tiltAnimation && !prefs.powerSaving) || newClose
+        val ti = prefs.tiltIntensity.coerceIn(0, 100) / 50f * (if (newClose) (0.5f + 1.2f * sFactor) else 1f)
+        val fromDock = dockApps.any { it.key == lastLaunchKey }
+        val dockTilt = newClose && fromDock
+        val dockRotX = if (dockTilt) (14f + 10f * sFactor) else 0f
+        val dockRotY = if (dockTilt) ((startTX - tX) / screenW.coerceAtLeast(1f) * 18f).coerceIn(-10f, 10f) else 0f
 
-        val upDur = (dur * 0.38f).toLong().coerceAtLeast(60L)
+        val upDur = (dur * (if (newClose) (0.30f + 0.18f * sFactor) else 0.38f)).toLong().coerceAtLeast(60L)
         val downDur = (dur - upDur).coerceAtLeast(60L)
         val midTX = startTX + (tX - startTX) * 0.45f
-        val midTY = startTY + (tY - startTY) * 0.35f - arcH
+        val midTY = startTY + (tY - startTY) * (if (newClose) (0.25f - 0.10f * sFactor) else 0.35f) - arcH
         val midSX = startSX + (sX - startSX) * 0.45f
         val midSY = startSY + (sY - startSY) * 0.45f
 
@@ -3714,6 +3747,7 @@ class MainActivity : AppCompatActivity() {
                     overlay.background = app.icon.constantState?.newDrawable()?.mutate() ?: app.icon
                     val shape = prefs.iconShape
                     val radii = currentCornerRadii()
+                    overlay.clipToOutline = true
                     overlay.outlineProvider = object : ViewOutlineProvider() {
                         override fun getOutline(view: View, outline: Outline) {
                             val w = view.width; val h = view.height
@@ -3764,7 +3798,8 @@ class MainActivity : AppCompatActivity() {
             overlay.animate()
                 .translationX(midTX).translationY(midTY)
                 .scaleX(midSX).scaleY(midSY)
-                .rotationX(if (tilt) -10f * ti else 0f).rotationY(if (tilt) 4f * ti else 0f)
+                .rotationX(if (dockTilt) dockRotX else if (tilt) -10f * ti else 0f)
+                .rotationY(if (dockTilt) dockRotY else if (tilt) 4f * ti else 0f)
                 .setDuration(upDur)
                 .setInterpolator(DecelerateInterpolator(1.2f))
                 .withEndAction {
@@ -3788,33 +3823,53 @@ class MainActivity : AppCompatActivity() {
         val view = findIconViewByKey(key) ?: return
         val overshoot = prefs.closeOvershoot.coerceIn(0f, 1.5f)
         val arcOn = prefs.closeArcHeight > 10f
+        val newClose = prefs.newCloseAnim
+        val iconScale = if (newClose) prefs.closeIconScale.coerceIn(50, 100) / 100f else 1f
+        val tiltBounce = newClose && prefs.tiltAnimation && !prefs.powerSaving
         view.animate().cancel()
         view.translationY = 0f
+        view.rotationX = 0f; view.rotationY = 0f; view.rotation = 0f
+        if (tiltBounce) {
+            view.cameraDistance = resources.displayMetrics.density * 7000f
+            view.pivotX = view.width / 2f; view.pivotY = view.height / 2f
+        }
+        fun settleTilt() {
+            if (!tiltBounce) return
+            view.animate().rotationX(0f).rotationY(0f).rotation(0f).setDuration(220)
+                .setInterpolator(DecelerateInterpolator(2f)).start()
+        }
         fun jellyWobble() {
-            if (!prefs.liquidWobble || prefs.powerSaving) return
+            if (!prefs.liquidWobble || prefs.powerSaving) { settleTilt(); return }
             val i = (prefs.liquidWobbleIntensity.coerceIn(0,100) / 100f)
             val amp = 0.10f * (0.4f + 0.6f * i)
             view.scaleX = 1f + amp; view.scaleY = 1f - amp
             view.animate().scaleX(1f - amp*0.7f).scaleY(1f + amp*0.7f).setDuration(110)
                 .withEndAction {
                     view.animate().scaleX(1f + amp*0.35f).scaleY(1f - amp*0.35f).setDuration(90)
-                        .withEndAction { view.animate().scaleX(1f).scaleY(1f).setDuration(80).start() }
+                        .withEndAction { view.animate().scaleX(1f).scaleY(1f).setDuration(80).withEndAction { settleTilt() }.start() }
                         .start()
                 }.start()
         }
         if (arcOn && overshoot > 0.01f) {
             val drop = (4f + overshoot * 10f) * resources.displayMetrics.density
-            view.scaleX = 0.92f
-            view.scaleY = 0.92f
+            val startS = (0.92f * iconScale).coerceAtLeast(0.5f)
+            view.scaleX = startS; view.scaleY = startS
             view.translationY = drop
-            view.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(280)
+            if (tiltBounce) { view.rotationX = -12f; view.rotationY = 6f }
+            view.animate().scaleX(1f).scaleY(1f).translationY(0f)
+                .setDuration(280)
                 .setInterpolator(OvershootInterpolator(1.0f + overshoot * 0.8f))
-                .withEndAction { jellyWobble() }.start()
+                .withEndAction {
+                    if (tiltBounce) { view.rotationX = 6f; view.rotationY = -3f; settleTilt() }
+                    jellyWobble()
+                }.start()
         } else {
-            view.scaleX = 0.94f; view.scaleY = 0.94f
-            view.animate().scaleX(1f).scaleY(1f).setDuration(160)
+            val startS = (0.94f * iconScale).coerceAtLeast(0.5f)
+            view.scaleX = startS; view.scaleY = startS
+            if (tiltBounce) view.rotationX = -8f
+            view.animate().scaleX(1f).scaleY(1f).setDuration(180)
                 .setInterpolator(DecelerateInterpolator(1.5f))
-                .withEndAction { jellyWobble() }.start()
+                .withEndAction { if (tiltBounce) settleTilt(); jellyWobble() }.start()
         }
     }
 
