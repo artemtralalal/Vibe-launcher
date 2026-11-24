@@ -112,6 +112,33 @@ class LauncherPrefs(context: Context) {
     var animStudioPerspZ: Int
         get() = prefs.getInt("anim_studio_pz", 0)
         set(v) = prefs.edit().putInt("anim_studio_pz", v.coerceIn(-100, 100)).apply()
+    var animStudioSpeed: Int
+        get() = prefs.getInt("anim_studio_speed", 100)
+        set(v) = prefs.edit().putInt("anim_studio_speed", v.coerceIn(20, 200)).apply()
+    var animStudioScale: Int
+        get() = prefs.getInt("anim_studio_scale", 100)
+        set(v) = prefs.edit().putInt("anim_studio_scale", v.coerceIn(50, 200)).apply()
+    var animStudioOffsetX: Int
+        get() = prefs.getInt("anim_studio_ox", 100)
+        set(v) = prefs.edit().putInt("anim_studio_ox", v.coerceIn(0, 200)).apply()
+    var animStudioOffsetY: Int
+        get() = prefs.getInt("anim_studio_oy", 100)
+        set(v) = prefs.edit().putInt("anim_studio_oy", v.coerceIn(0, 200)).apply()
+    var animStudioSyncCorners: Boolean
+        get() = prefs.getBoolean("anim_studio_sync", true)
+        set(v) = prefs.edit().putBoolean("anim_studio_sync", v).apply()
+    var animStudioFullscreen: Boolean
+        get() = prefs.getBoolean("anim_studio_full", true)
+        set(v) = prefs.edit().putBoolean("anim_studio_full", v).apply()
+    var animStudioWindowCorners: String
+        get() = prefs.getString("anim_studio_win_c", "") ?: ""
+        set(v) = prefs.edit().putString("anim_studio_win_c", v).apply()
+    var animStudioIconCorners: String
+        get() = prefs.getString("anim_studio_icon_c", "") ?: ""
+        set(v) = prefs.edit().putString("anim_studio_icon_c", v).apply()
+    var animStudioPreset: String
+        get() = prefs.getString("anim_studio_preset", "close") ?: "close"
+        set(v) = prefs.edit().putString("anim_studio_preset", v).apply()
     var blurEnabled: Boolean
         get() = prefs.getBoolean("blur_enabled", true)
         set(v) = prefs.edit().putBoolean("blur_enabled", v).apply()
