@@ -89,6 +89,29 @@ class LauncherPrefs(context: Context) {
     var closeIconScale: Int
         get() = prefs.getInt("close_icon_scale", 100)
         set(v) = prefs.edit().putInt("close_icon_scale", v.coerceIn(50, 100)).apply()
+
+    // Animation Studio
+    var animStudioEnabled: Boolean
+        get() = prefs.getBoolean("anim_studio_on", false)
+        set(v) = prefs.edit().putBoolean("anim_studio_on", v).apply()
+    var animStudioPressure: Int
+        get() = prefs.getInt("anim_studio_pressure", 0)
+        set(v) = prefs.edit().putInt("anim_studio_pressure", v.coerceIn(0, 200)).apply()
+    var animStudioWindowPoints: String
+        get() = prefs.getString("anim_studio_win_pts", "") ?: ""
+        set(v) = prefs.edit().putString("anim_studio_win_pts", v).apply()
+    var animStudioIconPoints: String
+        get() = prefs.getString("anim_studio_icon_pts", "") ?: ""
+        set(v) = prefs.edit().putString("anim_studio_icon_pts", v).apply()
+    var animStudioPerspX: Int
+        get() = prefs.getInt("anim_studio_px", 0)
+        set(v) = prefs.edit().putInt("anim_studio_px", v.coerceIn(-100, 100)).apply()
+    var animStudioPerspY: Int
+        get() = prefs.getInt("anim_studio_py", 0)
+        set(v) = prefs.edit().putInt("anim_studio_py", v.coerceIn(-100, 100)).apply()
+    var animStudioPerspZ: Int
+        get() = prefs.getInt("anim_studio_pz", 0)
+        set(v) = prefs.edit().putInt("anim_studio_pz", v.coerceIn(-100, 100)).apply()
     var blurEnabled: Boolean
         get() = prefs.getBoolean("blur_enabled", true)
         set(v) = prefs.edit().putBoolean("blur_enabled", v).apply()
