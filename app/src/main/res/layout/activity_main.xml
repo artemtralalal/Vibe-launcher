@@ -270,6 +270,14 @@
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Энергосбережение" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
             </LinearLayout>
+            <LinearLayout android:id="@+id/catRowSound" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Звук" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/catRowTouch" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Касание" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
+            </LinearLayout>
             <LinearLayout android:id="@+id/catRowAbout" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="16dp">
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="О лаунчере" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
@@ -383,7 +391,11 @@
                             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Возврат = как иконка/окно возвращается в место после улёта." android:textColor="#99FFFFFF" android:textSize="11sp"/>
                             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
                                 <Button android:id="@+id/animSimSavePresetBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Сохранить пресет"/>
+                                <Button android:id="@+id/animSimPresetListBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Пресеты"/>
+                            </LinearLayout>
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
                                 <Button android:id="@+id/animSimPickIconBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Иконка из галереи"/>
+                                <Button android:id="@+id/animSimApplyAppBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Для приложения"/>
                             </LinearLayout>
                             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
                                 <Button android:id="@+id/animSimAddPointBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Добавить точку"/>
@@ -518,6 +530,26 @@
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Затемняет иконки и обои, отключает расширенные текстуры, упрощает анимации и может снизить яркость." android:textColor="#CCFFFFFF" android:textSize="13sp"/>
                         <Button android:id="@+id/powerBrightnessPermBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Разрешить управление яркостью" />
                         <Button android:id="@+id/powerBrightnessLowBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Снизить яркость" />
+                    </LinearLayout>
+
+                    <LinearLayout android:id="@+id/catSound" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/unlockSoundSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Звук разблокировки" android:textColor="@color/white"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Звука блокировки экрана нет (системное ограничение). Можно включить звук разблокировки UI." android:textColor="#99FFFFFF" android:textSize="12sp"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Громкость UI" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/uiSoundVolumeSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                    </LinearLayout>
+
+                    <LinearLayout android:id="@+id/catTouch" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/touchFxSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Эффекты касания" android:textColor="@color/white"/>
+                        <Button android:id="@+id/touchFxStyleBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Стиль касания: Android"/>
+                        <Button android:id="@+id/touchFxEndBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Анимация исчезновения: Уменьшение"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Размер / скорость эффекта" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/touchFxSizeSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <SeekBar android:id="@+id/touchFxSpeedSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Эффекты: Android круг, Фейерверк, Синяя вспышка MIUI, iOS 26 стеклянный квадратик. Поверх окон требуется разрешение overlay." android:textColor="#99FFFFFF" android:textSize="12sp"/>
+                        <Button android:id="@+id/touchFxOverlayPermBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Разрешение поверх окон"/>
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/motionBlurSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Бета: motion blur иконки при закрытии" android:textColor="@color/white"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Может снизить FPS. Оставляет лёгкие следы при движении иконки." android:textColor="#99FFFFFF" android:textSize="12sp"/>
                     </LinearLayout>
 
                     <LinearLayout android:id="@+id/catAbout" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
