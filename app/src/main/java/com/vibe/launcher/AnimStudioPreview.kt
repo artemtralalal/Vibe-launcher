@@ -12,61 +12,143 @@ class AnimStudioPreview @JvmOverloads constructor(
 ) : View(context, attrs) {
 
     data class PPoint(var x: Float, var y: Float, var strength: Float = 1f)
-    data class Corner(var x: Float, var y: Float) // normalized 0..1 offset from default corner
+    data class Corner(var x: Float, var y: Float)
 
     var points = mutableListOf<PPoint>()
     var corners = mutableListOf(Corner(0f,0f), Corner(0f,0f), Corner(0f,0f), Corner(0f,0f)) // TL,TR,BR,BL
     var onChanged: (() -> Unit)? = null
     var mode: String = "points" // points | corners
-    var target: String = "window" // window | icon
+    var target: String = "window"
+    var pressure: Int = 0
+    var perspX: Int = 0; var perspY: Int = 0; var perspZ: Int = 0
+    var testIcon: Bitmap? = null
 
     private val gridPaint = Paint().apply { color = 0x22FFFFFF; strokeWidth = 1f }
-    private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x66FFFFFF.toInt(); style = Paint.Style.STROKE; strokeWidth = 2f }
-    private val winPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x553B82F6.toInt() }
+    private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x88FFFFFF.toInt(); style = Paint.Style.STROKE; strokeWidth = 2.5f }
+    private val winPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x664A90E2.toInt() }
+    private val winPaint2 = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x332196F3.toInt(); style = Paint.Style.FILL }
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x55FFFFFF.toInt() }
     private val pointPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFF5A6A.toInt() }
+    private val pointRing = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt(); style = Paint.Style.STROKE; strokeWidth = 2f }
     private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF4CD964.toInt() }
-    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xCCFFFFFF.toInt(); textSize = 28f }
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xEEFFFFFF.toInt(); textSize = 30f; textAlign = Paint.Align.CENTER }
+    private val smallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xAAFFFFFF.toInt(); textSize = 22f; textAlign = Paint.Align.CENTER }
     private var dragCorner = -1
 
     fun defaultWindowRect(): RectF {
         val w = width.toFloat(); val h = height.toFloat()
-        return RectF(w*0.2f, h*0.18f, w*0.8f, h*0.62f)
+        val ww = w * 0.42f; val hh = h * 0.72f
+        val l = (w - ww) / 2f; val t = h * 0.08f
+        return RectF(l, t, l + ww, t + hh)
     }
     fun defaultIconRect(): RectF {
         val w = width.toFloat(); val h = height.toFloat()
-        val s = min(w,h)*0.16f
-        return RectF(w/2-s, h*0.72f, w/2+s, h*0.72f+s*2)
+        val s = min(w,h)*0.14f
+        return RectF(w/2-s, h*0.78f-s, w/2+s, h*0.78f+s)
     }
 
     private fun activeRect() = if (target == "icon") defaultIconRect() else defaultWindowRect()
 
+    private fun computeTilt(): FloatArray {
+        val p = pressure.coerceIn(0, 200) / 100f
+        var rx = 0f; var ry = 0f; var rz = 0f
+        if (p > 0.001f) {
+            points.forEach { pt ->
+                val dx = (pt.x - 0.5f); val dy = (pt.y - 0.5f); val s = pt.strength * p
+                rx += (-dy) * 35f * s; ry += dx * 35f * s; rz += dx * -8f * s
+            }
+            rx += perspX.coerceIn(-100, 100) / 100f * 25f * p
+            ry += perspY.coerceIn(-100, 100) / 100f * 25f * p
+            rz += perspZ.coerceIn(-100, 100) / 100f * 20f * p
+        }
+        val tl=corners[0]; val tr=corners[1]; val br=corners[2]; val bl=corners[3]
+        rx += ((tl.y + tr.y) - (bl.y + br.y)) * 90f
+        ry += ((tr.x + br.x) - (tl.x + bl.x)) * 90f
+        rz += ((tr.y - tl.y) + (br.y - bl.y)) * 30f
+        return floatArrayOf(rx.coerceIn(-80f,80f), ry.coerceIn(-80f,80f), rz.coerceIn(-45f,45f))
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val w = width.toFloat(); val h = height.toFloat()
-        canvas.drawColor(0x11111822)
-        val step = 40f
-        var x = 0f; while (x <= w) { canvas.drawLine(x,0f,x,h,gridPaint); x += step }
-        var y = 0f; while (y <= h) { canvas.drawLine(0f,y,w,y,gridPaint); y += step }
+        canvas.drawColor(0xFF151922.toInt())
+        val step = 36f
+        var gx = 0f; while (gx <= w) { canvas.drawLine(gx,0f,gx,h,gridPaint); gx += step }
+        var gy = 0f; while (gy <= h) { canvas.drawLine(0f,gy,w,gy,gridPaint); gy += step }
 
         val wr = defaultWindowRect()
         val ir = defaultIconRect()
-        val path = Path()
+        val tilt = computeTilt()
+
+        // draw window with live transform
+        drawTransformedRect(canvas, wr, tilt, winPaint, "Окно предпросмотра", true)
+        // draw icon
+        drawIcon(canvas, ir, tilt)
+
+        // draw points on top
+        points.forEachIndexed { i, p ->
+            val px = p.x*w; val py = p.y*h
+            canvas.drawCircle(px, py, 12f, pointPaint)
+            canvas.drawCircle(px, py, 12f, pointRing)
+            canvas.drawText("${i+1}", px, py - 16f, smallPaint)
+        }
+        // corner handles for active rect
         val r = activeRect()
         val pts = cornerPoints(r)
-        path.moveTo(pts[0].x, pts[0].y); path.lineTo(pts[1].x, pts[1].y); path.lineTo(pts[2].x, pts[2].y); path.lineTo(pts[3].x, pts[3].y); path.close()
-        canvas.drawPath(path, if (target=="window") winPaint else Paint(winPaint).apply { alpha=30 })
-        canvas.drawPath(path, borderPaint)
+        for (i in 0 until 4) {
+            val c = pts[i]
+            canvas.drawCircle(c.x, c.y, 13f, handlePaint)
+            canvas.drawCircle(c.x, c.y, 13f, borderPaint)
+        }
+    }
 
-        // icon
-        val irp = Path(); irp.addRoundRect(if(target=="icon") RectF(pts[0].x,pts[0].y,pts[2].x,pts[2].y) else ir, 16f,16f, Path.Direction.CW)
-        canvas.drawPath(irp, iconPaint)
-        canvas.drawText("Vibe", ir.centerX()-28f, ir.centerY()+8f, textPaint)
+    private fun drawTransformedRect(canvas: Canvas, r: RectF, tilt: FloatArray, paint: Paint, label: String, drawLabel: Boolean) {
+        canvas.save()
+        val cx = r.centerX(); val cy = r.centerY()
+        val cam = Camera()
+        cam.save()
+        cam.rotateX(tilt[0]); cam.rotateY(tilt[1]); cam.rotateZ(tilt[2])
+        val m = Matrix()
+        cam.getMatrix(m)
+        cam.restore()
+        m.preTranslate(-cx, -cy)
+        m.postTranslate(cx, cy)
+        canvas.concat(m)
+        val rr = RectF(r)
+        canvas.drawRoundRect(rr, 28f, 28f, paint)
+        canvas.drawRoundRect(rr, 28f, 28f, winPaint2)
+        canvas.drawRoundRect(rr, 28f, 28f, borderPaint)
+        if (drawLabel) {
+            textPaint.textSize = 28f
+            canvas.drawText(label, r.centerX(), r.centerY() - 10f, textPaint)
+            smallPaint.textAlign = Paint.Align.CENTER
+            canvas.drawText("живая перспектива", r.centerX(), r.centerY() + 24f, smallPaint)
+        }
+        canvas.restore()
+    }
 
-        // points
-        points.forEach { p -> canvas.drawCircle(p.x*w, p.y*h, 10f, pointPaint) }
-        // corner handles
-        for (i in 0 until 4) { val c = pts[i]; canvas.drawCircle(c.x, c.y, 14f, handlePaint); canvas.drawCircle(c.x,c.y,14f,borderPaint) }
+    private fun drawIcon(canvas: Canvas, r: RectF, tilt: FloatArray) {
+        canvas.save()
+        val cx = r.centerX(); val cy = r.centerY()
+        val t = if (target == "icon") tilt else floatArrayOf(0f,0f,0f)
+        val cam = Camera(); cam.save(); cam.rotateX(t[0]); cam.rotateY(t[1]); cam.rotateZ(t[2])
+        val m = Matrix(); cam.getMatrix(m); cam.restore()
+        m.preTranslate(-cx, -cy); m.postTranslate(cx, cy)
+        canvas.concat(m)
+        val rr = RectF(r)
+        canvas.drawRoundRect(rr, 22f, 22f, iconPaint)
+        canvas.drawRoundRect(rr, 22f, 22f, borderPaint)
+        if (testIcon != null) {
+            val src = Rect(0,0,testIcon!!.width, testIcon!!.height)
+            val dst = RectF(r.left+8,r.top+8,r.right-8,r.bottom-8)
+            canvas.drawBitmap(testIcon!!, src, dst, null)
+        } else {
+            textPaint.textSize = 34f
+            canvas.drawText("☎", r.centerX(), r.centerY() + 4f, textPaint)
+            smallPaint.textSize = 18f
+            canvas.drawText("Vibe Dialer", r.centerX(), r.bottom - 10f, smallPaint)
+        }
+        canvas.restore()
     }
 
     private fun cornerPoints(r: RectF): List<PointF> {
@@ -83,7 +165,7 @@ class AnimStudioPreview @JvmOverloads constructor(
         val r = activeRect(); val pts = cornerPoints(r)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                dragCorner = pts.indexOfFirst { hypot(it.x - event.x, it.y - event.y) < 40f }
+                dragCorner = pts.indexOfFirst { hypot(it.x - event.x, it.y - event.y) < 44f }
                 if (dragCorner < 0 && mode == "points") {
                     val nx = (event.x/width.coerceAtLeast(1)).coerceIn(0f,1f)
                     val ny = (event.y/height.coerceAtLeast(1)).coerceIn(0f,1f)
@@ -96,8 +178,8 @@ class AnimStudioPreview @JvmOverloads constructor(
                 if (dragCorner >= 0) {
                     val dx = (event.x - (if (dragCorner==0||dragCorner==3) r.left else r.right)) / r.width().coerceAtLeast(1f)
                     val dy = (event.y - (if (dragCorner<2) r.top else r.bottom)) / r.height().coerceAtLeast(1f)
-                    corners[dragCorner].x = dx.coerceIn(-0.5f,0.5f)
-                    corners[dragCorner].y = dy.coerceIn(-0.5f,0.5f)
+                    corners[dragCorner].x = dx.coerceIn(-0.6f,0.6f)
+                    corners[dragCorner].y = dy.coerceIn(-0.6f,0.6f)
                     onChanged?.invoke(); invalidate(); return true
                 }
             }
@@ -108,7 +190,6 @@ class AnimStudioPreview @JvmOverloads constructor(
 
     fun resetCorners() { for (c in corners) { c.x = 0f; c.y = 0f }; invalidate(); onChanged?.invoke() }
     fun cornerTilt(): FloatArray {
-        // approximate rotation/scale from corner offsets
         val tl=corners[0]; val tr=corners[1]; val br=corners[2]; val bl=corners[3]
         val rx = ((tl.y + tr.y) - (bl.y + br.y)) * 90f
         val ry = ((tr.x + br.x) - (tl.x + bl.x)) * 90f
@@ -117,14 +198,12 @@ class AnimStudioPreview @JvmOverloads constructor(
         val sy = 1f + ((bl.y - tl.y) + (br.y - tr.y)) * 0.5f
         return floatArrayOf(rx, ry, rz, sx.coerceIn(0.5f,1.5f), sy.coerceIn(0.5f,1.5f))
     }
-
     fun cornersString(): String = corners.joinToString(";") { "${it.x},${it.y}" }
     fun loadCorners(s: String) {
-        if (s.isBlank()) return
+        if (s.isBlank()) { resetCornersSilent(); return }
         val parts = s.split(";")
-        for (i in 0 until minOf(4, parts.size)) {
-            val a = parts[i].split(","); if (a.size>=2) { corners[i].x = a[0].toFloatOrNull()?:0f; corners[i].y = a[1].toFloatOrNull()?:0f }
-        }
+        for (i in 0 until 4) { if (i < parts.size) { val a = parts[i].split(","); if (a.size>=2) { corners[i].x = a[0].toFloatOrNull()?:0f; corners[i].y = a[1].toFloatOrNull()?:0f } } else { corners[i].x=0f; corners[i].y=0f } }
         invalidate()
     }
+    private fun resetCornersSilent() { for (c in corners) { c.x=0f; c.y=0f }; invalidate() }
 }
