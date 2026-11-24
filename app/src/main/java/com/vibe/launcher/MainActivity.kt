@@ -130,6 +130,24 @@ class MainActivity : AppCompatActivity() {
             loadApps()
         }
     }
+    private var animStudioPreviewRef: AnimStudioPreview? = null
+    private val animStudioIconPickLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (_: Exception) {}
+            try {
+                val bmp = if (Build.VERSION.SDK_INT >= 28) {
+                    val src = android.graphics.ImageDecoder.createSource(contentResolver, uri)
+                    android.graphics.ImageDecoder.decodeBitmap(src) { d, _, _ -> d.isMutableRequired = false }
+                } else {
+                    @Suppress("DEPRECATION") android.provider.MediaStore.Images.Media.getBitmap(contentResolver, uri)
+                }
+                animStudioPreviewRef?.testIcon = bmp
+                animStudioPreviewRef?.invalidate()
+            } catch (_: Exception) {}
+        }
+    }
 
     private lateinit var volumePanel: View
     private lateinit var audioManager: android.media.AudioManager
@@ -1606,7 +1624,13 @@ class MainActivity : AppCompatActivity() {
     private fun setupAnimStudio() {
         val btn = findViewById<Button?>(R.id.newAnimStudioBtn) ?: return
         val preview = findViewById<AnimStudioPreview?>(R.id.animSimPreviewView) ?: return
+        animStudioPreviewRef = preview
         val pointsLabel = findViewById<TextView?>(R.id.animSimPointsLabel) ?: return
+        val pressureLabel = findViewById<TextView?>(R.id.animSimPressureLabel)
+        val speedLabel = findViewById<TextView?>(R.id.animSimSpeedLabel)
+        val scaleLabel = findViewById<TextView?>(R.id.animSimScaleLabel)
+        val offsetLabel = findViewById<TextView?>(R.id.animSimOffsetLabel)
+        val perspLabel = findViewById<TextView?>(R.id.animSimPerspLabel)
         val pressureSeek = findViewById<SeekBar?>(R.id.animSimPressureSeek) ?: return
         val speedSeek = findViewById<SeekBar?>(R.id.animSimSpeedSeek) ?: return
         val scaleSeek = findViewById<SeekBar?>(R.id.animSimScaleSeek) ?: return
@@ -1637,11 +1661,65 @@ class MainActivity : AppCompatActivity() {
         fun persistCorners() {
             if (animSimTarget == "icon") prefs.animStudioIconCorners = preview.cornersString() else prefs.animStudioWindowCorners = preview.cornersString()
         }
+        fun presetKey(suffix: String) = "anim_studio_${prefs.animStudioPreset}_${animSimTarget}_$suffix"
+        val sp = getSharedPreferences("launcher_prefs", MODE_PRIVATE)
+        fun saveCurrentPreset() {
+            persistAnimPoints(); persistCorners()
+            sp.edit()
+                .putString(presetKey("pts"), saveAnimPoints(currentAnimPoints()))
+                .putString(presetKey("corners"), preview.cornersString())
+                .putInt(presetKey("pressure"), prefs.animStudioPressure)
+                .putInt(presetKey("px"), prefs.animStudioPerspX)
+                .putInt(presetKey("py"), prefs.animStudioPerspY)
+                .putInt(presetKey("pz"), prefs.animStudioPerspZ)
+                .putInt(presetKey("speed"), prefs.animStudioSpeed)
+                .putInt(presetKey("scale"), prefs.animStudioScale)
+                .putInt(presetKey("ox"), prefs.animStudioOffsetX)
+                .putInt(presetKey("oy"), prefs.animStudioOffsetY)
+                .apply()
+        }
+        fun loadCurrentPreset() {
+            val pts = sp.getString(presetKey("pts"), null)
+            val corners = sp.getString(presetKey("corners"), null)
+            if (pts != null) {
+                val list = parseAnimPoints(pts)
+                val targetList = currentAnimPoints(); targetList.clear(); targetList.addAll(list)
+                persistAnimPoints()
+            }
+            if (corners != null) {
+                if (animSimTarget == "icon") prefs.animStudioIconCorners = corners else prefs.animStudioWindowCorners = corners
+                preview.loadCorners(corners)
+            }
+            if (sp.contains(presetKey("pressure"))) prefs.animStudioPressure = sp.getInt(presetKey("pressure"), prefs.animStudioPressure)
+            if (sp.contains(presetKey("px"))) prefs.animStudioPerspX = sp.getInt(presetKey("px"), prefs.animStudioPerspX)
+            if (sp.contains(presetKey("py"))) prefs.animStudioPerspY = sp.getInt(presetKey("py"), prefs.animStudioPerspY)
+            if (sp.contains(presetKey("pz"))) prefs.animStudioPerspZ = sp.getInt(presetKey("pz"), prefs.animStudioPerspZ)
+            if (sp.contains(presetKey("speed"))) prefs.animStudioSpeed = sp.getInt(presetKey("speed"), prefs.animStudioSpeed)
+            if (sp.contains(presetKey("scale"))) prefs.animStudioScale = sp.getInt(presetKey("scale"), prefs.animStudioScale)
+            if (sp.contains(presetKey("ox"))) prefs.animStudioOffsetX = sp.getInt(presetKey("ox"), prefs.animStudioOffsetX)
+            if (sp.contains(presetKey("oy"))) prefs.animStudioOffsetY = sp.getInt(presetKey("oy"), prefs.animStudioOffsetY)
+            pressureSeek.progress = prefs.animStudioPressure.coerceIn(0,200)
+            speedSeek.progress = prefs.animStudioSpeed.coerceIn(20,200)
+            scaleSeek.progress = prefs.animStudioScale.coerceIn(50,200)
+            oxSeek.progress = prefs.animStudioOffsetX.coerceIn(0,200)
+            oySeek.progress = prefs.animStudioOffsetY.coerceIn(0,200)
+            px.progress = (prefs.animStudioPerspX + 100).coerceIn(0,200)
+            py.progress = (prefs.animStudioPerspY + 100).coerceIn(0,200)
+            pz.progress = (prefs.animStudioPerspZ + 100).coerceIn(0,200)
+        }
         fun refreshSim(reloadCorners: Boolean = false) {
             preview.points = currentAnimPoints().map { AnimStudioPreview.PPoint(it.x, it.y, it.strength) }.toMutableList()
             preview.target = animSimTarget
+            preview.pressure = prefs.animStudioPressure
+            preview.perspX = prefs.animStudioPerspX; preview.perspY = prefs.animStudioPerspY; preview.perspZ = prefs.animStudioPerspZ
             if (reloadCorners) preview.loadCorners(if (animSimTarget=="icon") prefs.animStudioIconCorners else prefs.animStudioWindowCorners)
-            pointsLabel.text = "Точки: окно ${animWinPoints.size}/иконка ${animIconPoints.size} • цель: ${if(animSimTarget=="icon") "иконка" else "окно"} • режим: ${if(preview.mode=="corners") "углы" else "точки"} • пресет: ${prefs.animStudioPreset}"
+            val pLabel = when(prefs.animStudioPreset){ "open"->"открытие"; "return"->"возврат в иконку"; else->"закрытие" }
+            pointsLabel.text = "Цель: ${if(animSimTarget=="icon") "иконка" else "окно"} • Режим: ${if(preview.mode=="corners") "углы/перспектива" else "точки нажатия"} • Пресет: $pLabel\nТочки: окно ${animWinPoints.size}, иконка ${animIconPoints.size}. Красные = нажатие, зелёные = углы."
+            pressureLabel?.text = "Сила нажатия: ${prefs.animStudioPressure}% (0 = без наклона, 200 = сильно)"
+            speedLabel?.text = "Скорость: ${prefs.animStudioSpeed}%"
+            scaleLabel?.text = "Масштаб: ${prefs.animStudioScale}%"
+            offsetLabel?.text = "Смещение X: ${prefs.animStudioOffsetX - 100} / Y: ${prefs.animStudioOffsetY - 100}"
+            perspLabel?.text = "Перспектива X: ${prefs.animStudioPerspX} / Y: ${prefs.animStudioPerspY} / Z: ${prefs.animStudioPerspZ}"
             preview.invalidate()
         }
 
@@ -1662,9 +1740,11 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button?>(R.id.animSimModeCornersBtn)?.setOnClickListener { preview.mode = "corners"; refreshSim() }
         findViewById<Button?>(R.id.animSimTargetWindowBtn)?.setOnClickListener { persistCorners(); animSimTarget = "window"; refreshSim(true) }
         findViewById<Button?>(R.id.animSimTargetIconBtn)?.setOnClickListener { persistCorners(); animSimTarget = "icon"; refreshSim(true) }
-        findViewById<Button?>(R.id.animSimPresetCloseBtn)?.setOnClickListener { prefs.animStudioPreset = "close"; refreshSim() }
-        findViewById<Button?>(R.id.animSimPresetOpenBtn)?.setOnClickListener { prefs.animStudioPreset = "open"; refreshSim() }
-        findViewById<Button?>(R.id.animSimPresetReturnBtn)?.setOnClickListener { prefs.animStudioPreset = "return"; refreshSim() }
+        findViewById<Button?>(R.id.animSimPresetCloseBtn)?.setOnClickListener { saveCurrentPreset(); prefs.animStudioPreset = "close"; loadCurrentPreset(); refreshSim(true) }
+        findViewById<Button?>(R.id.animSimPresetOpenBtn)?.setOnClickListener { saveCurrentPreset(); prefs.animStudioPreset = "open"; loadCurrentPreset(); refreshSim(true) }
+        findViewById<Button?>(R.id.animSimPresetReturnBtn)?.setOnClickListener { saveCurrentPreset(); prefs.animStudioPreset = "return"; loadCurrentPreset(); refreshSim(true) }
+        findViewById<Button?>(R.id.animSimSavePresetBtn)?.setOnClickListener { saveCurrentPreset(); android.widget.Toast.makeText(this, "Пресет сохранён: ${prefs.animStudioPreset}", android.widget.Toast.LENGTH_SHORT).show() }
+        findViewById<Button?>(R.id.animSimPickIconBtn)?.setOnClickListener { try { animStudioIconPickLauncher.launch(arrayOf("image/*")) } catch (_: Exception) {} }
         findViewById<Button?>(R.id.animSimAddPointBtn)?.setOnClickListener {
             val list = currentAnimPoints(); if (list.size < 6) { list.add(AnimPoint(0.5f,0.8f,1f)); prefs.animStudioEnabled = true; persistAnimPoints(); refreshSim() }
         }
@@ -1683,17 +1763,18 @@ class MainActivity : AppCompatActivity() {
         fullSwitch?.setOnCheckedChangeListener { _, c -> prefs.animStudioFullscreen = c }
 
         findViewById<Button?>(R.id.animSimPlayCloseBtn)?.setOnClickListener {
-            preview.animate().cancel(); preview.scaleX=1f; preview.scaleY=1f; preview.alpha=1f; preview.translationY=0f
-            preview.animate().scaleX(0.15f).scaleY(0.15f).translationY(120f*resources.displayMetrics.density).alpha(0.3f)
-                .setDuration((450f * 100f / prefs.animStudioSpeed.coerceIn(20,200)).toLong())
-                .withEndAction { preview.alpha=1f; preview.scaleX=1f; preview.scaleY=1f; preview.translationY=0f }.start()
+            preview.animate().cancel(); preview.scaleX=1f; preview.scaleY=1f; preview.alpha=1f; preview.translationY=0f; preview.translationX=0f
+            val d = (520f * 100f / prefs.animStudioSpeed.coerceIn(20,200)).toLong()
+            preview.animate().scaleX(0.72f).scaleY(0.72f).translationY(40f*resources.displayMetrics.density).alpha(0.85f).setDuration(d/2)
+                .withEndAction { preview.animate().scaleX(1f).scaleY(1f).translationY(0f).alpha(1f).setDuration(d/2).setInterpolator(DecelerateInterpolator(1.4f)).start() }
+                .start()
         }
         findViewById<Button?>(R.id.animSimPlayOpenBtn)?.setOnClickListener {
-            preview.animate().cancel(); preview.alpha=0.3f; preview.scaleX=0.15f; preview.scaleY=0.15f; preview.translationY=120f*resources.displayMetrics.density
-            preview.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
-                .setDuration((450f * 100f / prefs.animStudioSpeed.coerceIn(20,200)).toLong())
-                .setInterpolator(DecelerateInterpolator(1.6f)).start()
+            preview.animate().cancel(); preview.scaleX=0.72f; preview.scaleY=0.72f; preview.alpha=0.85f; preview.translationY=40f*resources.displayMetrics.density
+            val d = (520f * 100f / prefs.animStudioSpeed.coerceIn(20,200)).toLong()
+            preview.animate().scaleX(1f).scaleY(1f).translationY(0f).alpha(1f).setDuration(d).setInterpolator(OvershootInterpolator(0.9f)).start()
         }
+        loadCurrentPreset()
         preview.post { refreshSim(true) }
     }
 
