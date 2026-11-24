@@ -884,7 +884,7 @@ class MainActivity : AppCompatActivity() {
         bindSeek(findViewById(R.id.touchFxSizeSeek), prefs.touchFxSize, 10, 100) { prefs.touchFxSize = it }
         bindSeek(findViewById(R.id.touchFxSpeedSeek), prefs.touchFxSpeed, 10, 100) { prefs.touchFxSpeed = it }
         findViewById<Button?>(R.id.touchFxOverlayPermBtn)?.setOnClickListener {
-            try { startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) } catch (_: Exception) {}
+            try { startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) {}
         }
         findViewById<SwitchMaterial?>(R.id.motionBlurSwitch)?.apply { isChecked = prefs.motionBlurBeta; setOnCheckedChangeListener { _, c -> prefs.motionBlurBeta = c } }
         val labelsSwitch = findViewById<SwitchMaterial>(R.id.labelsSwitch)
