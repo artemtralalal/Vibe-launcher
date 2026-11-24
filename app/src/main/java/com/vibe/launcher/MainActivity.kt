@@ -143,6 +143,11 @@ class MainActivity : AppCompatActivity() {
     private var lastLaunchKey: String? = null
     private var lastLaunchBounds: IntArray? = null
     private var lastLaunchColor: Int = Color.DKGRAY
+
+    private data class AnimPoint(var x: Float, var y: Float, var strength: Float)
+    private val animWinPoints = mutableListOf<AnimPoint>()
+    private val animIconPoints = mutableListOf<AnimPoint>()
+    private var animSimTarget: String = "window"
     private var pendingLaunch = false
     private var openAnimating = false
     private var cameraGeniePending = false
@@ -878,7 +883,7 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<SwitchMaterial>(R.id.newCloseAnimSwitch).apply {
             isChecked = prefs.newCloseAnim
-            setOnCheckedChangeListener { _, c -> prefs.newCloseAnim = c }
+            setOnCheckedChangeListener { _, c -> prefs.newCloseAnim = c; updateAnimStudioVisibility() }
         }
         bindSeek(findViewById(R.id.closeStrengthSeek), prefs.closeStrength.coerceIn(0, 100), 0, 100) { prefs.closeStrength = it }
         findViewById<SwitchMaterial>(R.id.closeRandomSwitch).apply {
@@ -888,6 +893,7 @@ class MainActivity : AppCompatActivity() {
         bindSeek(findViewById(R.id.closeIconScaleSeek), (100 - prefs.closeIconScale.coerceIn(50, 100)), 0, 50) {
             prefs.closeIconScale = 100 - it
         }
+        setupAnimStudio()
 
         updateIconPackLabel()
         findViewById<Button>(R.id.pickIconPackBtn).setOnClickListener { showIconPackPicker() }
@@ -1509,6 +1515,151 @@ class MainActivity : AppCompatActivity() {
         scrim.animate().alpha(1f).setDuration(220).start()
         aodConfigView = scrim
         refreshPreview()
+    }
+
+    private fun parseAnimPoints(s: String): MutableList<AnimPoint> =
+        if (s.isBlank()) mutableListOf() else s.split(";").mapNotNull { p ->
+            val a = p.split(","); if (a.size < 3) null else AnimPoint(a[0].toFloatOrNull() ?: 0.5f, a[1].toFloatOrNull() ?: 0.5f, a[2].toFloatOrNull() ?: 1f)
+        }.toMutableList()
+
+    private fun saveAnimPoints(list: List<AnimPoint>): String = list.joinToString(";") { "${it.x},${it.y},${it.strength}" }
+
+    private fun currentAnimPoints(): MutableList<AnimPoint> = if (animSimTarget == "icon") animIconPoints else animWinPoints
+
+    private fun computeAnimTilt(points: List<AnimPoint>, pressure: Int): FloatArray {
+        val p = pressure.coerceIn(0, 200) / 100f
+        if (!prefs.animStudioEnabled || p <= 0.01f || points.isEmpty()) return floatArrayOf(0f, 0f, 0f)
+        var rx = 0f; var ry = 0f; var rz = 0f
+        points.forEach { pt ->
+            val dx = (pt.x - 0.5f); val dy = (pt.y - 0.5f); val s = pt.strength * p
+            rx += (-dy) * 35f * s; ry += dx * 35f * s; rz += dx * -8f * s
+        }
+        rx += prefs.animStudioPerspX.coerceIn(-100, 100) / 100f * 25f * p
+        ry += prefs.animStudioPerspY.coerceIn(-100, 100) / 100f * 25f * p
+        rz += prefs.animStudioPerspZ.coerceIn(-100, 100) / 100f * 20f * p
+        return floatArrayOf(rx.coerceIn(-80f,80f), ry.coerceIn(-80f,80f), rz.coerceIn(-45f,45f))
+    }
+
+    private fun persistAnimPoints() {
+        prefs.animStudioWindowPoints = saveAnimPoints(animWinPoints)
+        prefs.animStudioIconPoints = saveAnimPoints(animIconPoints)
+    }
+
+    private fun applyAnimPointsToView(view: View, points: List<AnimPoint>, pressure: Int) {
+        val p = pressure.coerceIn(0, 200) / 100f
+        if (!prefs.animStudioEnabled || p <= 0.01f || points.isEmpty()) {
+            view.rotationX = 0f; view.rotationY = 0f; view.rotation = 0f
+            view.translationX = 0f; view.translationY = 0f; view.scaleX = 1f; view.scaleY = 1f
+            return
+        }
+        var rx = 0f; var ry = 0f; var rz = 0f; var tx = 0f; var ty = 0f
+        points.forEach { pt ->
+            val dx = (pt.x - 0.5f); val dy = (pt.y - 0.5f); val s = pt.strength * p
+            rx += (-dy) * 35f * s
+            ry += dx * 35f * s
+            rz += dx * -8f * s
+            tx += dx * 18f * s * resources.displayMetrics.density
+            ty += dy * 18f * s * resources.displayMetrics.density
+        }
+        rx += prefs.animStudioPerspX.coerceIn(-100, 100) / 100f * 25f * p
+        ry += prefs.animStudioPerspY.coerceIn(-100, 100) / 100f * 25f * p
+        rz += prefs.animStudioPerspZ.coerceIn(-100, 100) / 100f * 20f * p
+        view.cameraDistance = resources.displayMetrics.density * 6000f
+        view.pivotX = view.width / 2f; view.pivotY = view.height / 2f
+        view.rotationX = rx.coerceIn(-80f, 80f)
+        view.rotationY = ry.coerceIn(-80f, 80f)
+        view.rotation = rz.coerceIn(-45f, 45f)
+        view.translationX = tx
+        view.translationY = ty
+        view.scaleX = 1f; view.scaleY = 1f
+    }
+
+    private fun updateAnimStudioVisibility() {
+        val box = findViewById<View?>(R.id.animStudioBox) ?: return
+        val on = prefs.newCloseAnim
+        box.isVisible = on
+        val btn = findViewById<Button?>(R.id.newAnimStudioBtn)
+        btn?.alpha = if (on) 1f else 0.85f
+        btn?.text = if (on) "Новые анимации: ВКЛ" else "Новые анимации: ВЫКЛ"
+    }
+
+    private fun setupAnimStudio() {
+        val btn = findViewById<Button?>(R.id.newAnimStudioBtn) ?: return
+        val preview = findViewById<FrameLayout?>(R.id.animSimPreview) ?: return
+        val win = findViewById<View?>(R.id.animSimWindow) ?: return
+        val icon = findViewById<View?>(R.id.animSimIcon) ?: return
+        val pointsLabel = findViewById<TextView?>(R.id.animSimPointsLabel) ?: return
+        val pressureSeek = findViewById<SeekBar?>(R.id.animSimPressureSeek) ?: return
+        val px = findViewById<SeekBar?>(R.id.animSimPerspXSeek) ?: return
+        val py = findViewById<SeekBar?>(R.id.animSimPerspYSeek) ?: return
+        val pz = findViewById<SeekBar?>(R.id.animSimPerspZSeek) ?: return
+
+        animWinPoints.clear(); animWinPoints.addAll(parseAnimPoints(prefs.animStudioWindowPoints))
+        animIconPoints.clear(); animIconPoints.addAll(parseAnimPoints(prefs.animStudioIconPoints))
+        pressureSeek.progress = prefs.animStudioPressure.coerceIn(0, 200)
+        px.progress = (prefs.animStudioPerspX + 100).coerceIn(0, 200)
+        py.progress = (prefs.animStudioPerspY + 100).coerceIn(0, 200)
+        pz.progress = (prefs.animStudioPerspZ + 100).coerceIn(0, 200)
+
+        fun refreshSim() {
+            pointsLabel.text = "Точки: окно ${animWinPoints.size} / иконка ${animIconPoints.size} • цель: ${if (animSimTarget=="icon") "иконка" else "окно"}"
+            applyAnimPointsToView(win, animWinPoints, prefs.animStudioPressure)
+            applyAnimPointsToView(icon, animIconPoints, prefs.animStudioPressure)
+        }
+
+        btn.setOnClickListener {
+            prefs.newCloseAnim = !prefs.newCloseAnim
+            findViewById<SwitchMaterial?>(R.id.newCloseAnimSwitch)?.isChecked = prefs.newCloseAnim
+            updateAnimStudioVisibility()
+        }
+        updateAnimStudioVisibility()
+
+        preview.setOnTouchListener { v, e ->
+            if (e.actionMasked == MotionEvent.ACTION_DOWN) {
+                if (!prefs.animStudioEnabled) prefs.animStudioEnabled = true
+                val nx = (e.x / v.width.coerceAtLeast(1)).coerceIn(0f, 1f)
+                val ny = (e.y / v.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                val list = currentAnimPoints()
+                if (list.size < 4) { list.add(AnimPoint(nx, ny, 1f)); persistAnimPoints(); refreshSim() }
+            }
+            true
+        }
+
+        findViewById<Button?>(R.id.animSimAddPointBtn)?.setOnClickListener {
+            val list = currentAnimPoints()
+            if (list.size < 4) { list.add(AnimPoint(0.5f, 0.8f, 1f)); prefs.animStudioEnabled = true; persistAnimPoints(); refreshSim() }
+        }
+        findViewById<Button?>(R.id.animSimClearPointsBtn)?.setOnClickListener {
+            currentAnimPoints().clear(); persistAnimPoints(); refreshSim()
+        }
+        findViewById<Button?>(R.id.animSimTargetWindowBtn)?.setOnClickListener { animSimTarget = "window"; refreshSim() }
+        findViewById<Button?>(R.id.animSimTargetIconBtn)?.setOnClickListener { animSimTarget = "icon"; refreshSim() }
+
+        pressureSeek.setOnSeekBarChangeListener(simpleSeek { prefs.animStudioPressure = it.coerceIn(0,200); prefs.animStudioEnabled = it > 0; refreshSim() })
+        px.setOnSeekBarChangeListener(simpleSeek { prefs.animStudioPerspX = it - 100; refreshSim() })
+        py.setOnSeekBarChangeListener(simpleSeek { prefs.animStudioPerspY = it - 100; refreshSim() })
+        pz.setOnSeekBarChangeListener(simpleSeek { prefs.animStudioPerspZ = it - 100; refreshSim() })
+
+        findViewById<Button?>(R.id.animSimPlayCloseBtn)?.setOnClickListener {
+            win.animate().cancel(); win.alpha = 1f; win.scaleX = 1f; win.scaleY = 1f; win.translationX = 0f; win.translationY = 0f
+            applyAnimPointsToView(win, animWinPoints, prefs.animStudioPressure)
+            win.animate().scaleX(0.2f).scaleY(0.2f).translationY(180f * resources.displayMetrics.density).alpha(0f).setDuration(450)
+                .withEndAction { win.alpha = 1f; win.scaleX = 1f; win.scaleY = 1f; win.translationX = 0f; win.translationY = 0f; applyAnimPointsToView(win, animWinPoints, prefs.animStudioPressure) }.start()
+            icon.animate().cancel(); icon.scaleX = 0.85f; icon.scaleY = 0.85f
+            icon.animate().scaleX(1f).scaleY(1f).setDuration(350).setInterpolator(OvershootInterpolator(1.2f)).start()
+        }
+        findViewById<Button?>(R.id.animSimPlayOpenBtn)?.setOnClickListener {
+            win.animate().cancel(); win.alpha = 0f; win.scaleX = 0.2f; win.scaleY = 0.2f; win.translationY = 180f * resources.displayMetrics.density
+            win.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f).setDuration(450).setInterpolator(DecelerateInterpolator(1.6f))
+                .withEndAction { applyAnimPointsToView(win, animWinPoints, prefs.animStudioPressure) }.start()
+        }
+        preview.post { refreshSim() }
+    }
+
+    private fun simpleSeek(onChange: (Int) -> Unit) = object : SeekBar.OnSeekBarChangeListener {
+        override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { if (fromUser) onChange(progress) }
+        override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+        override fun onStopTrackingTouch(seekBar: SeekBar?) {}
     }
 
     private fun updateIconPackLabel() {
@@ -3724,8 +3875,10 @@ class MainActivity : AppCompatActivity() {
         val dockTilt = newClose && fromDock
         val dockRotX = if (dockTilt) -(14f + 12f * sFactor) else 0f
         val dockRotY = if (dockTilt) ((startTX - tX) / screenW.coerceAtLeast(1f) * 18f).coerceIn(-10f, 10f) else 0f
-        val arriveRotX = if (dockTilt) dockRotX * 0.55f else if (tilt && newClose) -10f * ti else 0f
-        val arriveRotY = if (dockTilt) dockRotY * 0.55f else if (tilt && newClose) 5f * ti else 0f
+        val studioWinPts = if (animWinPoints.isEmpty()) parseAnimPoints(prefs.animStudioWindowPoints) else animWinPoints
+        val studioWin = computeAnimTilt(studioWinPts, prefs.animStudioPressure)
+        val arriveRotX = (if (dockTilt) dockRotX * 0.55f else if (tilt && newClose) -10f * ti else 0f) + studioWin[0]
+        val arriveRotY = (if (dockTilt) dockRotY * 0.55f else if (tilt && newClose) 5f * ti else 0f) + studioWin[1]
 
         val upDur = (dur * (if (newClose) (0.30f + 0.18f * sFactor) else 0.38f)).toLong().coerceAtLeast(60L)
         val downDur = (dur - upDur).coerceAtLeast(60L)
@@ -3734,7 +3887,7 @@ class MainActivity : AppCompatActivity() {
         val midSX = startSX + (sX - startSX) * 0.45f
         val midSY = startSY + (sY - startSY) * 0.45f
 
-        fun finishClose(arriveRotX: Float = 0f, arriveRotY: Float = 0f) {
+        fun finishClose(arriveRotX: Float = 0f, arriveRotY: Float = 0f, arriveRz: Float = 0f) {
             overlay.isVisible = false
             overlay.alpha = 1f
             overlay.scaleX = 1f
@@ -3743,6 +3896,7 @@ class MainActivity : AppCompatActivity() {
             overlay.translationY = 0f
             overlay.rotationX = 0f
             overlay.rotationY = 0f
+            overlay.rotation = 0f
             overlay.pivotX = screenW / 2f
             overlay.pivotY = screenH / 2f
             overlay.clipToOutline = false
@@ -3750,7 +3904,7 @@ class MainActivity : AppCompatActivity() {
             clearBlur()
             val target = closeTargetView
             closeTargetView = null
-            bounceTargetIcon(lastLaunchKey, arriveRotX, arriveRotY)
+            bounceTargetIcon(lastLaunchKey, arriveRotX, arriveRotY, arriveRz)
             if (target != null && target.alpha == 0f) target.alpha = 1f
         }
 
@@ -3811,8 +3965,9 @@ class MainActivity : AppCompatActivity() {
             overlay.animate()
                 .translationX(midTX).translationY(midTY)
                 .scaleX(midSX).scaleY(midSY)
-                .rotationX(if (dockTilt) dockRotX else if (tilt) -14f * ti else 0f)
-                .rotationY(if (dockTilt) dockRotY else if (tilt) 6f * ti else 0f)
+                .rotationX((if (dockTilt) dockRotX else if (tilt) -14f * ti else 0f) + studioWin[0])
+                .rotationY((if (dockTilt) dockRotY else if (tilt) 6f * ti else 0f) + studioWin[1])
+                .rotation(studioWin[2])
                 .setDuration(upDur)
                 .setInterpolator(DecelerateInterpolator(1.2f))
                 .withEndAction {
@@ -3822,26 +3977,32 @@ class MainActivity : AppCompatActivity() {
                         .translationX(tX).translationY(tY)
                         .scaleX(sX).scaleY(sY)
                         .rotationX(arriveRotX).rotationY(arriveRotY)
+                        .rotation(studioWin[2] * 0.55f)
                         .setDuration(downDur)
                         .setInterpolator(DecelerateInterpolator(1.8f))
-                        .withEndAction { finishClose(arriveRotX, arriveRotY) }
+                        .withEndAction { finishClose(arriveRotX, arriveRotY, studioWin[2] * 0.55f) }
                         .start()
                 }
                 .start()
         }
     }
 
-    private fun bounceTargetIcon(key: String?, arriveRotX: Float = 0f, arriveRotY: Float = 0f) {
+    private fun bounceTargetIcon(key: String?, arriveRotX: Float = 0f, arriveRotY: Float = 0f, arriveRz: Float = 0f) {
         if (key == null) return
         val view = findIconViewByKey(key) ?: return
         val overshoot = prefs.closeOvershoot.coerceIn(0f, 1.5f)
         val arcOn = prefs.closeArcHeight > 10f
         val newClose = prefs.newCloseAnim
         val iconScale = if (newClose) prefs.closeIconScale.coerceIn(50, 100) / 100f else 1f
-        val tiltBounce = newClose && (prefs.tiltAnimation || arriveRotX != 0f || arriveRotY != 0f) && !prefs.powerSaving
+        val iconPts = if (animIconPoints.isEmpty()) parseAnimPoints(prefs.animStudioIconPoints) else animIconPoints
+        val studioIcon = computeAnimTilt(iconPts, prefs.animStudioPressure)
+        val finalRotX = arriveRotX + studioIcon[0]
+        val finalRotY = arriveRotY + studioIcon[1]
+        val finalRotZ = arriveRz + studioIcon[2]
+        val tiltBounce = newClose && (prefs.tiltAnimation || finalRotX != 0f || finalRotY != 0f || finalRotZ != 0f) && !prefs.powerSaving
         view.animate().cancel()
         view.translationY = 0f
-        view.rotationX = arriveRotX; view.rotationY = arriveRotY; view.rotation = 0f
+        view.rotationX = finalRotX; view.rotationY = finalRotY; view.rotation = finalRotZ
         if (tiltBounce) {
             view.cameraDistance = resources.displayMetrics.density * 7000f
             view.pivotX = view.width / 2f; view.pivotY = view.height / 2f
@@ -3875,7 +4036,7 @@ class MainActivity : AppCompatActivity() {
                 .setDuration(280)
                 .setInterpolator(OvershootInterpolator(1.0f + overshoot * 0.8f))
                 .withEndAction {
-                    if (tiltBounce) { view.rotationX = arriveRotX * -0.35f; view.rotationY = arriveRotY * -0.35f; settleTilt() }
+                    if (tiltBounce) { view.rotationX = finalRotX * -0.35f; view.rotationY = finalRotY * -0.35f; view.rotation = finalRotZ * -0.35f; settleTilt() }
                     jellyWobble()
                 }.start()
         } else {
