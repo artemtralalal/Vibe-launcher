@@ -374,25 +374,32 @@
                                 <Button android:id="@+id/animSimTargetWindowBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Окно"/>
                                 <Button android:id="@+id/animSimTargetIconBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Иконка"/>
                             </LinearLayout>
+                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Пресет: что настраиваете сейчас" android:textColor="#CCFFFFFF"/>
                             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
                                 <Button android:id="@+id/animSimPresetCloseBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Закрытие"/>
                                 <Button android:id="@+id/animSimPresetOpenBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Открытие"/>
                                 <Button android:id="@+id/animSimPresetReturnBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Возврат"/>
+                            </LinearLayout>
+                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Возврат = как иконка/окно возвращается в место после улёта." android:textColor="#99FFFFFF" android:textSize="11sp"/>
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                                <Button android:id="@+id/animSimSavePresetBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Сохранить пресет"/>
+                                <Button android:id="@+id/animSimPickIconBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Иконка из галереи"/>
                             </LinearLayout>
                             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
                                 <Button android:id="@+id/animSimAddPointBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Добавить точку"/>
                                 <Button android:id="@+id/animSimClearPointsBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Очистить"/>
                                 <Button android:id="@+id/animSimResetCornersBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Сброс углов"/>
                             </LinearLayout>
-                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сила нажатия (0-200%)" android:textColor="#CCFFFFFF"/>
+                            <TextView android:id="@+id/animSimPressureLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сила нажатия: 0% (0 = без наклона)" android:textColor="#CCFFFFFF"/>
                             <SeekBar android:id="@+id/animSimPressureSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
-                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Скорость анимации" android:textColor="#CCFFFFFF"/>
+                            <TextView android:id="@+id/animSimSpeedLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Скорость анимации: 100%" android:textColor="#CCFFFFFF"/>
                             <SeekBar android:id="@+id/animSimSpeedSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
-                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Масштаб / Смещение X / Смещение Y" android:textColor="#CCFFFFFF"/>
+                            <TextView android:id="@+id/animSimScaleLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Масштаб: 100%" android:textColor="#CCFFFFFF"/>
                             <SeekBar android:id="@+id/animSimScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                            <TextView android:id="@+id/animSimOffsetLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Смещение X: 0 / Y: 0" android:textColor="#CCFFFFFF"/>
                             <SeekBar android:id="@+id/animSimOffsetXSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
                             <SeekBar android:id="@+id/animSimOffsetYSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
-                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Перспектива X / Y / Z" android:textColor="#CCFFFFFF"/>
+                            <TextView android:id="@+id/animSimPerspLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Перспектива X: 0 / Y: 0 / Z: 0" android:textColor="#CCFFFFFF"/>
                             <SeekBar android:id="@+id/animSimPerspXSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
                             <SeekBar android:id="@+id/animSimPerspYSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
                             <SeekBar android:id="@+id/animSimPerspZSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
