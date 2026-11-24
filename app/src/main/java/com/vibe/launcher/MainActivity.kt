@@ -3508,6 +3508,7 @@ class MainActivity : AppCompatActivity() {
     private fun playSimpleOpenAnimation(onEnd: () -> Unit) {
         openAnimating = true
         animateDock(false)
+        expandOverlayToFullscreen()
         val overlay = animationOverlay
         overlay.animate().cancel()
         overlay.background = roundedBg(prefs.accentColor)
@@ -3535,6 +3536,7 @@ class MainActivity : AppCompatActivity() {
         applyBlur(true)
         scaleHomeForOpen(true)
         animateDock(false)
+        expandOverlayToFullscreen()
 
         val overlay = animationOverlay
         overlay.background = roundedBg(color)
@@ -3566,15 +3568,16 @@ class MainActivity : AppCompatActivity() {
         overlay.scaleY = sY
         overlay.translationX = tX
         overlay.translationY = tY
-        if (prefs.tiltAnimation && !prefs.powerSaving) {
-            val ti = prefs.tiltIntensity.coerceIn(0, 100) / 50f
+        val newOpen = prefs.newCloseAnim
+        if ((prefs.tiltAnimation || newOpen) && !prefs.powerSaving) {
+            val ti = prefs.tiltIntensity.coerceIn(0, 100) / 50f * (if (newOpen) 1.3f else 1f)
             overlay.cameraDistance = resources.displayMetrics.density * 7000f
-            overlay.pivotX = overlay.width / 2f
-            overlay.pivotY = overlay.height / 2f
-            overlay.rotationX = 10f * ti
-            overlay.rotationY = (if (tX < 0) 6f else -6f) * ti
+            overlay.pivotX = screenW / 2f
+            overlay.pivotY = screenH / 2f
+            overlay.rotationX = 14f * ti
+            overlay.rotationY = (if (tX < 0) 8f else -8f) * ti
         } else {
-            overlay.rotationX = 0f; overlay.rotationY = 0f; overlay.pivotX = overlay.width / 2f; overlay.pivotY = overlay.height / 2f
+            overlay.rotationX = 0f; overlay.rotationY = 0f; overlay.pivotX = screenW / 2f; overlay.pivotY = screenH / 2f
         }
 
         overlay.animate().cancel()
@@ -3612,6 +3615,7 @@ class MainActivity : AppCompatActivity() {
         closeAnimator = null
         closeTargetView?.alpha = 1f
         clearBlur()
+        expandOverlayToFullscreen()
         overlay.bringToFront()
         animateDock(true)
         if (!prefs.flagshipAnimations || prefs.powerSaving) {
@@ -3678,7 +3682,13 @@ class MainActivity : AppCompatActivity() {
             overlay.translationX = 0f
             overlay.translationY = 0f
         }
-        overlay.background = roundedBg(lastLaunchColor)
+        val closeBg = if (app != null) {
+            val icon = app.icon.constantState?.newDrawable()?.mutate() ?: app.icon
+            val bg = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.RECTANGLE; cornerRadius = prefs.windowCornerRadius.coerceIn(0, 60) * resources.displayMetrics.density; setColor(lastLaunchColor) }
+            val inset = (resources.displayMetrics.density * 120).toInt()
+            android.graphics.drawable.LayerDrawable(arrayOf(bg, icon)).apply { setLayerInset(1, inset, inset, inset, inset); setLayerGravity(1, android.view.Gravity.CENTER) }
+        } else roundedBg(lastLaunchColor)
+        overlay.background = closeBg
         overlay.clipToOutline = true
         val startRadius = prefs.windowCornerRadius.coerceIn(0, 60) * resources.displayMetrics.density
         overlay.outlineProvider = object : ViewOutlineProvider() {
@@ -3690,10 +3700,10 @@ class MainActivity : AppCompatActivity() {
         val newClose = prefs.newCloseAnim
         if ((prefs.tiltAnimation || newClose) && !prefs.powerSaving) {
             overlay.cameraDistance = resources.displayMetrics.density * 7000f
-            overlay.pivotX = overlay.width / 2f
-            overlay.pivotY = overlay.height / 2f
+            overlay.pivotX = screenW / 2f
+            overlay.pivotY = screenH / 2f
         } else {
-            overlay.pivotX = overlay.width / 2f; overlay.pivotY = overlay.height / 2f
+            overlay.pivotX = screenW / 2f; overlay.pivotY = screenH / 2f
         }
         overlay.rotationX = 0f; overlay.rotationY = 0f
 
@@ -3712,8 +3722,10 @@ class MainActivity : AppCompatActivity() {
         val ti = prefs.tiltIntensity.coerceIn(0, 100) / 50f * (if (newClose) (0.5f + 1.2f * sFactor) else 1f)
         val fromDock = dockApps.any { it?.key == lastLaunchKey }
         val dockTilt = newClose && fromDock
-        val dockRotX = if (dockTilt) (14f + 10f * sFactor) else 0f
+        val dockRotX = if (dockTilt) -(14f + 12f * sFactor) else 0f
         val dockRotY = if (dockTilt) ((startTX - tX) / screenW.coerceAtLeast(1f) * 18f).coerceIn(-10f, 10f) else 0f
+        val arriveRotX = if (dockTilt) dockRotX * 0.55f else if (tilt && newClose) -10f * ti else 0f
+        val arriveRotY = if (dockTilt) dockRotY * 0.55f else if (tilt && newClose) 5f * ti else 0f
 
         val upDur = (dur * (if (newClose) (0.30f + 0.18f * sFactor) else 0.38f)).toLong().coerceAtLeast(60L)
         val downDur = (dur - upDur).coerceAtLeast(60L)
@@ -3722,7 +3734,7 @@ class MainActivity : AppCompatActivity() {
         val midSX = startSX + (sX - startSX) * 0.45f
         val midSY = startSY + (sY - startSY) * 0.45f
 
-        fun finishClose() {
+        fun finishClose(arriveRotX: Float = 0f, arriveRotY: Float = 0f) {
             overlay.isVisible = false
             overlay.alpha = 1f
             overlay.scaleX = 1f
@@ -3731,14 +3743,15 @@ class MainActivity : AppCompatActivity() {
             overlay.translationY = 0f
             overlay.rotationX = 0f
             overlay.rotationY = 0f
-            overlay.pivotX = overlay.width / 2f
-            overlay.pivotY = overlay.height / 2f
+            overlay.pivotX = screenW / 2f
+            overlay.pivotY = screenH / 2f
             overlay.clipToOutline = false
             overlay.outlineProvider = ViewOutlineProvider.BACKGROUND
             clearBlur()
-            closeTargetView?.alpha = 1f
+            val target = closeTargetView
             closeTargetView = null
-            bounceTargetIcon(lastLaunchKey)
+            bounceTargetIcon(lastLaunchKey, arriveRotX, arriveRotY)
+            if (target != null && target.alpha == 0f) target.alpha = 1f
         }
 
         fun morphToIcon() {
@@ -3798,8 +3811,8 @@ class MainActivity : AppCompatActivity() {
             overlay.animate()
                 .translationX(midTX).translationY(midTY)
                 .scaleX(midSX).scaleY(midSY)
-                .rotationX(if (dockTilt) dockRotX else if (tilt) -10f * ti else 0f)
-                .rotationY(if (dockTilt) dockRotY else if (tilt) 4f * ti else 0f)
+                .rotationX(if (dockTilt) dockRotX else if (tilt) -14f * ti else 0f)
+                .rotationY(if (dockTilt) dockRotY else if (tilt) 6f * ti else 0f)
                 .setDuration(upDur)
                 .setInterpolator(DecelerateInterpolator(1.2f))
                 .withEndAction {
@@ -3808,35 +3821,37 @@ class MainActivity : AppCompatActivity() {
                     overlay.animate()
                         .translationX(tX).translationY(tY)
                         .scaleX(sX).scaleY(sY)
-                        .rotationX(0f).rotationY(0f)
+                        .rotationX(arriveRotX).rotationY(arriveRotY)
                         .setDuration(downDur)
                         .setInterpolator(DecelerateInterpolator(1.8f))
-                        .withEndAction { finishClose() }
+                        .withEndAction { finishClose(arriveRotX, arriveRotY) }
                         .start()
                 }
                 .start()
         }
     }
 
-    private fun bounceTargetIcon(key: String?) {
+    private fun bounceTargetIcon(key: String?, arriveRotX: Float = 0f, arriveRotY: Float = 0f) {
         if (key == null) return
         val view = findIconViewByKey(key) ?: return
         val overshoot = prefs.closeOvershoot.coerceIn(0f, 1.5f)
         val arcOn = prefs.closeArcHeight > 10f
         val newClose = prefs.newCloseAnim
         val iconScale = if (newClose) prefs.closeIconScale.coerceIn(50, 100) / 100f else 1f
-        val tiltBounce = newClose && prefs.tiltAnimation && !prefs.powerSaving
+        val tiltBounce = newClose && (prefs.tiltAnimation || arriveRotX != 0f || arriveRotY != 0f) && !prefs.powerSaving
         view.animate().cancel()
         view.translationY = 0f
-        view.rotationX = 0f; view.rotationY = 0f; view.rotation = 0f
+        view.rotationX = arriveRotX; view.rotationY = arriveRotY; view.rotation = 0f
         if (tiltBounce) {
             view.cameraDistance = resources.displayMetrics.density * 7000f
             view.pivotX = view.width / 2f; view.pivotY = view.height / 2f
         }
         fun settleTilt() {
             if (!tiltBounce) return
-            view.animate().rotationX(0f).rotationY(0f).rotation(0f).setDuration(220)
-                .setInterpolator(DecelerateInterpolator(2f)).start()
+            val rx = android.animation.ObjectAnimator.ofFloat(view, View.ROTATION_X, view.rotationX, 0f)
+            val ry = android.animation.ObjectAnimator.ofFloat(view, View.ROTATION_Y, view.rotationY, 0f)
+            val rz = android.animation.ObjectAnimator.ofFloat(view, View.ROTATION, view.rotation, 0f)
+            android.animation.AnimatorSet().apply { playTogether(rx, ry, rz); duration = 260; interpolator = DecelerateInterpolator(2f); start() }
         }
         fun jellyWobble() {
             if (!prefs.liquidWobble || prefs.powerSaving) { settleTilt(); return }
@@ -3855,18 +3870,18 @@ class MainActivity : AppCompatActivity() {
             val startS = (0.92f * iconScale).coerceAtLeast(0.5f)
             view.scaleX = startS; view.scaleY = startS
             view.translationY = drop
-            if (tiltBounce) { view.rotationX = -12f; view.rotationY = 6f }
+            view.alpha = 1f
             view.animate().scaleX(1f).scaleY(1f).translationY(0f)
                 .setDuration(280)
                 .setInterpolator(OvershootInterpolator(1.0f + overshoot * 0.8f))
                 .withEndAction {
-                    if (tiltBounce) { view.rotationX = 6f; view.rotationY = -3f; settleTilt() }
+                    if (tiltBounce) { view.rotationX = arriveRotX * -0.35f; view.rotationY = arriveRotY * -0.35f; settleTilt() }
                     jellyWobble()
                 }.start()
         } else {
             val startS = (0.94f * iconScale).coerceAtLeast(0.5f)
             view.scaleX = startS; view.scaleY = startS
-            if (tiltBounce) view.rotationX = -8f
+            view.alpha = 1f
             view.animate().scaleX(1f).scaleY(1f).setDuration(180)
                 .setInterpolator(DecelerateInterpolator(1.5f))
                 .withEndAction { if (tiltBounce) settleTilt(); jellyWobble() }.start()
@@ -3886,6 +3901,15 @@ class MainActivity : AppCompatActivity() {
             if (app?.key == key) return child.findViewById(R.id.appIcon) ?: child
         }
         return null
+    }
+
+    private fun expandOverlayToFullscreen() {
+        val lp = (animationOverlay.layoutParams as? FrameLayout.LayoutParams) ?: return
+        val l = -root.paddingLeft; val t = -root.paddingTop; val r = -root.paddingRight; val b = -root.paddingBottom
+        if (lp.leftMargin != l || lp.topMargin != t || lp.rightMargin != r || lp.bottomMargin != b) {
+            lp.setMargins(l, t, r, b)
+            animationOverlay.layoutParams = lp
+        }
     }
 
     private fun applyBlur(enable: Boolean) {
