@@ -164,6 +164,44 @@ class LauncherPrefs(context: Context) {
     var motionBlurBeta: Boolean
         get() = prefs.getBoolean("motion_blur_beta", false)
         set(v) = prefs.edit().putBoolean("motion_blur_beta", v).apply()
+
+    var wallUnlockBlurMode: String
+        get() = prefs.getString("wall_unlock_blur_mode", "from") ?: "from" // from|to
+        set(v) = prefs.edit().putString("wall_unlock_blur_mode", v).apply()
+    var wallUnlockBlur: Int
+        get() = prefs.getInt("wall_unlock_blur", 40)
+        set(v) = prefs.edit().putInt("wall_unlock_blur", v.coerceIn(0,100)).apply()
+    var wallZoomMode: String
+        get() = prefs.getString("wall_zoom_mode", "in") ?: "in"
+        set(v) = prefs.edit().putString("wall_zoom_mode", v).apply()
+    var wallZoom: Int
+        get() = prefs.getInt("wall_zoom", 20)
+        set(v) = prefs.edit().putInt("wall_zoom", v.coerceIn(0,100)).apply()
+
+    var islandEnabled: Boolean
+        get() = prefs.getBoolean("island_enabled", false)
+        set(v) = prefs.edit().putBoolean("island_enabled", v).apply()
+    var islandAlways: Boolean
+        get() = prefs.getBoolean("island_always", false)
+        set(v) = prefs.edit().putBoolean("island_always", v).apply()
+    var islandRightHand: Boolean
+        get() = prefs.getBoolean("island_right", false)
+        set(v) = prefs.edit().putBoolean("island_right", v).apply()
+    var islandX: Int
+        get() = prefs.getInt("island_x", 100)
+        set(v) = prefs.edit().putInt("island_x", v.coerceIn(0,200)).apply()
+    var islandY: Int
+        get() = prefs.getInt("island_y", 20)
+        set(v) = prefs.edit().putInt("island_y", v.coerceIn(0,200)).apply()
+    var islandW: Int
+        get() = prefs.getInt("island_w", 100)
+        set(v) = prefs.edit().putInt("island_w", v.coerceIn(20,200)).apply()
+    var islandH: Int
+        get() = prefs.getInt("island_h", 100)
+        set(v) = prefs.edit().putInt("island_h", v.coerceIn(20,200)).apply()
+    var islandPress: Int
+        get() = prefs.getInt("island_press", 50)
+        set(v) = prefs.edit().putInt("island_press", v.coerceIn(0,100)).apply()
     var blurEnabled: Boolean
         get() = prefs.getBoolean("blur_enabled", true)
         set(v) = prefs.edit().putBoolean("blur_enabled", v).apply()
