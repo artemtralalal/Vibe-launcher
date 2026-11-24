@@ -565,6 +565,14 @@
         </LinearLayout>
     </FrameLayout>
 
+    <com.vibe.launcher.TouchFxView
+        android:id="@+id/touchFxView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="false"
+        android:focusable="false"
+        android:visibility="gone" />
+
     <LinearLayout
         android:id="@+id/volumePanel"
         android:layout_width="56dp"
