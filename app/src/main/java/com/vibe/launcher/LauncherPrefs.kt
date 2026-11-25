@@ -67,6 +67,12 @@ class LauncherPrefs(context: Context) {
     var iconScale: Int
         get() = prefs.getInt("icon_scale", 100)
         set(v) = prefs.edit().putInt("icon_scale", v.coerceIn(60, 140)).apply()
+    var iconTintMode: String
+        get() = prefs.getString("icon_tint_mode", "default") ?: "default" // default,light,dark,transparent,color
+        set(v) = prefs.edit().putString("icon_tint_mode", v).apply()
+    var iconTintColor: Int
+        get() = prefs.getInt("icon_tint_color", 0xFFFFFFFF.toInt())
+        set(v) = prefs.edit().putInt("icon_tint_color", v).apply()
     var homeGridRows: Int
         get() = prefs.getInt("home_grid_rows", 6)
         set(v) = prefs.edit().putInt("home_grid_rows", v).apply()
