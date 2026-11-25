@@ -57,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private val REQ_PICK_WIDGET = 7771
     private val REQ_CREATE_WIDGET = 7772
     private var pendingWidgetId: Int = -1
+    private var widgetsRestored = false
     private lateinit var gridRecycler: RecyclerView
     private lateinit var dockBar: LinearLayout
     private lateinit var dockContainer: LinearLayout
@@ -117,6 +118,8 @@ class MainActivity : AppCompatActivity() {
     private val folders = mutableMapOf<String, MutableList<String>>() // folderId -> appKeys
     private val folderNames = mutableMapOf<String, String>()
     private val folderTypes = mutableMapOf<String, String>() // normal, vertical, horizontal, big, superbig
+    private var openFolderId: String? = null
+    private var folderPage: Int = 0
 
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -307,6 +310,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         try { appWidgetHost?.startListening() } catch (_: Exception) {}
+        if (!widgetsRestored) { widgetsRestored = true; root.post { restoreWidgets() } }
         quickPanel.isVisible = false; settingsButton.isVisible = false
         quickPanel.isVisible = false
         settingsOverlay.isVisible = false
@@ -359,7 +363,7 @@ class MainActivity : AppCompatActivity() {
     private fun applyOrientationLayout() {
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         val homeContent = findViewById<LinearLayout>(R.id.homeContent)
-        val workspace = findViewById<FrameLayout>(R.id.workspaceContainer)
+        val workspace = findViewById<View>(R.id.workspaceContainer)
         val dockContainer = this.dockContainer
         val dockBar = this.dockBar
         val drawerBtn = findViewById<ImageButton>(R.id.drawerBtn)
@@ -804,7 +808,7 @@ class MainActivity : AppCompatActivity() {
         if (!(prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")) return
         buildIosHomeLibrary()
         val lib = findViewById<View>(R.id.iosHomeLibrary)
-        val w = findViewById<FrameLayout>(R.id.workspaceContainer).width.toFloat().coerceAtLeast(1f)
+        val w = findViewById<View>(R.id.workspaceContainer).width.toFloat().coerceAtLeast(1f)
         if (animated) {
             gridRecycler.animate().translationX(-w).alpha(0f).setDuration(150).withEndAction {
                 gridRecycler.isVisible = false; gridRecycler.translationX = 0f; gridRecycler.alpha = 1f
@@ -821,7 +825,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun hideIosHomePage(animated: Boolean = true) {
         val lib = findViewById<View>(R.id.iosHomeLibrary)
-        val w = findViewById<FrameLayout>(R.id.workspaceContainer).width.toFloat().coerceAtLeast(1f)
+        val w = findViewById<View>(R.id.workspaceContainer).width.toFloat().coerceAtLeast(1f)
         if (animated) {
             lib.animate().translationX(w).alpha(0f).setDuration(150).withEndAction {
                 lib.isVisible = false; lib.translationX = 0f; lib.alpha = 1f
@@ -3007,7 +3011,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun snapPageDrag(dx: Float) {
-        val w = findViewById<FrameLayout>(R.id.workspaceContainer).width.toFloat().coerceAtLeast(1f)
+        val w = findViewById<View>(R.id.workspaceContainer).width.toFloat().coerceAtLeast(1f)
         val threshold = w * 0.2f
         val iosMode = (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios") && prefs.iosLibraryOpenMode == "page"
         if (iosPageVisible) {
@@ -3325,22 +3329,43 @@ class MainActivity : AppCompatActivity() {
             choices.isVisible = true
             choices.animate().alpha(1f).setDuration(250).start()
         }
-        autoBtn.setOnClickListener { applyAutoLayout(); finishWelcome() }
+        autoBtn.setOnClickListener { showAutoArrangePicker { finishWelcome() } }
         emptyBtn.setOnClickListener { applyEmptyLayout(); finishWelcome() }
     }
 
-    private fun applyAutoLayout() {
+    private fun showAutoArrangePicker(onDone: () -> Unit) {
+        val apps = allApps.toList()
+        if (apps.isEmpty()) { applyAutoLayout(); onDone(); return }
+        val labels = apps.map { it.label }.toTypedArray()
+        val checked = BooleanArray(apps.size) { true }
+        AlertDialog.Builder(this)
+            .setTitle("Какие приложения добавить на рабочий стол?")
+            .setMultiChoiceItems(labels, checked) { _, which, isChecked -> checked[which] = isChecked }
+            .setNeutralButton("Все") { _, _ ->
+                for (i in checked.indices) checked[i] = true
+                applyAutoLayout(apps.filterIndexed { i, _ -> checked[i] })
+                onDone()
+            }
+            .setPositiveButton("Готово") { _, _ ->
+                applyAutoLayout(apps.filterIndexed { i, _ -> checked[i] })
+                onDone()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun applyAutoLayout(selected: List<AppEntry> = allApps.toList()) {
         try {
             prefs.layoutInitialized = true
             val dockCandidates = listOf(
-                listOf("dialer", "phone", "телефон"),
-                listOf("contacts", "people", "контакт"),
-                listOf("camera", "камера"),
-                listOf("browser", "chrome", "yandex", "firefox", "браузер")
+                listOf("dialer", "phone", "телефон", "vibe"),
+                listOf("message", "sms", "mms", "сообщ"),
+                listOf("browser", "chrome", "yandex", "firefox", "браузер"),
+                listOf("camera", "камера")
             )
             val used = mutableSetOf<String>()
             for (i in 0 until 4) {
-                val match = allApps.firstOrNull { app ->
+                val match = selected.firstOrNull { app ->
                     app.key !in used && dockCandidates[i].any { c ->
                         app.label.lowercase().contains(c) || app.packageName.lowercase().contains(c)
                     }
@@ -3348,7 +3373,7 @@ class MainActivity : AppCompatActivity() {
                 dockApps[i] = match
                 if (match != null) used.add(match.key)
             }
-            val rest = allApps.filter { it.key !in used }
+            val rest = selected.filter { it.key !in used }
             pages.clear()
             if (rest.isEmpty()) {
                 pages.add(newPage())
@@ -3429,16 +3454,16 @@ class MainActivity : AppCompatActivity() {
             if (wb > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val maxR = (wb / 100f) * 60f
                 if (prefs.wallUnlockBlurMode == "from") {
-                    homeContent.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(maxR.coerceAtLeast(1f), maxR.coerceAtLeast(1f), Shader.TileMode.CLAMP))
+                    val _be = android.graphics.RenderEffect.createBlurEffect(maxR.coerceAtLeast(1f), maxR.coerceAtLeast(1f), Shader.TileMode.CLAMP); homeContent.setRenderEffect(_be); wallpaperBlurView?.setRenderEffect(_be)
                     val animBlur = android.animation.ValueAnimator.ofFloat(maxR, 0.1f).apply {
-                        duration = 500; addUpdateListener { v -> val r = (v.animatedValue as Float).coerceAtLeast(0.1f); homeContent.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(r,r,Shader.TileMode.CLAMP)) }
-                        addListener(object: android.animation.AnimatorListenerAdapter() { override fun onAnimationEnd(animation: android.animation.Animator) { homeContent.setRenderEffect(null) } })
+                        duration = 500; addUpdateListener { v -> val r = (v.animatedValue as Float).coerceAtLeast(0.1f); val _be2 = android.graphics.RenderEffect.createBlurEffect(r,r,Shader.TileMode.CLAMP); homeContent.setRenderEffect(_be2); wallpaperBlurView?.setRenderEffect(_be2) }
+                        addListener(object: android.animation.AnimatorListenerAdapter() { override fun onAnimationEnd(animation: android.animation.Animator) { homeContent.setRenderEffect(null); wallpaperBlurView?.setRenderEffect(null) } })
                     }
                     animBlur.start()
                 } else {
                     val animBlur = android.animation.ValueAnimator.ofFloat(0.1f, maxR.coerceAtLeast(1f)).apply {
-                        duration = 500; addUpdateListener { v -> val r = (v.animatedValue as Float).coerceAtLeast(0.1f); homeContent.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(r,r,Shader.TileMode.CLAMP)) }
-                        addListener(object: android.animation.AnimatorListenerAdapter() { override fun onAnimationEnd(animation: android.animation.Animator) { root.postDelayed({ homeContent.setRenderEffect(null) }, 300) } })
+                        duration = 500; addUpdateListener { v -> val r = (v.animatedValue as Float).coerceAtLeast(0.1f); val _be2 = android.graphics.RenderEffect.createBlurEffect(r,r,Shader.TileMode.CLAMP); homeContent.setRenderEffect(_be2); wallpaperBlurView?.setRenderEffect(_be2) }
+                        addListener(object: android.animation.AnimatorListenerAdapter() { override fun onAnimationEnd(animation: android.animation.Animator) { root.postDelayed({ homeContent.setRenderEffect(null); wallpaperBlurView?.setRenderEffect(null) }, 300) } })
                     }
                     animBlur.start()
                 }
@@ -3789,7 +3814,23 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) { addWidgetView(widgetId) }
     }
 
-    private fun addWidgetView(widgetId: Int) {
+    private fun saveWidgetIds() {
+        val container = findViewById<LinearLayout?>(R.id.widgetContainer) ?: return
+        val ids = mutableListOf<Int>()
+        for (i in 0 until container.childCount) {
+            val v = container.getChildAt(i)
+            val id = (v as? android.appwidget.AppWidgetHostView)?.appWidgetId ?: continue
+            ids.add(id)
+        }
+        prefs.homeWidgetIds = ids.joinToString(",")
+    }
+
+    private fun restoreWidgets() {
+        val ids = prefs.homeWidgetIds.split(",").mapNotNull { it.trim().toIntOrNull() }
+        ids.forEach { addWidgetView(it, persist = false) }
+    }
+
+    private fun addWidgetView(widgetId: Int, persist: Boolean = true) {
         try {
             val host = appWidgetHost ?: return
             val mgr = android.appwidget.AppWidgetManager.getInstance(this)
@@ -3802,11 +3843,16 @@ class MainActivity : AppCompatActivity() {
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (h * resources.displayMetrics.density).toInt().coerceAtLeast((120*resources.displayMetrics.density).toInt()))
             lp.bottomMargin = (8 * resources.displayMetrics.density).toInt()
             view.layoutParams = lp
+            view.setOnLongClickListener {
+                AlertDialog.Builder(this).setTitle("Виджет").setItems(arrayOf("Удалить")) { _, _ ->
+                    try { container.removeView(view); host.deleteAppWidgetId(widgetId) } catch (_: Exception) {}
+                    container.isVisible = container.childCount > 0
+                    saveWidgetIds()
+                }.show(); true
+            }
             container.addView(view)
-            android.widget.Toast.makeText(this, "Виджет добавлен", android.widget.Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "Ошибка виджета: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-        }
+            if (persist) { saveWidgetIds(); android.widget.Toast.makeText(this, "Виджет добавлен", android.widget.Toast.LENGTH_SHORT).show() }
+        } catch (_: Exception) { }
     }
 
     private fun showSettingsButton() {
@@ -4072,71 +4118,93 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openFolder(id: String) {
+        openFolderId = id; folderPage = 0
+        renderFolder(id, animate = true)
+    }
+
+    private fun folderPageSize(id: String): Int {
+        val cols = folderColumns(id).coerceIn(2, 5)
+        val rows = when (folderType(id)) { "big" -> 4; "superbig" -> 5; else -> 3 }
+        return (cols * rows).coerceAtLeast(4)
+    }
+
+    private fun renderFolder(id: String, animate: Boolean = false) {
         val overlay = findViewById<FrameLayout>(R.id.folderOverlay)
         val card = findViewById<LinearLayout>(R.id.folderCard)
         val title = findViewById<TextView>(R.id.folderTitle)
         val rv = findViewById<RecyclerView>(R.id.folderRecycler)
+        val dots = findViewById<LinearLayout?>(R.id.folderPageIndicator)
+        card.background = roundedBg(0xAA1C1C1E.toInt())
         title.text = folderNames[id] ?: "Папка"
         title.setOnClickListener { renameFolderDialog(id) }
         val all = folders[id].orEmpty().mapNotNull { findApp(it) }
-        val small = isSmallFolder(id)
         val cols = folderColumns(id).coerceIn(2, 5)
+        val pageSize = folderPageSize(id)
+        val pageCount = maxOf(1, (all.size + pageSize - 1) / pageSize)
+        folderPage = folderPage.coerceIn(0, pageCount - 1)
+        val pageItems = all.drop(folderPage * pageSize).take(pageSize)
         rv.layoutManager = GridLayoutManager(this, cols)
-        val shown = if (small && all.size > 4) all.take(3) else all
-        val ad = DrawerAdapter(
+        val ad = (rv.adapter as? DrawerAdapter) ?: DrawerAdapter(
             onClick = { app, icon ->
                 lastLaunchKey = folderKey(id)
-                overlay.isVisible = false
+                closeFolderOverlay()
                 launchApp(app, icon, fromDrawer = false)
             },
             onLongPress = { app, view -> showIconMenu(app, view, fromDock = null, fromDrawer = true); true },
             shape = { prefs.iconShape },
             cornerRadii = { currentCornerRadii() }
-        )
-        rv.adapter = ad
-        ad.submit(shown)
-        // Show "open all" hint for small folders with overflow
-        var moreBtn = card.findViewWithTag<TextView>("folderMore")
-        if (small && all.size > 4) {
-            if (moreBtn == null) {
-                moreBtn = TextView(this).apply {
-                    tag = "folderMore"
-                    setTextColor(0xCCFFFFFF.toInt())
-                    textSize = 14f
-                    gravity = android.view.Gravity.CENTER
-                    setPadding(0, dp(8), 0, 0)
-                }
-                card.addView(moreBtn)
+        ).also { rv.adapter = it }
+        ad.submit(pageItems)
+        val itemW = dp(72); val itemH = dp(92)
+        rv.layoutParams = rv.layoutParams.apply { width = cols * itemW; height = LinearLayout.LayoutParams.WRAP_CONTENT }
+        card.minimumWidth = cols * itemW + dp(32)
+        dots?.removeAllViews()
+        dots?.isVisible = pageCount > 1
+        if (pageCount > 1) {
+            for (i in 0 until pageCount) {
+                val d = View(this)
+                val sz = dp(if (i == folderPage) 7 else 5)
+                val lp = LinearLayout.LayoutParams(sz, sz); lp.marginStart = dp(3); lp.marginEnd = dp(3)
+                d.layoutParams = lp
+                d.background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(if (i == folderPage) 0xFFFFFFFF.toInt() else 0x66FFFFFF) }
+                dots?.addView(d)
             }
-            moreBtn.text = "Показать все (${all.size})"
-            moreBtn.isVisible = true
-            moreBtn.setOnClickListener {
-                ad.submit(all)
-                moreBtn.isVisible = false
-            }
-        } else {
-            moreBtn?.isVisible = false
         }
         val resize = findViewById<TextView>(R.id.folderResizeHandle)
+        resize.isVisible = true
         resize.setOnClickListener { showFolderTypePicker(id) }
-        overlay.isVisible = true
-        overlay.alpha = 0f
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val r = (prefs.drawerBlur.coerceIn(0,100) / 100f * 25f).coerceAtLeast(0.1f)
-            val eff = RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP)
-            homeContent.setRenderEffect(eff); wallpaperBlurView?.setRenderEffect(eff)
+        if (!overlay.isVisible) {
+            overlay.isVisible = true
+            overlay.alpha = 0f
+            card.scaleX = 0.92f; card.scaleY = 0.92f
+            overlay.animate().alpha(1f).setDuration(180).start()
+            card.animate().scaleX(if (animate) 1f else 1f).scaleY(1f).setDuration(if (animate) 260 else 0).setInterpolator(DecelerateInterpolator(1.8f)).start()
         }
-        card.scaleX = 0.92f; card.scaleY = 0.92f
-        overlay.animate().alpha(1f).setDuration(180).start()
-        card.animate().scaleX(1f).scaleY(1f).setDuration(260).setInterpolator(DecelerateInterpolator(1.8f)).start()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { val r = (prefs.drawerBlur.coerceIn(0,100) / 100f * 30f).coerceAtLeast(1f); val be = RenderEffect.createBlurEffect(r,r, Shader.TileMode.CLAMP); homeContent.setRenderEffect(be); wallpaperBlurView?.setRenderEffect(be) }
         overlay.setOnClickListener { closeFolderOverlay() }
         card.setOnClickListener { }
+        card.setOnTouchListener { _, ev ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { card.tag = ev.x; false }
+                MotionEvent.ACTION_UP -> {
+                    val dx = ev.x - ((card.tag as? Float) ?: ev.x)
+                    if (dx < -dp(40) && folderPage < pageCount - 1) { folderPage++; renderFolder(id); true }
+                    else if (dx > dp(40) && folderPage > 0) { folderPage--; renderFolder(id); true }
+                    else false
+                }
+                else -> false
+            }
+        }
     }
 
     private fun closeFolderOverlay() {
+        openFolderId = null
         val overlay = findViewById<FrameLayout>(R.id.folderOverlay)
+        val card = findViewById<LinearLayout?>(R.id.folderCard)
+        card?.animate()?.scaleX(0.94f)?.scaleY(0.94f)?.setDuration(120)?.start()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { homeContent.setRenderEffect(null); wallpaperBlurView?.setRenderEffect(null) }
-        overlay.animate().alpha(0f).setDuration(150).withEndAction { overlay.isVisible = false; overlay.alpha = 1f }.start()
+        if (appDrawer.isVisible) applyBlur(true)
+        overlay.animate().alpha(0f).setDuration(150).withEndAction { overlay.isVisible = false; overlay.alpha = 1f; card?.scaleX = 1f; card?.scaleY = 1f }.start()
     }
 
     private fun renameFolderDialog(id: String) {
@@ -4606,7 +4674,7 @@ class MainActivity : AppCompatActivity() {
                 folderNames.putIfAbsent(fid, "Папка")
                 saveFoldersToPrefs()
                 currentSlots[targetSlot] = buildFolderEntry(fid)
-            } else if (fromDrawer && !isFolderKey(occupant.key) && !isFolderKey(app.key)) {
+            } else if (!isFolderKey(occupant.key) && !isFolderKey(app.key)) {
                 val id = "f${System.currentTimeMillis()}"
                 folderNames[id] = "Папка"
                 folderTypes[id] = "normal"
@@ -4670,7 +4738,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showDragGrid() {
         try {
-            val ws = findViewById<android.widget.FrameLayout>(R.id.workspaceContainer)
+            val ws = findViewById<View>(R.id.workspaceContainer)
             if (dragGridOverlay == null) {
                 dragGridOverlay = DragGridOverlay(this).apply {
                     layoutParams = android.widget.FrameLayout.LayoutParams(android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT)
@@ -5191,9 +5259,9 @@ class MainActivity : AppCompatActivity() {
             overlay.animate()
                 .translationX(midTX).translationY(midTY)
                 .scaleX(midSX).scaleY(midSY)
-                .rotationX((if (dockTilt) dockRotX else if (tilt) -14f * ti else 0f) + studioWin[0])
-                .rotationY((if (dockTilt) dockRotY else if (tilt) 6f * ti else 0f) + studioWin[1])
-                .rotation(studioWin[2])
+                .rotationX((if (dockTilt) dockRotX else if (tilt) -20f * ti else 0f) + studioWin[0])
+                .rotationY((if (dockTilt) dockRotY else if (tilt) 10f * ti else 0f) + studioWin[1])
+                .rotation((if (tilt && !dockTilt) 3f * ti else 0f) + studioWin[2])
                 .setDuration(upDur)
                 .setInterpolator(DecelerateInterpolator(1.2f))
                 .withEndAction {
@@ -5303,9 +5371,12 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (enable && prefs.blurEnabled && !prefs.powerSaving) {
                 val r = prefs.blurRadius.coerceIn(1f, 60f)
-                homeContent.setRenderEffect(RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP))
+                val eff = RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP)
+                homeContent.setRenderEffect(eff)
+                wallpaperBlurView?.setRenderEffect(eff)
             } else {
                 homeContent.setRenderEffect(null)
+                wallpaperBlurView?.setRenderEffect(null)
             }
         }
     }
