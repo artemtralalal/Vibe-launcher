@@ -228,6 +228,10 @@ class LauncherPrefs(context: Context) {
         get() = prefs.getBoolean("blur_enabled", true)
         set(v) = prefs.edit().putBoolean("blur_enabled", v).apply()
 
+    var themePreset: String
+        get() = prefs.getString("theme_preset", "android") ?: "android"
+        set(v) = prefs.edit().putString("theme_preset", v).apply()
+
     var liquidGlass: Boolean
         get() = prefs.getBoolean("liquid_glass", false)
         set(v) = prefs.edit().putBoolean("liquid_glass", v).apply()
@@ -312,6 +316,36 @@ class LauncherPrefs(context: Context) {
     var screenScale: Int
         get() = prefs.getInt("screen_scale", 100)
         set(v) = prefs.edit().putInt("screen_scale", v.coerceIn(50, 200)).apply()
+    var screenInsetTop: Int
+        get() = prefs.getInt("screen_inset_top", 0)
+        set(v) = prefs.edit().putInt("screen_inset_top", v.coerceIn(0,200)).apply()
+    var screenInsetBottom: Int
+        get() = prefs.getInt("screen_inset_bottom", 0)
+        set(v) = prefs.edit().putInt("screen_inset_bottom", v.coerceIn(0,200)).apply()
+    var screenInsetLeft: Int
+        get() = prefs.getInt("screen_inset_left", 0)
+        set(v) = prefs.edit().putInt("screen_inset_left", v.coerceIn(0,200)).apply()
+    var screenInsetRight: Int
+        get() = prefs.getInt("screen_inset_right", 0)
+        set(v) = prefs.edit().putInt("screen_inset_right", v.coerceIn(0,200)).apply()
+    var virtualStatusBar: Boolean
+        get() = prefs.getBoolean("virtual_status_bar", false)
+        set(v) = prefs.edit().putBoolean("virtual_status_bar", v).apply()
+    var virtualStatusClockCenter: Boolean
+        get() = prefs.getBoolean("vsb_clock_center", false)
+        set(v) = prefs.edit().putBoolean("vsb_clock_center", v).apply()
+    var virtualStatusBatteryPercent: Boolean
+        get() = prefs.getBoolean("vsb_batt_pct", true)
+        set(v) = prefs.edit().putBoolean("vsb_batt_pct", v).apply()
+    var virtualStatusShowWeather: Boolean
+        get() = prefs.getBoolean("vsb_weather", false)
+        set(v) = prefs.edit().putBoolean("vsb_weather", v).apply()
+    var virtualStatusHeight: Int
+        get() = prefs.getInt("vsb_height", 28)
+        set(v) = prefs.edit().putInt("vsb_height", v.coerceIn(20,60)).apply()
+    var virtualStatusBalance: String
+        get() = prefs.getString("vsb_balance", "") ?: ""
+        set(v) = prefs.edit().putString("vsb_balance", v).apply()
 
     var refreshRatePref: Int
         get() = prefs.getInt("refresh_rate_pref", 0) // 0 auto
@@ -320,6 +354,12 @@ class LauncherPrefs(context: Context) {
     var dockScale: Int
         get() = prefs.getInt("dock_scale", 100)
         set(v) = prefs.edit().putInt("dock_scale", v.coerceIn(70, 140)).apply()
+    var dockWidth: Int
+        get() = prefs.getInt("dock_width", 100) // percent
+        set(v) = prefs.edit().putInt("dock_width", v.coerceIn(40, 100)).apply()
+    var dockHeight: Int
+        get() = prefs.getInt("dock_height", 72) // dp-ish units
+        set(v) = prefs.edit().putInt("dock_height", v.coerceIn(56, 140)).apply()
 
     var doubleTapLock: Boolean
         get() = prefs.getBoolean("double_tap_lock", true)
@@ -426,6 +466,21 @@ class LauncherPrefs(context: Context) {
     var drawerLayout: String
         get() = prefs.getString("drawer_layout", "grid") ?: "grid"
         set(v) = prefs.edit().putString("drawer_layout", v).apply()
+    var drawerBlur: Int
+        get() = prefs.getInt("drawer_blur", 20)
+        set(v) = prefs.edit().putInt("drawer_blur", v.coerceIn(0,100)).apply()
+    var drawerDim: Int
+        get() = prefs.getInt("drawer_dim", 40)
+        set(v) = prefs.edit().putInt("drawer_dim", v.coerceIn(0,100)).apply()
+    var drawerFolderRadius: Int
+        get() = prefs.getInt("drawer_folder_radius", 24)
+        set(v) = prefs.edit().putInt("drawer_folder_radius", v.coerceIn(0,40)).apply()
+    var drawerFolderStyle: String
+        get() = prefs.getString("drawer_folder_style", "large") ?: "large" // large|small
+        set(v) = prefs.edit().putString("drawer_folder_style", v).apply()
+    var drawerGridCols: Int
+        get() = prefs.getInt("drawer_grid_cols", 4)
+        set(v) = prefs.edit().putInt("drawer_grid_cols", v.coerceIn(3,6)).apply()
 
     var drawerIpadMode: Boolean
         get() = prefs.getBoolean("drawer_ipad", false)
