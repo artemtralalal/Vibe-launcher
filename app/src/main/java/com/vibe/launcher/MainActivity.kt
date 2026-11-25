@@ -23,6 +23,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
+import com.vibe.launcher.BuildConfig
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.Button
@@ -2896,7 +2897,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateAboutInfo() {
         try {
             findViewById<TextView?>(R.id.aboutCardVersion)?.text = "Версия ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.53-beta"
+            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.54-beta"
             findViewById<TextView?>(R.id.aboutChangelog)?.text = """
                 • Исправлены красные сборки GitHub Actions (ViewGroup/import, prefs, layout id).
                 • Авторасстановка при первом запуске: выбор приложений галочками.
