@@ -19,7 +19,9 @@ class AppGridAdapter(
     private val shape: () -> String = { "circle" },
     private val showLabels: () -> Boolean = { true },
     private val cornerRadii: () -> FloatArray? = { null },
-    private val iconScale: () -> Int = { 100 }
+    private val iconScale: () -> Int = { 100 },
+    private val iconTintMode: () -> String = { "default" },
+    private val iconTintColor: () -> Int = { 0xFFFFFFFF.toInt() }
 ) : RecyclerView.Adapter<AppGridAdapter.VH>() {
 
     var pageSize: Int = 24
@@ -131,6 +133,7 @@ class AppGridAdapter(
         if (item == null) {
             holder.icon.setImageDrawable(null)
             holder.icon.alpha = 0f
+            holder.icon.clearColorFilter()
             holder.label.text = ""
             holder.label.visibility = View.GONE
             holder.itemView.setOnClickListener { }
@@ -144,6 +147,7 @@ class AppGridAdapter(
         if (lp.width != sz || lp.height != sz) { lp.width = sz; lp.height = sz; holder.icon.layoutParams = lp }
         holder.icon.alpha = 1f
         holder.icon.setImageDrawable(item.icon)
+        applyIconTint(holder.icon, iconTintMode(), iconTintColor())
         holder.label.text = item.label
         holder.label.visibility = if (showLabels()) View.VISIBLE else View.GONE
         applyShape(holder.icon, shape(), cornerRadii())
@@ -152,6 +156,15 @@ class AppGridAdapter(
     }
 
     companion object {
+        fun applyIconTint(icon: ImageView, mode: String, color: Int) {
+            when (mode) {
+                "light" -> { icon.alpha = 1f; icon.setColorFilter(0xFFFFFFFF.toInt(), android.graphics.PorterDuff.Mode.SRC_ATOP) }
+                "dark" -> { icon.alpha = 1f; icon.setColorFilter(0xFF222222.toInt(), android.graphics.PorterDuff.Mode.SRC_ATOP) }
+                "transparent" -> { icon.alpha = 0.55f; icon.clearColorFilter() }
+                "color" -> { icon.alpha = 1f; icon.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_ATOP) }
+                else -> { icon.alpha = 1f; icon.clearColorFilter() }
+            }
+        }
         fun applyShape(view: ImageView, shape: String, radii: FloatArray? = null) {
             val custom = radii != null && radii.size == 8
             view.clipToOutline = shape != "square" || custom
