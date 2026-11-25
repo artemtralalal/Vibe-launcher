@@ -252,6 +252,8 @@ class MainActivity : AppCompatActivity() {
         applyVisualStyle()
         applyRefreshRatePref()
         applyFullscreenMode()
+        applyScreenInsets()
+        updateVirtualStatusBar()
         try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
         try { registerReceiver(screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF)) } catch (_: Exception) {}
         try { registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) } catch (_: Exception) {}
@@ -439,13 +441,15 @@ class MainActivity : AppCompatActivity() {
             }
             else -> { // bottom center or portrait
                 if (!landscape || dockPos == "bottom") {
-                    lp.width = LinearLayout.LayoutParams.MATCH_PARENT
+                    val widthPct = prefs.dockWidth.coerceIn(40,100) / 100f
+                    lp.width = if (widthPct >= 0.99f) LinearLayout.LayoutParams.MATCH_PARENT else (resources.displayMetrics.widthPixels * widthPct).toInt()
                     lp.height = LinearLayout.LayoutParams.WRAP_CONTENT
                     lp.weight = 0f; lp.topMargin = (4*d).toInt(); lp.marginStart = 0; lp.marginEnd = 0
-                    lp.gravity = android.view.Gravity.NO_GRAVITY
+                    lp.gravity = android.view.Gravity.CENTER_HORIZONTAL
                     dockContainer.layoutParams = lp
-                    dockContainer.gravity = android.view.Gravity.CENTER_VERTICAL
-                    (dockBar.layoutParams as LinearLayout.LayoutParams).apply { width = 0; height = (92*d).toInt(); weight = 1f }.also { dockBar.layoutParams = it }
+                    dockContainer.gravity = android.view.Gravity.CENTER
+                    val dockH = (prefs.dockHeight.coerceIn(56,140) * d).toInt()
+                    (dockBar.layoutParams as LinearLayout.LayoutParams).apply { width = LinearLayout.LayoutParams.MATCH_PARENT; height = dockH; weight = 0f }.also { dockBar.layoutParams = it }
                 }
             }
         }
@@ -1131,6 +1135,8 @@ class MainActivity : AppCompatActivity() {
             try { startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) {}
         }
         findViewById<SwitchMaterial?>(R.id.motionBlurSwitch)?.apply { isChecked = prefs.motionBlurBeta; setOnCheckedChangeListener { _, c -> prefs.motionBlurBeta = c } }
+        findViewById<TextView?>(R.id.themePresetLabel)?.text = "Текущий: ${themePresetLabel(prefs.themePreset)}"
+        findViewById<Button?>(R.id.themePresetBtn)?.setOnClickListener { showThemePresetPicker() }
 
         findViewById<Button?>(R.id.wallUnlockBlurModeBtn)?.setOnClickListener { prefs.wallUnlockBlurMode = if (prefs.wallUnlockBlurMode == "from") "to" else "from"; (it as? Button)?.text = "Режим: ${if (prefs.wallUnlockBlurMode=="from") "с размытия в нормальные" else "в размытие"}" }
         bindSeek(findViewById(R.id.wallUnlockBlurSeek), prefs.wallUnlockBlur, 0, 100) { prefs.wallUnlockBlur = it }
@@ -1253,6 +1259,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.drawerStyleBtn).setOnClickListener { showDrawerStylePicker() }
         updateDrawerLayoutLabel()
         findViewById<Button>(R.id.drawerLayoutBtn).setOnClickListener { showDrawerLayoutPicker() }
+        bindSeek(findViewById(R.id.drawerBlurSeek), prefs.drawerBlur, 0, 100) { prefs.drawerBlur = it }
+        bindSeek(findViewById(R.id.drawerDimSeek), prefs.drawerDim, 0, 100) { prefs.drawerDim = it }
         findViewById<SwitchMaterial>(R.id.desktopModeSwitch).apply { isChecked = prefs.desktopMode; setOnCheckedChangeListener { _, c -> prefs.desktopMode = c; updateLandDockLabel(); applyOrientationLayout(); renderDock(); renderCurrentPage() } }
         updateLandDockLabel()
         findViewById<Button>(R.id.landDockBtn).setOnClickListener { showLandDockPicker() }
@@ -1293,11 +1301,21 @@ class MainActivity : AppCompatActivity() {
             }
         }
         findViewById<Button>(R.id.aodSettingsBtn).setOnClickListener { showAodSettingsDialog() }
+        bindSeek(findViewById(R.id.screenInsetTopSeek), prefs.screenInsetTop, 0, 200) { prefs.screenInsetTop = it; applyScreenInsets() }
+        bindSeek(findViewById(R.id.screenInsetBottomSeek), prefs.screenInsetBottom, 0, 200) { prefs.screenInsetBottom = it; applyScreenInsets() }
+        bindSeek(findViewById(R.id.screenInsetLeftSeek), prefs.screenInsetLeft, 0, 200) { prefs.screenInsetLeft = it; applyScreenInsets() }
+        bindSeek(findViewById(R.id.screenInsetRightSeek), prefs.screenInsetRight, 0, 200) { prefs.screenInsetRight = it; applyScreenInsets() }
+        findViewById<SwitchMaterial?>(R.id.virtualStatusSwitch)?.apply { isChecked = prefs.virtualStatusBar; setOnCheckedChangeListener { _, c -> prefs.virtualStatusBar = c; updateVirtualStatusBar() } }
+        findViewById<SwitchMaterial?>(R.id.vsbClockCenterSwitch)?.apply { isChecked = prefs.virtualStatusClockCenter; setOnCheckedChangeListener { _, c -> prefs.virtualStatusClockCenter = c; updateVirtualStatusBar() } }
+        findViewById<SwitchMaterial?>(R.id.vsbBatteryPctSwitch)?.apply { isChecked = prefs.virtualStatusBatteryPercent; setOnCheckedChangeListener { _, c -> prefs.virtualStatusBatteryPercent = c; updateVirtualStatusBar() } }
+        bindSeek(findViewById(R.id.vsbHeightSeek), (prefs.virtualStatusHeight - 20).coerceIn(0,40), 0, 40) { prefs.virtualStatusHeight = it + 20; updateVirtualStatusBar() }
 
         // Dock category
         val dockStyleLabel2 = findViewById<TextView>(R.id.dockStyleLabel)
         val dockBgLabel = findViewById<TextView>(R.id.dockBgLabel)
         val dockScaleSeek2 = findViewById<SeekBar>(R.id.dockScaleSeek2)
+        val dockWidthSeek = findViewById<SeekBar?>(R.id.dockWidthSeek)
+        val dockHeightSeek = findViewById<SeekBar?>(R.id.dockHeightSeek)
         val dockRadiusSeek = findViewById<SeekBar>(R.id.dockRadiusSeek)
         val dockOffsetXSeek = findViewById<SeekBar>(R.id.dockOffsetXSeek)
         val dockOffsetYSeek = findViewById<SeekBar>(R.id.dockOffsetYSeek)
@@ -1308,6 +1326,8 @@ class MainActivity : AppCompatActivity() {
         val dockBounceLabel = findViewById<TextView>(R.id.dockBounceLabel)
         fun refreshDockSeekbars() {
             dockScaleSeek2.progress = (prefs.dockScale - 70).coerceIn(0,70)
+            dockWidthSeek?.progress = (prefs.dockWidth - 40).coerceIn(0,60)
+            dockHeightSeek?.progress = (prefs.dockHeight - 56).coerceIn(0,84)
             dockRadiusSeek.progress = prefs.dockRadius.coerceIn(0,50)
             dockOffsetXSeek.progress = (prefs.dockXOffset + 200).coerceIn(0,400)
             dockOffsetYSeek.progress = (prefs.dockYOffset + 200).coerceIn(0,400)
@@ -1341,6 +1361,8 @@ class MainActivity : AppCompatActivity() {
             }.show()
         }
         bindSeek(dockScaleSeek2, (prefs.dockScale - 70).coerceIn(0,70), 0, 70) { prefs.dockScale = it + 70; applyOrientationLayout(); renderDock(); updateDockPreview() }
+        dockWidthSeek?.let { bindSeek(it, (prefs.dockWidth - 40).coerceIn(0,60), 0, 60) { v -> prefs.dockWidth = v + 40; applyOrientationLayout(); renderDock(); updateDockPreview() } }
+        dockHeightSeek?.let { bindSeek(it, (prefs.dockHeight - 56).coerceIn(0,84), 0, 84) { v -> prefs.dockHeight = v + 56; applyOrientationLayout(); renderDock(); updateDockPreview() } }
         bindSeek(dockRadiusSeek, prefs.dockRadius.coerceIn(0,50), 0, 50) { prefs.dockRadius = it; applyDockStyle(); updateDockPreview() }
         bindSeek(dockTransparencySeek, prefs.dockTransparency.coerceIn(0,100), 0, 100) { prefs.dockTransparency = it; applyDockStyle(); updateDockPreview() }
         bindSeek(dockOffsetXSeek, (prefs.dockXOffset + 200).coerceIn(0,400), 0, 400) { prefs.dockXOffset = it - 200; applyOrientationLayout(); renderDock(); updateDockPreview() }
@@ -1398,12 +1420,13 @@ class MainActivity : AppCompatActivity() {
         "miui13" -> "MIUI 13"
         "hyperos" -> "HyperOS"
         "iphone" -> "iPhone"
+        "iphone8" -> "iPhone 8 (плавное затемнение)"
         "pixel2" -> "Pixel (градиент сверху/снизу)"
         else -> "Pixel"
     }
 
     private fun showLockAnimPicker(onChanged: () -> Unit = {}) {
-        val opts = listOf("pixel","xiaomi","oneplus","oukitel","samsung","wave","fire","ice","nothing","miui13","hyperos","iphone","pixel2")
+        val opts = listOf("pixel","xiaomi","oneplus","oukitel","samsung","wave","fire","ice","nothing","miui13","hyperos","iphone","iphone8","pixel2")
         val names = opts.map { lockAnimDisplayName(it) }.toTypedArray()
         AlertDialog.Builder(this).setTitle("Анимация блокировки").setItems(names) { _, w ->
             prefs.lockAnimation = opts[w]
@@ -1436,6 +1459,35 @@ class MainActivity : AppCompatActivity() {
                 window.isStatusBarContrastEnforced = false
             }
             findViewById<View?>(R.id.root)?.fitsSystemWindows = !prefs.fullscreenMode
+        } catch (_: Exception) {}
+    }
+
+    private fun applyScreenInsets() {
+        try {
+            val d = resources.displayMetrics.density
+            val l = (prefs.screenInsetLeft * d).toInt()
+            val t = (prefs.screenInsetTop * d).toInt()
+            val r = (prefs.screenInsetRight * d).toInt()
+            val b = (prefs.screenInsetBottom * d).toInt()
+            homeContent.setPadding(l, t, r, b)
+        } catch (_: Exception) {}
+    }
+
+    private fun updateVirtualStatusBar() {
+        try {
+            val bar = findViewById<View?>(R.id.virtualStatusBar) ?: return
+            bar.isVisible = prefs.virtualStatusBar
+            val lp = bar.layoutParams
+            lp.height = (prefs.virtualStatusHeight.coerceIn(20,60) * resources.displayMetrics.density).toInt()
+            bar.layoutParams = lp
+            val clock = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+            val left = findViewById<TextView?>(R.id.vsbLeft)
+            val center = findViewById<TextView?>(R.id.vsbCenter)
+            val right = findViewById<TextView?>(R.id.vsbRight)
+            if (prefs.virtualStatusClockCenter) { left?.text = ""; center?.text = clock } else { left?.text = clock; center?.text = "" }
+            val bm = getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+            val pct = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 0
+            right?.text = "Wi-Fi  ${if (prefs.virtualStatusBatteryPercent) "$pct%" else ""}"
         } catch (_: Exception) {}
     }
 
@@ -1600,6 +1652,9 @@ class MainActivity : AppCompatActivity() {
                     homeContent.animate().scaleX(bs * 0.92f).scaleY(bs * 0.92f).alpha(0f).setDuration(420)
                         .setInterpolator(DecelerateInterpolator(1.6f)).start()
                     overlay.animate().alpha(1f).setDuration(360).setStartDelay(80).withEndAction(cleanup).start()
+                }
+                "iphone8" -> {
+                    overlay.animate().alpha(1f).setDuration(450).setInterpolator(DecelerateInterpolator(1.8f)).withEndAction(cleanup).start()
                 }
                 "pixel2" -> { // top and bottom curtains closing
                     val top = addOverlay(Color.BLACK, 1f)
@@ -2342,17 +2397,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateDrawerStyleLabel() {
-        val label = if (prefs.drawerStyle == "button") "Кнопка в доке" else "Свайп вверх"
-        findViewById<TextView>(R.id.drawerStyleLabel).text = "Меню приложений: $label"
+        val label = when (prefs.drawerStyle) { "button" -> "Кнопка в доке"; "ios" -> "iOS стиль"; else -> "Свайп вверх" }
+        findViewById<TextView?>(R.id.drawerStyleLabel)?.text = "Меню приложений: $label"
     }
 
     private fun showDrawerStylePicker() {
-        val opts = listOf("swipe" to "Свайп вверх", "button" to "Кнопка в доке")
+        val opts = listOf("swipe" to "Свайп вверх", "button" to "Кнопка в доке", "ios" to "iOS стиль (библиотека)")
         AlertDialog.Builder(this).setTitle("Стиль меню приложений")
             .setItems(opts.map { it.second }.toTypedArray()) { _, which ->
                 prefs.drawerStyle = opts[which].first
                 updateDrawerStyleLabel()
                 renderDock()
+                applyDrawerLayout()
             }.show()
     }
 
@@ -2557,6 +2613,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupSettingsNavigation() {
         findViewById<View>(R.id.settingsBackBtn).setOnClickListener { showSettingsMain() }
         findViewById<View>(R.id.catRowAppearance).setOnClickListener { showSettingsCategory("appearance") }
+        findViewById<View>(R.id.catRowThemes).setOnClickListener { showSettingsCategory("themes") }
         findViewById<View>(R.id.catRowAnimations).setOnClickListener { showSettingsCategory("animations") }
         findViewById<View>(R.id.catRowHome).setOnClickListener { showSettingsCategory("home") }
         findViewById<View>(R.id.catRowDock).setOnClickListener { showSettingsCategory("dock") }
@@ -2585,7 +2642,7 @@ class MainActivity : AppCompatActivity() {
             (detail.layoutParams as FrameLayout.LayoutParams).apply { width = FrameLayout.LayoutParams.MATCH_PARENT; height = FrameLayout.LayoutParams.MATCH_PARENT; marginStart = 0; gravity = android.view.Gravity.NO_GRAVITY }
             findViewById<View>(R.id.settingsBackBtn).isVisible = true
         }
-        listOf(R.id.catAppearance, R.id.catAnimations, R.id.catHome, R.id.catDock, R.id.catScreen, R.id.catDrawer, R.id.catPower, R.id.catSound, R.id.catTouch, R.id.catDesktop, R.id.catIsland, R.id.catAbout).forEach {
+        listOf(R.id.catAppearance, R.id.catThemes, R.id.catAnimations, R.id.catHome, R.id.catDock, R.id.catScreen, R.id.catDrawer, R.id.catPower, R.id.catSound, R.id.catTouch, R.id.catDesktop, R.id.catIsland, R.id.catAbout).forEach {
             findViewById<View>(it).isVisible = landscape && it == R.id.catAppearance
         }
         if (landscape) findViewById<TextView>(R.id.settingsDetailTitle).text = "Внешний вид"
@@ -2597,6 +2654,7 @@ class MainActivity : AppCompatActivity() {
         val detail = findViewById<View>(R.id.settingsDetail)
         val map = mapOf(
             "appearance" to (R.id.catAppearance to "Внешний вид"),
+            "themes" to (R.id.catThemes to "Темы"),
             "animations" to (R.id.catAnimations to "Анимации"),
             "home" to (R.id.catHome to "Рабочий стол"),
             "dock" to (R.id.catDock to "Док-бар"),
@@ -2775,6 +2833,12 @@ class MainActivity : AppCompatActivity() {
     private fun openDrawer() {
         quickPanel.isVisible = false; settingsButton.isVisible = false
         applyDrawerLayout()
+        val dim = (prefs.drawerDim.coerceIn(0,100) * 2.2f).toInt().coerceIn(0,220)
+        appDrawer.setBackgroundColor(Color.argb(dim, 0, 0, 0))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && prefs.drawerBlur > 0) {
+            val r = (prefs.drawerBlur.coerceIn(0,100) / 100f * 30f).coerceAtLeast(0.1f)
+            appDrawer.setRenderEffect(RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP))
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) appDrawer.setRenderEffect(null)
         appDrawer.alpha = 1f
         appDrawer.translationY = appDrawer.height.toFloat().takeIf { it > 0 } ?: 1400f
         appDrawer.isVisible = true
@@ -2786,6 +2850,7 @@ class MainActivity : AppCompatActivity() {
         appDrawer.animate().translationY(h).setDuration(220).withEndAction {
             appDrawer.isVisible = false
             appDrawer.translationY = 0f
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) appDrawer.setRenderEffect(null)
             if (::drawerSearch.isInitialized) drawerSearch.setText("")
             drawerAdapter.submit(allApps)
         }.start()
@@ -3321,6 +3386,7 @@ class MainActivity : AppCompatActivity() {
         dockBar.removeAllViews()
         dockBar.clipChildren = false
         dockBar.clipToPadding = false
+        dockBar.gravity = android.view.Gravity.CENTER
         val density = resources.displayMetrics.density
         val vertical = dockBar.orientation == LinearLayout.VERTICAL
         val landscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -3334,13 +3400,15 @@ class MainActivity : AppCompatActivity() {
             val icon = item.findViewById<ImageView>(R.id.appIcon)
             val label = item.findViewById<TextView>(R.id.appLabel)
             label.visibility = View.GONE
+            (item as? LinearLayout)?.gravity = android.view.Gravity.CENTER
             val lp = if (vertical) {
                 if (foldPortraitSide) LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (72 * density).toInt())
                 else LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
             } else if (compactBottom) {
-                LinearLayout.LayoutParams((64 * density).toInt(), (80 * density).toInt())
+                LinearLayout.LayoutParams((64 * density).toInt(), LinearLayout.LayoutParams.MATCH_PARENT)
             } else {
-                val itemWidth = ((resources.displayMetrics.widthPixels - density * 56) / slots).toInt()
+                val dockW = if (dockBar.width > 0) dockBar.width else (resources.displayMetrics.widthPixels - density * 56).toInt()
+                val itemWidth = (dockW / slots).coerceAtLeast((56*density).toInt())
                 LinearLayout.LayoutParams(itemWidth, LinearLayout.LayoutParams.MATCH_PARENT)
             }
             item.layoutParams = lp
@@ -4614,7 +4682,7 @@ class MainActivity : AppCompatActivity() {
             val rx = android.animation.ObjectAnimator.ofFloat(view, View.ROTATION_X, view.rotationX, 0f)
             val ry = android.animation.ObjectAnimator.ofFloat(view, View.ROTATION_Y, view.rotationY, 0f)
             val rz = android.animation.ObjectAnimator.ofFloat(view, View.ROTATION, view.rotation, 0f)
-            android.animation.AnimatorSet().apply { playTogether(rx, ry, rz); duration = 260; interpolator = DecelerateInterpolator(2f); start() }
+            android.animation.AnimatorSet().apply { playTogether(rx, ry, rz); duration = 340; interpolator = DecelerateInterpolator(2.4f); start() }
         }
         fun jellyWobble() {
             if (!prefs.liquidWobble || prefs.powerSaving) { settleTilt(); return }
@@ -4830,6 +4898,41 @@ class MainActivity : AppCompatActivity() {
                 bar.addView(v)
             }
         } catch (_: Exception) {}
+    }
+
+    private fun themePresetLabel(p: String) = when(p) { "iphone8" -> "iPhone 8 style"; "ios26" -> "iOS 26 style"; "ios18" -> "iOS 18 style"; else -> "Android style" }
+
+    private fun applyThemePreset(p: String) {
+        prefs.themePreset = p
+        when (p) {
+            "iphone8" -> {
+                prefs.dockRadius = 0; prefs.dockWidth = 100; prefs.dockHeight = 84; prefs.dockBg = "glass"; prefs.dockTransparency = 25
+                prefs.iconShape = "rounded"; prefs.drawerFolderRadius = 10
+            }
+            "ios26" -> {
+                prefs.dockRadius = 32; prefs.dockWidth = 92; prefs.dockHeight = 88; prefs.dockBg = "glass"; prefs.dockTransparency = 35
+                prefs.iconShape = "squircle"; prefs.drawerFolderRadius = 28; prefs.liquidGlass = true
+            }
+            "ios18" -> {
+                prefs.dockRadius = 28; prefs.dockWidth = 94; prefs.dockHeight = 84; prefs.dockBg = "blur"; prefs.dockTransparency = 30
+                prefs.iconShape = "squircle"; prefs.drawerFolderRadius = 24
+            }
+            else -> {
+                prefs.dockRadius = 28; prefs.dockWidth = 100; prefs.dockHeight = 92; prefs.dockBg = "blur"; prefs.dockTransparency = 40
+                prefs.iconShape = "circle"; prefs.drawerFolderRadius = 24; prefs.liquidGlass = false
+            }
+        }
+        findViewById<TextView?>(R.id.themePresetLabel)?.text = "Текущий: ${themePresetLabel(p)}"
+        applyDockStyle(); applyOrientationLayout(); renderDock(); renderCurrentPage(); updateDockPreview(); applyVisualStyle()
+    }
+
+    private fun showThemePresetPicker() {
+        val opts = arrayOf("iPhone 8 style", "iOS 26 style", "iOS 18 style", "Android style")
+        val vals = arrayOf("iphone8", "ios26", "ios18", "android")
+        val checked = vals.indexOf(prefs.themePreset).coerceAtLeast(0)
+        AlertDialog.Builder(this).setTitle("Выберите пресет").setSingleChoiceItems(opts, checked) { d, w ->
+            applyThemePreset(vals[w]); d.dismiss()
+        }.setNegativeButton("Отмена", null).show()
     }
 
     private fun applyVisualStyle() {
