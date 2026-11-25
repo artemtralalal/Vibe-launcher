@@ -50,6 +50,13 @@
                     android:padding="8dp" />
             </ScrollView>
 
+            <LinearLayout
+                android:id="@+id/widgetContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone" />
+
             <View
                 android:id="@+id/pageEdgeLeft"
                 android:layout_width="44dp"
@@ -398,7 +405,7 @@
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Рабочий стол и обои" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
             </LinearLayout>
-            <LinearLayout android:id="@+id/catRowIsland" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
+            <LinearLayout android:id="@+id/catRowIsland" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp" android:visibility="gone">
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Dynamic Island" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
             </LinearLayout>
