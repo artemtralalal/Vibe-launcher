@@ -197,6 +197,22 @@
         <TextView android:id="@+id/quickWidgets" android:layout_width="72dp" android:layout_height="wrap_content" android:gravity="center" android:padding="8dp" android:text="Виджеты" android:textColor="@color/white" android:textSize="12sp"/>
     </LinearLayout>
 
+    <LinearLayout
+        android:id="@+id/virtualStatusBar"
+        android:layout_width="match_parent"
+        android:layout_height="28dp"
+        android:layout_gravity="top"
+        android:background="#66000000"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:visibility="gone">
+        <TextView android:id="@+id/vsbLeft" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="12:00" android:textColor="@color/white" android:textSize="12sp"/>
+        <TextView android:id="@+id/vsbCenter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="" android:textColor="@color/white" android:textSize="12sp"/>
+        <TextView android:id="@+id/vsbRight" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="end" android:text="Wi-Fi  100%" android:textColor="@color/white" android:textSize="12sp"/>
+    </LinearLayout>
+
     <ImageButton
         android:id="@+id/settingsButton"
         android:layout_width="56dp"
@@ -250,6 +266,10 @@
 
             <LinearLayout android:id="@+id/catRowAppearance" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Внешний вид" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/catRowThemes" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Темы" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textColor="#99FFFFFF" android:textSize="22sp"/>
             </LinearLayout>
             <LinearLayout android:id="@+id/catRowAnimations" android:layout_width="match_parent" android:layout_height="64dp" android:background="@drawable/bg_settings_panel" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_marginBottom="10dp">
@@ -340,6 +360,13 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:padding="20dp">
+
+                    <LinearLayout android:id="@+id/catThemes" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Пресет темы" android:textColor="@color/white" android:textStyle="bold" android:textSize="18sp"/>
+                        <TextView android:id="@+id/themePresetLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Текущий: Android" android:textColor="#CCFFFFFF" android:layout_marginTop="6dp"/>
+                        <Button android:id="@+id/themePresetBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Выбрать пресет" android:layout_marginTop="8dp"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Пресеты меняют док, скругления, стиль меню и общий вид. Можно донастроить вручную после применения." android:textColor="#99FFFFFF" android:textSize="12sp" android:layout_marginTop="8dp"/>
+                    </LinearLayout>
 
                     <LinearLayout android:id="@+id/catAppearance" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/labelsSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Подписи иконок" android:textColor="@color/white" />
@@ -442,11 +469,11 @@
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/blurSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Расширенные текстуры" android:textColor="@color/white" />
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/dockHideSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Скрывать док при открытии/закрытии" android:textColor="@color/white" />
                         <Button android:id="@+id/dockHideStyleBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Стиль скрытия дока: Слайд" />
-                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/tiltSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="false" android:text="Эксперимент: наклон окон (iOS 26)" android:textColor="@color/white" />
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Интенсивность наклона" android:textColor="#CCFFFFFF"/>
-                        <SeekBar android:id="@+id/tiltIntensitySeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закругление окон" android:textColor="#CCFFFFFF"/>
-                        <SeekBar android:id="@+id/windowCornerSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="60"/>
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/tiltSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="false" android:text="Наклон окон" android:textColor="@color/white" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Интенсивность наклона" android:textColor="#CCFFFFFF" android:visibility="gone"/>
+                        <SeekBar android:id="@+id/tiltIntensitySeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" android:visibility="gone"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закругление окон" android:textColor="#CCFFFFFF" android:visibility="gone"/>
+                        <SeekBar android:id="@+id/windowCornerSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="60" android:visibility="gone"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Открытие: длительность" android:textColor="#CCFFFFFF" android:layout_marginTop="12dp"/>
                         <SeekBar android:id="@+id/openDurationSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="600"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закрытие: длительность" android:textColor="#CCFFFFFF"/>
@@ -511,6 +538,10 @@
                         </FrameLayout>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Масштаб дока" android:textColor="#CCFFFFFF"/>
                         <SeekBar android:id="@+id/dockScaleSeek2" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="70"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Ширина дока (%)" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/dockWidthSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="60"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Высота дока" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/dockHeightSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="84"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закругление дока" android:textColor="#CCFFFFFF"/>
                         <SeekBar android:id="@+id/dockRadiusSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="50"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Прозрачность фона дока" android:textColor="#CCFFFFFF"/>
@@ -540,6 +571,17 @@
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/aodSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Always On Display (AOD)" android:textColor="@color/white" />
                         <Button android:id="@+id/aodSettingsBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Настроить AOD" />
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="AOD требует разрешение «Поверх других окон» и работу в фоне. На некоторых устройствах поведение зависит от системы." android:textColor="#99FFFFFF" android:textSize="12sp"/>
+
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="Отступы экрана" android:textColor="@color/white" android:textStyle="bold"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сверху" android:textColor="#CCFFFFFF"/><SeekBar android:id="@+id/screenInsetTopSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Снизу" android:textColor="#CCFFFFFF"/><SeekBar android:id="@+id/screenInsetBottomSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Слева" android:textColor="#CCFFFFFF"/><SeekBar android:id="@+id/screenInsetLeftSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Справа" android:textColor="#CCFFFFFF"/><SeekBar android:id="@+id/screenInsetRightSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/virtualStatusSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Виртуальный статус-бар" android:textColor="@color/white"/>
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/vsbClockCenterSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Часы по центру" android:textColor="@color/white"/>
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/vsbBatteryPctSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Проценты батареи" android:textColor="@color/white"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Высота статус-бара" android:textColor="#CCFFFFFF"/><SeekBar android:id="@+id/vsbHeightSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="40"/>
                     </LinearLayout>
 
                     <LinearLayout android:id="@+id/catDrawer" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
@@ -547,6 +589,10 @@
                         <Button android:id="@+id/drawerStyleBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Стиль меню приложений" />
                         <TextView android:id="@+id/drawerLayoutLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Вид меню: сетка" android:textColor="@color/white" />
                         <Button android:id="@+id/drawerLayoutBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Вид меню приложений" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Размытие фона меню" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/drawerBlurSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Затемнение фона" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/drawerDimSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
                     </LinearLayout>
 
                     <LinearLayout android:id="@+id/catPower" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
