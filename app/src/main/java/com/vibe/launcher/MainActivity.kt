@@ -511,7 +511,7 @@ class MainActivity : AppCompatActivity() {
                 val q = s?.toString()?.trim()?.lowercase().orEmpty()
                 val filtered = if (q.isEmpty()) allApps else allApps.filter { it.label.lowercase().contains(q) }
                 drawerAdapter.submit(filtered)
-                val ios = prefs.drawerStyle == "ios"
+                val ios = (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")
                 val searching = q.isNotEmpty()
                 findViewById<View?>(R.id.iosLibraryContainer)?.isVisible = ios && !searching
                 findViewById<View?>(R.id.drawerListContainer)?.isVisible = !ios || searching
@@ -522,7 +522,7 @@ class MainActivity : AppCompatActivity() {
         drawerSearch.setOnFocusChangeListener { v, hasFocus ->
             if (hasFocus) {
                 v.animate().scaleX(1.02f).scaleY(1.02f).setDuration(180).start()
-                if (prefs.drawerStyle == "ios") {
+                if ((prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")) {
                     findViewById<View?>(R.id.iosLibraryContainer)?.animate()?.alpha(0f)?.translationY(40f)?.setDuration(180)?.withEndAction {
                         findViewById<View?>(R.id.iosLibraryContainer)?.isVisible = false
                         findViewById<View?>(R.id.iosLibraryContainer)?.alpha = 1f
@@ -532,7 +532,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } else {
                 v.animate().scaleX(1f).scaleY(1f).setDuration(180).start()
-                if (prefs.drawerStyle == "ios" && drawerSearch.text.isNullOrBlank()) {
+                if ((prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios") && drawerSearch.text.isNullOrBlank()) {
                     findViewById<View?>(R.id.drawerListContainer)?.isVisible = false
                     val lib = findViewById<View?>(R.id.iosLibraryContainer)
                     lib?.alpha = 0f; lib?.translationY = 40f; lib?.isVisible = true
@@ -666,7 +666,7 @@ class MainActivity : AppCompatActivity() {
         pageIndicator.removeAllViews()
         val count = pages.size.coerceAtLeast(1)
         val d = resources.displayMetrics.density
-        val showIos = prefs.drawerStyle == "ios"
+        val showIos = (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")
         val total = count + if (showIos) 1 else 0
         for (i in 0 until total) {
             val isIosDot = showIos && i == count
@@ -798,7 +798,7 @@ class MainActivity : AppCompatActivity() {
         }
         val next = currentPageIndex + delta
         if (next > pages.lastIndex) {
-            if (delta > 0 && prefs.drawerStyle == "ios") { showIosHomePage(animated = true) }
+            if (delta > 0 && (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")) { showIosHomePage(animated = true) }
             return
         }
         if (next < 0) return
@@ -2530,12 +2530,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateDrawerStyleLabel() {
-        val label = when (prefs.drawerStyle) { "button" -> "Кнопка в доке"; "ios" -> "iOS стиль"; else -> "Свайп вверх" }
+        val label = when (prefs.drawerStyle) { "button" -> "Кнопка в доке"; else -> "Свайп вверх" }
         findViewById<TextView?>(R.id.drawerStyleLabel)?.text = "Меню приложений: $label"
     }
 
     private fun showDrawerStylePicker() {
-        val opts = listOf("swipe" to "Свайп вверх", "button" to "Кнопка в доке", "ios" to "iOS стиль (библиотека)")
+        val opts = listOf("swipe" to "Свайп вверх", "button" to "Кнопка в доке")
         AlertDialog.Builder(this).setTitle("Стиль меню приложений")
             .setItems(opts.map { it.second }.toTypedArray()) { _, which ->
                 prefs.drawerStyle = opts[which].first
@@ -2546,24 +2546,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateDrawerLayoutLabel() {
-        val label = when (prefs.drawerLayout) { "list" -> "Список"; else -> "Сетка" }
+        val label = when (prefs.drawerLayout) { "list" -> "Список"; "ios" -> "iOS библиотека"; else -> "Сетка" }
         findViewById<TextView>(R.id.drawerLayoutLabel).text = "Вид меню: $label"
     }
 
     private fun showDrawerLayoutPicker() {
-        val opts = listOf("grid" to "Сетка", "list" to "Список")
+        val opts = listOf("grid" to "Сетка", "list" to "Список", "ios" to "iOS библиотека (справа, как страница)")
         AlertDialog.Builder(this).setTitle("Вид меню приложений")
             .setItems(opts.map { it.second }.toTypedArray()) { _, which ->
                 prefs.drawerLayout = opts[which].first
                 updateDrawerLayoutLabel()
                 applyDrawerLayout()
+                renderDock()
             }.show()
     }
 
     private fun showDrawerSettingsDialog() {
         val opts = arrayOf(
             if (prefs.drawerIpadMode) "Режим iPad: вкл" else "Режим iPad: выкл",
-            "Вид меню: ${if (prefs.drawerLayout == "list") "Список" else "Сетка"}",
+            "Вид меню: ${when (prefs.drawerLayout) { "list" -> "Список"; "ios" -> "iOS библиотека"; else -> "Сетка" }}",
             "Стиль открытия: ${if (prefs.drawerStyle == "button") "Кнопка" else "Свайп"}"
         )
         AlertDialog.Builder(this).setTitle("Настройки меню приложений")
@@ -2581,10 +2582,10 @@ class MainActivity : AppCompatActivity() {
         val cols = prefs.drawerGridCols.coerceIn(3,6)
         drawerRecycler.layoutManager = if (prefs.drawerLayout == "list") LinearLayoutManager(this) else GridLayoutManager(this, cols)
         drawerRecycler.adapter = drawerAdapter
-        val ios = prefs.drawerStyle == "ios"
-        findViewById<View?>(R.id.iosLibraryContainer)?.isVisible = ios && (drawerSearch.text?.isBlank() != false)
-        findViewById<View?>(R.id.drawerListContainer)?.isVisible = !ios || (drawerSearch.text?.isNotBlank() == true)
-        if (ios) buildIosLibrary()
+        val iosDrawer = prefs.drawerStyle == "ios" && prefs.drawerLayout != "ios"
+        findViewById<View?>(R.id.iosLibraryContainer)?.isVisible = iosDrawer && (drawerSearch.text?.isBlank() != false)
+        findViewById<View?>(R.id.drawerListContainer)?.isVisible = !iosDrawer || (drawerSearch.text?.isNotBlank() == true)
+        if (iosDrawer) buildIosLibrary()
     }
 
     private fun updateLandDockLabel() {
@@ -2838,7 +2839,7 @@ class MainActivity : AppCompatActivity() {
                 val dy = e2.y - e1.y
                 val dx = e2.x - e1.x
                 if (abs(dy) > abs(dx) && dy < -120 && abs(velocityY) > 200) {
-                    if (!appDrawer.isVisible && !settingsOverlay.isVisible && prefs.drawerStyle != "button" && prefs.drawerStyle != "ios") { openDrawer(); return true }
+                    if (!appDrawer.isVisible && !settingsOverlay.isVisible && prefs.drawerStyle != "button" && prefs.drawerStyle != "ios" && prefs.drawerLayout != "ios") { openDrawer(); return true }
                 }
                 if (abs(dy) > abs(dx) && dy > 120 && abs(velocityY) > 200) {
                     if (appDrawer.isVisible) {
@@ -3820,15 +3821,9 @@ class MainActivity : AppCompatActivity() {
             dockBar.addView(ph, 0)
         }
         val drawerBtn = findViewById<ImageButton>(R.id.drawerBtn)
-        drawerBtn.isVisible = (prefs.drawerStyle == "button" || prefs.drawerStyle == "ios") && !ipad
+        drawerBtn.isVisible = prefs.drawerStyle == "button" && !ipad
         drawerBtn.setColorFilter(prefs.accentColor)
-        drawerBtn.setOnClickListener {
-            when {
-                appDrawer.isVisible -> closeDrawer()
-                prefs.drawerStyle == "ios" -> if (iosPageVisible) hideIosHomePage(true) else showIosHomePage(true)
-                else -> openDrawer()
-            }
-        }
+        drawerBtn.setOnClickListener { if (appDrawer.isVisible) closeDrawer() else openDrawer() }
     }
 
     private fun loadFoldersFromPrefs() {
