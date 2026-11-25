@@ -3759,10 +3759,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handlePackageChange(pkg: String, action: String) {
-        try { loadApps() } catch (_: Exception) {}
+        try { loadApps(addMissingToHome = action == Intent.ACTION_PACKAGE_ADDED) } catch (_: Exception) {}
     }
 
-    private fun loadApps() {
+    private fun loadApps(addMissingToHome: Boolean = false) {
         val pack = prefs.iconPackPackage
         Thread {
             try {
@@ -3813,14 +3813,16 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                             if (pages.isEmpty()) pages.add(newPage())
-                            val missing = apps.filter { it.key !in used }
-                            for (app in missing) {
-                                var placed = false
-                                for (p in pages) {
-                                    val idx = p.indexOfFirst { it == null }
-                                    if (idx >= 0) { p[idx] = app; used.add(app.key); placed = true; break }
+                            if (addMissingToHome) {
+                                val missing = apps.filter { it.key !in used }
+                                for (app in missing) {
+                                    var placed = false
+                                    for (p in pages) {
+                                        val idx = p.indexOfFirst { it == null }
+                                        if (idx >= 0) { p[idx] = app; used.add(app.key); placed = true; break }
+                                    }
+                                    if (!placed) { val np = newPage(); np[0] = app; pages.add(np); used.add(app.key) }
                                 }
-                                if (!placed) { val np = newPage(); np[0] = app; pages.add(np); used.add(app.key) }
                             }
                             while (pages.size > 1 && pages.last().all { it == null }) pages.removeAt(pages.lastIndex)
                             currentPageIndex = prefs.currentPage.coerceIn(0, pages.lastIndex)
