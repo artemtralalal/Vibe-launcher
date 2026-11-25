@@ -21,7 +21,9 @@ class AppGridAdapter(
     private val cornerRadii: () -> FloatArray? = { null },
     private val iconScale: () -> Int = { 100 },
     private val iconTintMode: () -> String = { "default" },
-    private val iconTintColor: () -> Int = { 0xFFFFFFFF.toInt() }
+    private val iconTintColor: () -> Int = { 0xFFFFFFFF.toInt() },
+    private val tiltEnabled: () -> Boolean = { false },
+    private val tiltIntensity: () -> Int = { 50 }
 ) : RecyclerView.Adapter<AppGridAdapter.VH>() {
 
     var pageSize: Int = 24
@@ -136,6 +138,8 @@ class AppGridAdapter(
             holder.icon.clearColorFilter()
             holder.label.text = ""
             holder.label.visibility = View.GONE
+            holder.itemView.rotationX = 0f; holder.itemView.rotationY = 0f; holder.itemView.rotation = 0f
+            holder.itemView.setOnTouchListener(null)
             holder.itemView.setOnClickListener { }
             holder.itemView.setOnLongClickListener { onEmptyLongPress(); true }
             return
@@ -151,11 +155,32 @@ class AppGridAdapter(
         holder.label.text = item.label
         holder.label.visibility = if (showLabels()) View.VISIBLE else View.GONE
         applyShape(holder.icon, shape(), cornerRadii())
+        attachTilt(holder.itemView, tiltEnabled, tiltIntensity)
         holder.itemView.setOnClickListener { onClick(item, holder.icon) }
         holder.itemView.setOnLongClickListener { onLongPressDrag(item, holder.itemView) }
     }
 
     companion object {
+        fun attachTilt(view: View, enabled: () -> Boolean, intensity: () -> Int) {
+            view.setOnTouchListener { v, e ->
+                if (!enabled()) { v.rotationX = 0f; v.rotationY = 0f; return@setOnTouchListener false }
+                val max = (intensity().coerceIn(0,100) / 100f) * 12f
+                when (e.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_MOVE -> {
+                        val cx = v.width / 2f; val cy = v.height / 2f
+                        val dx = (e.x - cx) / cx.coerceAtLeast(1f)
+                        val dy = (e.y - cy) / cy.coerceAtLeast(1f)
+                        v.rotationY = dx * max
+                        v.rotationX = -dy * max
+                        v.cameraDistance = v.resources.displayMetrics.density * 8000f
+                    }
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                        v.animate().rotationX(0f).rotationY(0f).setDuration(220).setInterpolator(android.view.animation.DecelerateInterpolator(2f)).start()
+                    }
+                }
+                false
+            }
+        }
         fun applyIconTint(icon: ImageView, mode: String, color: Int) {
             when (mode) {
                 "light" -> { icon.alpha = 1f; icon.setColorFilter(0xFFFFFFFF.toInt(), android.graphics.PorterDuff.Mode.SRC_ATOP) }
