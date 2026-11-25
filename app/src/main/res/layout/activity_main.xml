@@ -499,7 +499,7 @@
                     </LinearLayout>
 
                     <LinearLayout android:id="@+id/catAnimations" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
-                        <Button android:id="@+id/newAnimStudioBtn" android:layout_width="match_parent" android:layout_height="52dp" android:text="Новые анимации" android:textAllCaps="false" android:textStyle="bold" android:textColor="#FF111827" android:background="@drawable/bg_new_anim_btn" android:layout_marginBottom="8dp"/>
+                        <Button android:id="@+id/newAnimStudioBtn" android:layout_width="match_parent" android:layout_height="52dp" android:text="Новые анимации" android:textAllCaps="false" android:textStyle="bold" android:textColor="#FF111827" android:background="@drawable/bg_new_anim_btn" android:layout_marginBottom="8dp" android:visibility="gone"/>
                         <LinearLayout android:id="@+id/animStudioBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone" android:background="@drawable/bg_anim_grid" android:padding="10dp">
                             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Прилёт и улёт иконок" android:textColor="@color/white" android:textStyle="bold" android:textSize="22sp"/>
                             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Редактор перспективы, точек нажатия, углов и траектории" android:textColor="#CCFFFFFF" android:textSize="12sp" android:layout_marginBottom="8dp"/>
@@ -560,8 +560,8 @@
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/dockHideSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="true" android:text="Скрывать док при открытии/закрытии" android:textColor="@color/white" />
                         <Button android:id="@+id/dockHideStyleBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Стиль скрытия дока: Слайд" />
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/tiltSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:checked="false" android:text="Наклон окон" android:textColor="@color/white" />
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Интенсивность наклона" android:textColor="#CCFFFFFF" android:visibility="gone"/>
-                        <SeekBar android:id="@+id/tiltIntensitySeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" android:visibility="gone"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Интенсивность наклона" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/tiltIntensitySeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закругление окон" android:textColor="#CCFFFFFF" android:visibility="gone"/>
                         <SeekBar android:id="@+id/windowCornerSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="60" android:visibility="gone"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Открытие: длительность" android:textColor="#CCFFFFFF" android:layout_marginTop="12dp"/>
@@ -577,22 +577,22 @@
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Отскок при закрытии" android:textColor="#CCFFFFFF"/>
                         <SeekBar android:id="@+id/overshootSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="150"/>
 
-                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/newCloseAnimSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Новые анимации закрытия" android:textColor="@color/white" />
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сила закрытия" android:textColor="#CCFFFFFF"/>
-                        <SeekBar android:id="@+id/closeStrengthSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
-                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/closeRandomSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Рандом силы закрытия" android:textColor="@color/white" />
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Масштаб значка при закрытии (только уменьшение)" android:textColor="#CCFFFFFF"/>
-                        <SeekBar android:id="@+id/closeIconScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="50"/>
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/newCloseAnimSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Новые анимации закрытия" android:textColor="@color/white" android:visibility="gone"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сила закрытия" android:textColor="#CCFFFFFF" android:visibility="gone"/>
+                        <SeekBar android:id="@+id/closeStrengthSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" android:visibility="gone"/>
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/closeRandomSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Рандом силы закрытия" android:textColor="@color/white" android:visibility="gone"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Масштаб значка при закрытии (только уменьшение)" android:textColor="#CCFFFFFF" android:visibility="gone"/>
+                        <SeekBar android:id="@+id/closeIconScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="50" android:visibility="gone"/>
 
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Зум при открытии/закрытии приложения" android:textColor="@color/white" android:textStyle="bold"/>
-                        <Button android:id="@+id/openZoomModeBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Открытие: без зума" />
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сила зума открытия" android:textColor="#CCFFFFFF"/>
-                        <SeekBar android:id="@+id/openZoomAmountSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Скорость зума открытия" android:textColor="#CCFFFFFF"/>
-                        <SeekBar android:id="@+id/openZoomSpeedSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="180"/>
-                        <Button android:id="@+id/closeZoomModeBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закрытие: без зума" />
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сила зума закрытия" android:textColor="#CCFFFFFF"/>
-                        <SeekBar android:id="@+id/closeZoomAmountSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Зум при открытии/закрытии приложения" android:textColor="@color/white" android:textStyle="bold" android:visibility="gone"/>
+                        <Button android:id="@+id/openZoomModeBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Открытие: без зума" android:visibility="gone"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сила зума открытия" android:textColor="#CCFFFFFF" android:visibility="gone"/>
+                        <SeekBar android:id="@+id/openZoomAmountSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" android:visibility="gone"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Скорость зума открытия" android:textColor="#CCFFFFFF" android:visibility="gone"/>
+                        <SeekBar android:id="@+id/openZoomSpeedSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="180" android:visibility="gone"/>
+                        <Button android:id="@+id/closeZoomModeBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Закрытие: без зума" android:visibility="gone"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Сила зума закрытия" android:textColor="#CCFFFFFF" android:visibility="gone"/>
+                        <SeekBar android:id="@+id/closeZoomAmountSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" android:visibility="gone"/>
 
                         <TextView android:id="@+id/unlockAnimLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Анимация разблокировки: Pixel" android:textColor="@color/white" />
                         <Button android:id="@+id/unlockAnimBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Анимация разблокировки" />
