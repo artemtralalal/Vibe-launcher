@@ -502,9 +502,36 @@ class MainActivity : AppCompatActivity() {
                 val q = s?.toString()?.trim()?.lowercase().orEmpty()
                 val filtered = if (q.isEmpty()) allApps else allApps.filter { it.label.lowercase().contains(q) }
                 drawerAdapter.submit(filtered)
+                val ios = prefs.drawerStyle == "ios"
+                val searching = q.isNotEmpty()
+                findViewById<View?>(R.id.iosLibraryContainer)?.isVisible = ios && !searching
+                findViewById<View?>(R.id.drawerListContainer)?.isVisible = !ios || searching
+                if (ios && !searching) buildIosLibrary()
             }
             override fun afterTextChanged(s: android.text.Editable?) {}
         })
+        drawerSearch.setOnFocusChangeListener { v, hasFocus ->
+            if (hasFocus) {
+                v.animate().scaleX(1.02f).scaleY(1.02f).setDuration(180).start()
+                if (prefs.drawerStyle == "ios") {
+                    findViewById<View?>(R.id.iosLibraryContainer)?.animate()?.alpha(0f)?.translationY(40f)?.setDuration(180)?.withEndAction {
+                        findViewById<View?>(R.id.iosLibraryContainer)?.isVisible = false
+                        findViewById<View?>(R.id.iosLibraryContainer)?.alpha = 1f
+                        findViewById<View?>(R.id.iosLibraryContainer)?.translationY = 0f
+                    }?.start()
+                    findViewById<View?>(R.id.drawerListContainer)?.apply { alpha = 0f; translationY = 40f; isVisible = true; animate().alpha(1f).translationY(0f).setDuration(220).start() }
+                }
+            } else {
+                v.animate().scaleX(1f).scaleY(1f).setDuration(180).start()
+                if (prefs.drawerStyle == "ios" && drawerSearch.text.isNullOrBlank()) {
+                    findViewById<View?>(R.id.drawerListContainer)?.isVisible = false
+                    val lib = findViewById<View?>(R.id.iosLibraryContainer)
+                    lib?.alpha = 0f; lib?.translationY = 40f; lib?.isVisible = true
+                    lib?.animate()?.alpha(1f)?.translationY(0f)?.setDuration(220)?.start()
+                    buildIosLibrary()
+                }
+            }
+        }
     }
 
     private var dockMoveMode = false
@@ -2497,6 +2524,10 @@ class MainActivity : AppCompatActivity() {
         val cols = prefs.drawerGridCols.coerceIn(3,6)
         drawerRecycler.layoutManager = if (prefs.drawerLayout == "list") LinearLayoutManager(this) else GridLayoutManager(this, cols)
         drawerRecycler.adapter = drawerAdapter
+        val ios = prefs.drawerStyle == "ios"
+        findViewById<View?>(R.id.iosLibraryContainer)?.isVisible = ios && (drawerSearch.text?.isBlank() != false)
+        findViewById<View?>(R.id.drawerListContainer)?.isVisible = !ios || (drawerSearch.text?.isNotBlank() == true)
+        if (ios) buildIosLibrary()
     }
 
     private fun updateLandDockLabel() {
@@ -2878,6 +2909,79 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
+    }
+
+    private fun drawerCategoryFor(app: AppEntry): String {
+        val p = app.packageName.lowercase(); val l = app.label.lowercase()
+        return when {
+            listOf("music","spotify","ytmusic","sound","audio","deezer").any { p.contains(it) || l.contains(it) } -> "Музыка"
+            listOf("video","youtube","netflix","tv","player","kino").any { p.contains(it) || l.contains(it) } -> "Видео"
+            listOf("game","play.games","pubg","roblox","minecraft").any { p.contains(it) || l.contains(it) } -> "Игры"
+            listOf("whats","telegram","chat","messag","insta","vk","tiktok","social").any { p.contains(it) || l.contains(it) } -> "Соцсети"
+            else -> "Другое"
+        }
+    }
+
+    private fun buildIosLibrary() {
+        val grid = findViewById<LinearLayout?>(R.id.iosLibraryGrid) ?: return
+        grid.removeAllViews()
+        val cats = linkedMapOf("Музыка" to mutableListOf<AppEntry>(), "Видео" to mutableListOf(), "Игры" to mutableListOf(), "Соцсети" to mutableListOf(), "Другое" to mutableListOf())
+        allApps.forEach { cats[drawerCategoryFor(it)]?.add(it) }
+        val entries = cats.entries.toList()
+        val d = resources.displayMetrics.density
+        val radius = prefs.drawerFolderRadius.coerceIn(0,40) * d
+        for (i in entries.indices step 2) {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            for (j in 0..1) {
+                val idx = i + j
+                val card = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = radius; setColor(0x33FFFFFF); setStroke((1*d).toInt(), 0x44FFFFFF) }
+                    setPadding((10*d).toInt(), (10*d).toInt(), (10*d).toInt(), (10*d).toInt())
+                }
+                val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                lp.setMargins((6*d).toInt(), (6*d).toInt(), (6*d).toInt(), (6*d).toInt())
+                card.layoutParams = lp
+                if (idx < entries.size) {
+                    val (name, apps) = entries[idx]
+                    val title = TextView(this).apply { text = name; setTextColor(Color.WHITE); textSize = 14f; setTypeface(typeface, android.graphics.Typeface.BOLD) }
+                    val mini = android.widget.GridLayout(this).apply { columnCount = 2; rowCount = 2 }
+                    apps.take(4).forEach { a ->
+                        val iv = ImageView(this)
+                        val s = (44*d).toInt()
+                        val mlp = android.widget.GridLayout.LayoutParams().apply { width = s; height = s; setMargins((4*d).toInt(),(4*d).toInt(),(4*d).toInt(),(4*d).toInt()) }
+                        iv.layoutParams = mlp
+                        iv.setImageDrawable(a.icon)
+                        mini.addView(iv)
+                    }
+                    card.addView(title); card.addView(mini)
+                    card.setOnClickListener { showIosCategoryFolder(name, apps) }
+                } else {
+                    card.alpha = 0f
+                }
+                row.addView(card)
+            }
+            grid.addView(row)
+        }
+    }
+
+    private fun showIosCategoryFolder(name: String, apps: List<AppEntry>) {
+        val d = resources.displayMetrics.density
+        val scroll = ScrollView(this)
+        val cont = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding((16*d).toInt(),(16*d).toInt(),(16*d).toInt(),(16*d).toInt()) }
+        val title = TextView(this).apply { text = name; setTextColor(Color.WHITE); textSize = 22f; setTypeface(typeface, android.graphics.Typeface.BOLD) }
+        cont.addView(title)
+        val g = android.widget.GridLayout(this).apply { columnCount = prefs.drawerGridCols.coerceIn(3,6) }
+        apps.forEach { app ->
+            val item = layoutInflater.inflate(R.layout.item_app, g, false)
+            val icon = item.findViewById<ImageView>(R.id.appIcon)
+            val label = item.findViewById<TextView>(R.id.appLabel)
+            icon.setImageDrawable(app.icon); label.text = app.label; label.isVisible = prefs.showLabels
+            item.setOnClickListener { launchApp(app, icon, fromDrawer = true) }
+            g.addView(item)
+        }
+        cont.addView(g); scroll.addView(cont)
+        AlertDialog.Builder(this).setView(scroll).setNegativeButton("Закрыть", null).show()
     }
 
     private fun openDrawer() {
