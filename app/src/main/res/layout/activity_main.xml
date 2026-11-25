@@ -298,6 +298,11 @@
         <TextView android:id="@+id/vsbRight" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="end" android:text="Wi-Fi  100%" android:textColor="@color/white" android:textSize="12sp"/>
     </LinearLayout>
 
+    <View android:id="@+id/insetBarTop" android:layout_width="match_parent" android:layout_height="0dp" android:layout_gravity="top" android:background="#FF000000" android:visibility="gone"/>
+    <View android:id="@+id/insetBarBottom" android:layout_width="match_parent" android:layout_height="0dp" android:layout_gravity="bottom" android:background="#FF000000" android:visibility="gone"/>
+    <View android:id="@+id/insetBarLeft" android:layout_width="0dp" android:layout_height="match_parent" android:layout_gravity="start" android:background="#FF000000" android:visibility="gone"/>
+    <View android:id="@+id/insetBarRight" android:layout_width="0dp" android:layout_height="match_parent" android:layout_gravity="end" android:background="#FF000000" android:visibility="gone"/>
+
     <ImageButton
         android:id="@+id/settingsButton"
         android:layout_width="56dp"
@@ -611,6 +616,10 @@
                         <SeekBar android:id="@+id/landPadSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="40"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Горизонт.: масштаб иконок" android:textColor="#CCFFFFFF"/>
                         <SeekBar android:id="@+id/landScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="60"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Отступ иконок сверху" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
+                        <SeekBar android:id="@+id/gridTopPadSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Отступ иконок снизу" android:textColor="#CCFFFFFF"/>
+                        <SeekBar android:id="@+id/gridBottomPadSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
                     </LinearLayout>
 
                     <LinearLayout android:id="@+id/catDock" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
@@ -668,6 +677,8 @@
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/vsbClockCenterSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Часы по центру" android:textColor="@color/white"/>
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/vsbBatteryPctSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Проценты батареи" android:textColor="@color/white"/>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Высота статус-бара" android:textColor="#CCFFFFFF"/><SeekBar android:id="@+id/vsbHeightSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="40"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Смещение статус-бара X" android:textColor="#CCFFFFFF"/><SeekBar android:id="@+id/vsbOffsetXSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="400"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Смещение статус-бара Y" android:textColor="#CCFFFFFF"/><SeekBar android:id="@+id/vsbOffsetYSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="400"/>
                     </LinearLayout>
 
                     <LinearLayout android:id="@+id/catDrawer" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
