@@ -73,6 +73,16 @@ class MainActivity : AppCompatActivity() {
     private var iosFolderOpen: String? = null
     private var iosJiggleMode = false
     private var iosPageVisible = false
+    private val packageReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val action = intent?.action ?: return
+            if (action == Intent.ACTION_PACKAGE_ADDED || action == Intent.ACTION_PACKAGE_REMOVED || action == Intent.ACTION_PACKAGE_REPLACED) {
+                val pkg = intent.data?.schemeSpecificPart ?: return
+                if (intent.getBooleanExtra(Intent.EXTRA_REPLACING, false) && action == Intent.ACTION_PACKAGE_REMOVED) return
+                handlePackageChange(pkg, action)
+            }
+        }
+    }
     private lateinit var iconPackManager: IconPackManager
 
     private val allApps = mutableListOf<AppEntry>()
@@ -261,6 +271,10 @@ class MainActivity : AppCompatActivity() {
         try { registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT)) } catch (_: Exception) {}
         try { registerReceiver(screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF)) } catch (_: Exception) {}
         try { registerReceiver(volumeReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) } catch (_: Exception) {}
+        try {
+            val pf = IntentFilter().apply { addAction(Intent.ACTION_PACKAGE_ADDED); addAction(Intent.ACTION_PACKAGE_REMOVED); addAction(Intent.ACTION_PACKAGE_REPLACED); addDataScheme("package") }
+            registerReceiver(packageReceiver, pf)
+        } catch (_: Exception) {}
         try {
             val f = IntentFilter("com.vibe.launcher.ISLAND_EVENT")
             if (Build.VERSION.SDK_INT >= 33) registerReceiver(islandReceiver, f, Context.RECEIVER_NOT_EXPORTED) else registerReceiver(islandReceiver, f)
@@ -474,7 +488,9 @@ class MainActivity : AppCompatActivity() {
             cornerRadii = { currentCornerRadii() },
             iconScale = { prefs.iconScale },
             iconTintMode = { prefs.iconTintMode },
-            iconTintColor = { prefs.iconTintColor }
+            iconTintColor = { prefs.iconTintColor },
+            tiltEnabled = { prefs.tiltAnimation },
+            tiltIntensity = { prefs.tiltIntensity }
         )
         gridRecycler.layoutManager = GridLayoutManager(this, prefs.portraitGridCols.coerceIn(3, 7))
         gridRecycler.adapter = gridAdapter
@@ -504,7 +520,9 @@ class MainActivity : AppCompatActivity() {
             cornerRadii = { currentCornerRadii() },
             iconScale = { prefs.iconScale },
             iconTintMode = { prefs.iconTintMode },
-            iconTintColor = { prefs.iconTintColor }
+            iconTintColor = { prefs.iconTintColor },
+            tiltEnabled = { prefs.tiltAnimation },
+            tiltIntensity = { prefs.tiltIntensity }
         )
         drawerRecycler.adapter = drawerAdapter
         applyDrawerLayout()
@@ -657,7 +675,7 @@ class MainActivity : AppCompatActivity() {
     private fun renderCurrentPage() {
         ensurePages()
         currentPageIndex = currentPageIndex.coerceIn(0, pages.lastIndex)
-        if (prefs.drawerStyle != "ios") iosPageVisible = false
+        if (!(prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")) iosPageVisible = false
         if (!iosPageVisible) {
             findViewById<View?>(R.id.iosHomeLibrary)?.isVisible = false
             gridRecycler.isVisible = true
@@ -763,7 +781,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showIosHomePage(animated: Boolean = true) {
-        if (prefs.drawerStyle != "ios") return
+        if (!(prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")) return
         buildIosHomeLibrary()
         val lib = findViewById<View>(R.id.iosHomeLibrary)
         val w = findViewById<FrameLayout>(R.id.workspaceContainer).width.toFloat().coerceAtLeast(1f)
@@ -803,11 +821,10 @@ class MainActivity : AppCompatActivity() {
             if (delta < 0) { hideIosHomePage(animated = true) }
             return
         }
+        val iosMode = (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")
+        if (delta > 0 && iosMode && currentPageIndex == 1) { showIosHomePage(animated = true); return }
         val next = currentPageIndex + delta
-        if (next > pages.lastIndex) {
-            if (delta > 0 && (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")) { showIosHomePage(animated = true) }
-            return
-        }
+        if (next > pages.lastIndex) return
         if (next < 0) return
         val w = gridRecycler.width.toFloat().coerceAtLeast(1f)
         val outX = if (delta > 0) -w else w
@@ -2930,7 +2947,7 @@ class MainActivity : AppCompatActivity() {
                 if (pageDragActive) {
                     pageDragDx = dx
                     val canLeft = if (iosPageVisible) true else currentPageIndex > 0
-                    val canRight = if (iosPageVisible) false else (currentPageIndex < pages.lastIndex || (iosMode && currentPageIndex == pages.lastIndex))
+                    val canRight = if (iosPageVisible) false else (currentPageIndex < pages.lastIndex || (iosMode && currentPageIndex == 1))
                     val resisted = when {
                         dx > 0 && !canLeft -> dx * 0.2f
                         dx < 0 && !canRight -> dx * 0.2f
@@ -2959,8 +2976,8 @@ class MainActivity : AppCompatActivity() {
             pageDragDx = 0f
             return
         }
-        val goNext = dx < -threshold && currentPageIndex < pages.lastIndex
-        val goToIos = dx < -threshold && iosMode && currentPageIndex == pages.lastIndex
+        val goToIos = dx < -threshold && iosMode && currentPageIndex == 1
+        val goNext = dx < -threshold && currentPageIndex < pages.lastIndex && !goToIos
         val goPrev = dx > threshold && currentPageIndex > 0
         when {
             goToIos -> showIosHomePage(true)
@@ -3604,27 +3621,27 @@ class MainActivity : AppCompatActivity() {
     private fun animateShatter(target: View, onEnd: () -> Unit) {
         try {
             val bmp = target.drawToBitmap()
-            val loc = IntArray(2)
-            target.getLocationOnScreen(loc)
-            val rootLoc = IntArray(2)
-            root.getLocationOnScreen(rootLoc)
+            val loc = IntArray(2); target.getLocationOnScreen(loc)
+            val rootLoc = IntArray(2); root.getLocationOnScreen(rootLoc)
             val left = loc[0] - rootLoc[0]
             val top = loc[1] - rootLoc[1]
-            val cols: Int = 3
-            val rows: Int = 3
-            val pw: Int = bmp.width / cols
-            val ph: Int = bmp.height / rows
+            val cols = 8; val rows = 8
+            val pw = (bmp.width / cols).coerceAtLeast(1)
+            val ph = (bmp.height / rows).coerceAtLeast(1)
             val pieces = mutableListOf<View>()
+            val cx = left + bmp.width / 2f
+            val cy = top + bmp.height / 2f
             for (r in 0 until rows) {
                 for (c in 0 until cols) {
-                    val px: Int = c * pw
-                    val py: Int = r * ph
-                    val pieceBmp = android.graphics.Bitmap.createBitmap(bmp, px, py, pw, ph)
+                    val px = c * pw; val py = r * ph
+                    val w = if (c == cols - 1) bmp.width - px else pw
+                    val h = if (r == rows - 1) bmp.height - py else ph
+                    if (w <= 0 || h <= 0) continue
+                    val pieceBmp = android.graphics.Bitmap.createBitmap(bmp, px, py, w, h)
                     val iv = ImageView(this)
                     iv.setImageBitmap(pieceBmp)
-                    iv.x = (left + px).toFloat()
-                    iv.y = (top + py).toFloat()
-                    iv.layoutParams = FrameLayout.LayoutParams(pw, ph)
+                    iv.x = (left + px).toFloat(); iv.y = (top + py).toFloat()
+                    iv.layoutParams = FrameLayout.LayoutParams(w, h)
                     root.addView(iv)
                     pieces.add(iv)
                 }
@@ -3632,17 +3649,41 @@ class MainActivity : AppCompatActivity() {
             target.alpha = 0f
             val rnd = java.util.Random()
             pieces.forEach { p ->
-                val dx = (rnd.nextFloat() - 0.5f) * 280f
-                val dy = (rnd.nextFloat() - 0.2f) * 320f
-                val rot = (rnd.nextFloat() - 0.5f) * 180f
+                val pcx = p.x + p.width / 2f; val pcy = p.y + p.height / 2f
+                val vx = pcx - cx; val vy = pcy - cy
+                val base = (rnd.nextFloat() * 180f + 80f)
+                val dx = vx * 0.6f + (rnd.nextFloat() - 0.5f) * base
+                val dy = vy * 0.6f + (rnd.nextFloat() - 0.3f) * base
+                val rot = (rnd.nextFloat() - 0.5f) * 360f
                 p.animate().translationXBy(dx).translationYBy(dy).rotationBy(rot)
-                    .alpha(0f).scaleX(0.3f).scaleY(0.3f).setDuration(320)
-                    .setInterpolator(DecelerateInterpolator(1.5f)).start()
+                    .alpha(0f).scaleX(0.15f).scaleY(0.15f).setDuration(380)
+                    .setInterpolator(DecelerateInterpolator(1.2f)).start()
+            }
+            // recoil nearby icons
+            val allViews = mutableListOf<View>()
+            for (i in 0 until gridRecycler.childCount) gridRecycler.getChildAt(i)?.let { allViews.add(it) }
+            for (i in 0 until dockBar.childCount) dockBar.getChildAt(i)?.let { allViews.add(it) }
+            val tLoc = IntArray(2); target.getLocationOnScreen(tLoc)
+            val tcx = tLoc[0] + target.width / 2f; val tcy = tLoc[1] + target.height / 2f
+            allViews.forEach { v ->
+                if (v === target) return@forEach
+                val vl = IntArray(2); v.getLocationOnScreen(vl)
+                val vcx = vl[0] + v.width / 2f; val vcy = vl[1] + v.height / 2f
+                val ddx = vcx - tcx; val ddy = vcy - tcy
+                val dist = kotlin.math.sqrt(ddx*ddx + ddy*ddy)
+                if (dist < 280f * resources.displayMetrics.density) {
+                    val push = ((1f - dist / (280f * resources.displayMetrics.density)) * 10f * resources.displayMetrics.density)
+                    val nx = if (kotlin.math.abs(ddx) > kotlin.math.abs(ddy)) (if (ddx > 0) push else -push) else 0f
+                    val ny = if (kotlin.math.abs(ddy) >= kotlin.math.abs(ddx)) (if (ddy > 0) push else -push) else 0f
+                    v.animate().translationXBy(nx).translationYBy(ny).setDuration(90).withEndAction {
+                        v.animate().translationX(0f).translationY(0f).setDuration(180).setInterpolator(DecelerateInterpolator(2f)).start()
+                    }.start()
+                }
             }
             root.postDelayed({
                 pieces.forEach { try { root.removeView(it) } catch (_: Exception) {} }
                 onEnd()
-            }, 340)
+            }, 400)
         } catch (_: Exception) { onEnd() }
     }
 
@@ -3716,6 +3757,18 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) { fallback }
     }
 
+    private fun handlePackageChange(pkg: String, action: String) {
+        try { loadApps() } catch (_: Exception) {}
+    }
+
+    override fun onDestroy() {
+        try { unregisterReceiver(packageReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(unlockReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(screenOffReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(volumeReceiver) } catch (_: Exception) {}
+        super.onDestroy()
+    }
+
     private fun loadApps() {
         val pack = prefs.iconPackPackage
         Thread {
@@ -3767,6 +3820,15 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                             if (pages.isEmpty()) pages.add(newPage())
+                            val missing = apps.filter { it.key !in used }
+                            for (app in missing) {
+                                var placed = false
+                                for (p in pages) {
+                                    val idx = p.indexOfFirst { it == null }
+                                    if (idx >= 0) { p[idx] = app; used.add(app.key); placed = true; break }
+                                }
+                                if (!placed) { val np = newPage(); np[0] = app; pages.add(np); used.add(app.key) }
+                            }
                             while (pages.size > 1 && pages.last().all { it == null }) pages.removeAt(pages.lastIndex)
                             currentPageIndex = prefs.currentPage.coerceIn(0, pages.lastIndex)
                             renderCurrentPage()
@@ -3843,6 +3905,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 item.setOnDragListener { _, event -> handleDockSlotDrag(i, event) }
             }
+            AppGridAdapter.attachTilt(item, { prefs.tiltAnimation }, { prefs.tiltIntensity })
             dockBar.addView(item)
         }
         val isEmptyDock = dockApps.all { it == null }
@@ -4223,7 +4286,13 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             addOption("Удалить с телефона", danger = true) {
-                try { startActivity(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${app.packageName}"))) } catch (_: Exception) { }
+                try {
+                    val uri = android.net.Uri.parse("package:${app.packageName}")
+                    val i = Intent(Intent.ACTION_DELETE, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(i)
+                } catch (e: Exception) {
+                    try { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:${app.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) { }
+                }
             }
         }
 
