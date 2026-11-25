@@ -1261,6 +1261,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.drawerLayoutBtn).setOnClickListener { showDrawerLayoutPicker() }
         bindSeek(findViewById(R.id.drawerBlurSeek), prefs.drawerBlur, 0, 100) { prefs.drawerBlur = it }
         bindSeek(findViewById(R.id.drawerDimSeek), prefs.drawerDim, 0, 100) { prefs.drawerDim = it }
+        bindSeek(findViewById(R.id.drawerGridColsSeek), (prefs.drawerGridCols - 3).coerceIn(0,3), 0, 3) { prefs.drawerGridCols = it + 3; applyDrawerLayout() }
+        bindSeek(findViewById(R.id.drawerFolderRadiusSeek), prefs.drawerFolderRadius, 0, 40) { prefs.drawerFolderRadius = it }
+        findViewById<Button?>(R.id.drawerMoveFoldersBtn)?.setOnClickListener { settingsOverlay.isVisible = false; openDrawer(); android.widget.Toast.makeText(this, "Режим перемещения: зажмите папку/иконку в меню", android.widget.Toast.LENGTH_SHORT).show() }
         findViewById<SwitchMaterial>(R.id.desktopModeSwitch).apply { isChecked = prefs.desktopMode; setOnCheckedChangeListener { _, c -> prefs.desktopMode = c; updateLandDockLabel(); applyOrientationLayout(); renderDock(); renderCurrentPage() } }
         updateLandDockLabel()
         findViewById<Button>(R.id.landDockBtn).setOnClickListener { showLandDockPicker() }
@@ -1279,6 +1282,7 @@ class MainActivity : AppCompatActivity() {
         fun updRr() { rrBtn.text = "Гц: ${if (prefs.refreshRatePref==0) "Авто" else prefs.refreshRatePref.toString()}" }
         updRr()
         rrBtn.setOnClickListener { showRefreshRatePicker(updRr = { updRr() }) }
+        findViewById<Button?>(R.id.aspectRatioBtn)?.setOnClickListener { showAspectRatioEditor() }
 
         findViewById<SwitchMaterial>(R.id.fullscreenSwitch).apply {
             isChecked = prefs.fullscreenMode
@@ -1471,6 +1475,51 @@ class MainActivity : AppCompatActivity() {
             val b = (prefs.screenInsetBottom * d).toInt()
             homeContent.setPadding(l, t, r, b)
         } catch (_: Exception) {}
+    }
+
+    private fun showAspectRatioEditor() {
+        val d = resources.displayMetrics.density
+        val scrim = FrameLayout(this).apply { setBackgroundColor(0xCC000000.toInt()); isClickable = true; isFocusable = true }
+        val frame = View(this).apply { background = android.graphics.drawable.GradientDrawable().apply { setStroke((4*d).toInt(), 0xFF448AFF.toInt()); setColor(0x00000000) } }
+        val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding((16*d).toInt(), (16*d).toInt(), (16*d).toInt(), (16*d).toInt()); background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = 16*d; setColor(0xEE222222.toInt()) } }
+        fun label(t: String) = TextView(this).apply { text = t; setTextColor(Color.WHITE); textSize = 13f }
+        val lS = SeekBar(this).apply { max = 200; progress = prefs.screenInsetLeft }
+        val rS = SeekBar(this).apply { max = 200; progress = prefs.screenInsetRight }
+        val tS = SeekBar(this).apply { max = 200; progress = prefs.screenInsetTop }
+        val bS = SeekBar(this).apply { max = 200; progress = prefs.screenInsetBottom }
+        fun updateFrame() {
+            val lp = frame.layoutParams as FrameLayout.LayoutParams
+            lp.leftMargin = (lS.progress*d).toInt(); lp.rightMargin = (rS.progress*d).toInt()
+            lp.topMargin = (tS.progress*d).toInt(); lp.bottomMargin = (bS.progress*d).toInt()
+            frame.layoutParams = lp
+            prefs.screenInsetLeft = lS.progress; prefs.screenInsetRight = rS.progress
+            prefs.screenInsetTop = tS.progress; prefs.screenInsetBottom = bS.progress
+            applyScreenInsets()
+        }
+        val listener = object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { if (fromUser) updateFrame() }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        }
+        listOf(lS,rS,tS,bS).forEach { it.setOnSeekBarChangeListener(listener) }
+        controls.addView(label("Слева")); controls.addView(lS)
+        controls.addView(label("Справа")); controls.addView(rS)
+        controls.addView(label("Сверху")); controls.addView(tS)
+        controls.addView(label("Снизу")); controls.addView(bS)
+        val close = Button(this).apply { text = "Готово"; setOnClickListener { try { root.removeView(scrim) } catch (_: Exception) {} } }
+        val reset = Button(this).apply { text = "Сброс"; setOnClickListener { lS.progress=0; rS.progress=0; tS.progress=0; bS.progress=0; updateFrame() } }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        row.addView(reset, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(close, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        controls.addView(row)
+        val frameLp = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        frameLp.leftMargin = (prefs.screenInsetLeft*d).toInt(); frameLp.rightMargin = (prefs.screenInsetRight*d).toInt()
+        frameLp.topMargin = (prefs.screenInsetTop*d).toInt(); frameLp.bottomMargin = (prefs.screenInsetBottom*d).toInt()
+        scrim.addView(frame, frameLp)
+        val ctrlLp = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT)
+        ctrlLp.gravity = android.view.Gravity.BOTTOM; ctrlLp.marginStart = (12*d).toInt(); ctrlLp.marginEnd = (12*d).toInt(); ctrlLp.bottomMargin = (24*d).toInt()
+        scrim.addView(controls, ctrlLp)
+        root.addView(scrim, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
     }
 
     private fun updateVirtualStatusBar() {
@@ -2445,7 +2494,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyDrawerLayout() {
         if (!::drawerRecycler.isInitialized) return
-        drawerRecycler.layoutManager = if (prefs.drawerLayout == "list") LinearLayoutManager(this) else GridLayoutManager(this, 4)
+        val cols = prefs.drawerGridCols.coerceIn(3,6)
+        drawerRecycler.layoutManager = if (prefs.drawerLayout == "list") LinearLayoutManager(this) else GridLayoutManager(this, cols)
         drawerRecycler.adapter = drawerAdapter
     }
 
