@@ -22,55 +22,63 @@
         android:paddingTop="24dp"
         android:paddingBottom="20dp">
 
-        <FrameLayout
+        <LinearLayout
             android:id="@+id/workspaceContainer"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1">
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/gridRecycler"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:clipToPadding="false"
-                android:overScrollMode="never"
-                android:paddingBottom="8dp" />
-
-            <ScrollView
-                android:id="@+id/iosHomeLibrary"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:visibility="gone"
-                android:fillViewport="true">
-                <LinearLayout
-                    android:id="@+id/iosHomeLibraryGrid"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="8dp" />
-            </ScrollView>
+            android:layout_weight="1"
+            android:orientation="vertical">
 
             <LinearLayout
                 android:id="@+id/widgetContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:visibility="gone" />
+                android:visibility="gone"
+                android:paddingBottom="8dp" />
 
-            <View
-                android:id="@+id/pageEdgeLeft"
-                android:layout_width="44dp"
-                android:layout_height="match_parent"
-                android:layout_gravity="start"
-                android:background="@android:color/transparent" />
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1">
 
-            <View
-                android:id="@+id/pageEdgeRight"
-                android:layout_width="44dp"
-                android:layout_height="match_parent"
-                android:layout_gravity="end"
-                android:background="@android:color/transparent" />
-        </FrameLayout>
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/gridRecycler"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never"
+                    android:paddingBottom="8dp" />
+
+                <ScrollView
+                    android:id="@+id/iosHomeLibrary"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone"
+                    android:fillViewport="true">
+                    <LinearLayout
+                        android:id="@+id/iosHomeLibraryGrid"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="8dp" />
+                </ScrollView>
+
+                <View
+                    android:id="@+id/pageEdgeLeft"
+                    android:layout_width="44dp"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="start"
+                    android:background="@android:color/transparent" />
+
+                <View
+                    android:id="@+id/pageEdgeRight"
+                    android:layout_width="44dp"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="end"
+                    android:background="@android:color/transparent" />
+            </FrameLayout>
+        </LinearLayout>
 
         <LinearLayout
             android:id="@+id/pageIndicator"
@@ -932,20 +940,22 @@
         android:layout_height="match_parent"
         android:visibility="gone"
         android:clickable="true"
-        android:focusable="true">
-        <View android:layout_width="match_parent" android:layout_height="match_parent" android:background="#99000000" />
+        android:focusable="true"
+        android:background="#33000000">
         <LinearLayout
             android:id="@+id/folderCard"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:layout_margin="24dp"
             android:background="@drawable/bg_settings_panel"
             android:orientation="vertical"
-            android:padding="16dp">
-            <TextView android:id="@+id/folderTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Папка" android:textColor="@color/white" android:textSize="18sp" android:textStyle="bold"/>
-            <androidx.recyclerview.widget.RecyclerView android:id="@+id/folderRecycler" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp"/>
-            <TextView android:id="@+id/folderResizeHandle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="end" android:padding="8dp" android:text="⇲ Размер" android:textColor="#CCFFFFFF" android:textSize="13sp"/>
+            android:padding="16dp"
+            android:clickable="true"
+            android:focusable="true">
+            <TextView android:id="@+id/folderTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Папка" android:textColor="@color/white" android:textSize="18sp" android:textStyle="bold" android:gravity="center"/>
+            <androidx.recyclerview.widget.RecyclerView android:id="@+id/folderRecycler" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:overScrollMode="never"/>
+            <LinearLayout android:id="@+id/folderPageIndicator" android:layout_width="match_parent" android:layout_height="16dp" android:gravity="center" android:orientation="horizontal" android:layout_marginTop="8dp"/>
         </LinearLayout>
     </FrameLayout>
 
