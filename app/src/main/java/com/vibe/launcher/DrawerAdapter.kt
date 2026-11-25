@@ -14,7 +14,9 @@ class DrawerAdapter(
     private val cornerRadii: () -> FloatArray? = { null },
     private val iconScale: () -> Int = { 100 },
     private val iconTintMode: () -> String = { "default" },
-    private val iconTintColor: () -> Int = { 0xFFFFFFFF.toInt() }
+    private val iconTintColor: () -> Int = { 0xFFFFFFFF.toInt() },
+    private val tiltEnabled: () -> Boolean = { false },
+    private val tiltIntensity: () -> Int = { 50 }
 ) : RecyclerView.Adapter<DrawerAdapter.VH>() {
 
     private val items = mutableListOf<AppEntry>()
@@ -43,6 +45,7 @@ class DrawerAdapter(
         AppGridAdapter.applyIconTint(holder.icon, iconTintMode(), iconTintColor())
         holder.label.text = item.label
         AppGridAdapter.applyShape(holder.icon, shape(), cornerRadii())
+        AppGridAdapter.attachTilt(holder.itemView, tiltEnabled, tiltIntensity)
         holder.itemView.setOnClickListener { onClick(item, holder.icon) }
         holder.itemView.setOnLongClickListener { onLongPress(item, holder.itemView) }
     }
