@@ -2890,6 +2890,23 @@ class MainActivity : AppCompatActivity() {
         }
         map.forEach { (k, v) -> findViewById<View>(v.first).isVisible = k == cat }
         findViewById<TextView>(R.id.settingsDetailTitle).text = map[cat]?.second ?: "Настройки"
+        if (cat == "about") updateAboutInfo()
+    }
+
+    private fun updateAboutInfo() {
+        try {
+            findViewById<TextView?>(R.id.aboutCardVersion)?.text = "Версия ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.53-beta"
+            findViewById<TextView?>(R.id.aboutChangelog)?.text = """
+                • Исправлены красные сборки GitHub Actions (ViewGroup/import, prefs, layout id).
+                • Авторасстановка при первом запуске: выбор приложений галочками.
+                • iOS-библиотека: открытие справа (страница) или свайпом снизу — выбор в настройках.
+                • Папки: страницы, blur обоев, bounce, закрытие тапом вне, возврат в папку после закрытия приложения.
+                • Виджеты: реальный AppWidgetHost MVP, восстановление после перезапуска, удаление по долгому тапу.
+                • Blur обоев действует в папках/меню/ключевых анимациях.
+                • Dynamic Island и предпросмотр новых анимаций скрыты; старый tilt усилен.
+            """.trimIndent()
+        } catch (_: Exception) { }
     }
 
     private fun setupGestures() {
