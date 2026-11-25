@@ -36,6 +36,20 @@
                 android:overScrollMode="never"
                 android:paddingBottom="8dp" />
 
+            <ScrollView
+                android:id="@+id/iosHomeLibrary"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone"
+                android:fillViewport="true">
+                <LinearLayout
+                    android:id="@+id/iosHomeLibraryGrid"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="8dp" />
+            </ScrollView>
+
             <View
                 android:id="@+id/pageEdgeLeft"
                 android:layout_width="44dp"
@@ -215,6 +229,58 @@
         <TextView android:id="@+id/quickIcons" android:layout_width="72dp" android:layout_height="wrap_content" android:gravity="center" android:padding="8dp" android:text="Иконки" android:textColor="@color/white" android:textSize="12sp"/>
         <TextView android:id="@+id/quickWidgets" android:layout_width="72dp" android:layout_height="wrap_content" android:gravity="center" android:padding="8dp" android:text="Виджеты" android:textColor="@color/white" android:textSize="12sp"/>
     </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/homeCustomizeOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+        <ImageButton
+            android:id="@+id/homeCustomizeSettingsBtn"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_gravity="top|start"
+            android:layout_margin="16dp"
+            android:background="@drawable/bg_search_capsule"
+            android:src="@android:drawable/ic_menu_manage"
+            app:tint="@color/white" />
+        <ImageButton
+            android:id="@+id/homeCustomizeAddWidgetBtn"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="16dp"
+            android:background="@drawable/bg_search_capsule"
+            android:src="@android:drawable/ic_input_add"
+            app:tint="@color/white" />
+        <LinearLayout
+            android:id="@+id/homeCustomizeSheet"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:orientation="vertical"
+            android:background="@drawable/bg_settings_panel"
+            android:padding="16dp">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Настройки рабочего стола" android:textColor="@color/white" android:textStyle="bold" android:textSize="18sp"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Цвет/оттенок иконок" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                <Button android:id="@+id/iconTintDefaultBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Обычные"/>
+                <Button android:id="@+id/iconTintLightBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Светлые"/>
+                <Button android:id="@+id/iconTintDarkBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Тёмные"/>
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="4dp">
+                <Button android:id="@+id/iconTintTransparentBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Прозрачные"/>
+                <Button android:id="@+id/iconTintColorBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Цвет..."/>
+            </LinearLayout>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Размер иконок" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                <Button android:id="@+id/iconSizeSmallBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Маленькие+текст"/>
+                <Button android:id="@+id/iconSizeBigBtn" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Большие без текста"/>
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
 
     <LinearLayout
         android:id="@+id/virtualStatusBar"
