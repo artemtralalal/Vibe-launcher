@@ -484,6 +484,9 @@ class LauncherPrefs(context: Context) {
     var drawerLayout: String
         get() = prefs.getString("drawer_layout", "grid") ?: "grid"
         set(v) = prefs.edit().putString("drawer_layout", v).apply()
+    var iosLibraryOpenMode: String
+        get() = prefs.getString("ios_lib_open", "page") ?: "page" // page | swipe_up
+        set(v) = prefs.edit().putString("ios_lib_open", v).apply()
     var drawerBlur: Int
         get() = prefs.getInt("drawer_blur", 20)
         set(v) = prefs.edit().putInt("drawer_blur", v.coerceIn(0,100)).apply()
