@@ -51,6 +51,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var prefs: LauncherPrefs
     private lateinit var root: FrameLayout
     private lateinit var homeContent: View
+    private var wallpaperBlurView: ImageView? = null
+    private var appWidgetHost: android.appwidget.AppWidgetHost? = null
+    private val APPWIDGET_HOST_ID = 1024
+    private val REQ_PICK_WIDGET = 7771
+    private val REQ_CREATE_WIDGET = 7772
+    private var pendingWidgetId: Int = -1
     private lateinit var gridRecycler: RecyclerView
     private lateinit var dockBar: LinearLayout
     private lateinit var dockContainer: LinearLayout
@@ -226,8 +232,15 @@ class MainActivity : AppCompatActivity() {
 
         prefs = LauncherPrefs(this)
         iconPackManager = IconPackManager(this)
+        appWidgetHost = android.appwidget.AppWidgetHost(this, APPWIDGET_HOST_ID)
         root = findViewById(R.id.root)
         homeContent = findViewById(R.id.homeContent)
+        try {
+            val wp = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT) }
+            try { wp.setImageDrawable(WallpaperManager.getInstance(this).drawable) } catch (_: Exception) {}
+            root.addView(wp, 0)
+            wallpaperBlurView = wp
+        } catch (_: Exception) {}
         gridRecycler = findViewById(R.id.gridRecycler)
         dockBar = findViewById(R.id.dockBar)
         dockContainer = findViewById(R.id.dockContainer)
@@ -293,6 +306,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        try { appWidgetHost?.startListening() } catch (_: Exception) {}
         quickPanel.isVisible = false; settingsButton.isVisible = false
         quickPanel.isVisible = false
         settingsOverlay.isVisible = false
@@ -307,6 +321,11 @@ class MainActivity : AppCompatActivity() {
             closeTargetView?.alpha = 1f; closeTargetView = null
             clearBlur()
         }
+    }
+
+    override fun onPause() {
+        try { appWidgetHost?.stopListening() } catch (_: Exception) {}
+        super.onPause()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -822,7 +841,7 @@ class MainActivity : AppCompatActivity() {
             if (delta < 0) { hideIosHomePage(animated = true) }
             return
         }
-        val iosMode = (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")
+        val iosMode = (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios") && prefs.iosLibraryOpenMode == "page"
         if (delta > 0 && iosMode && currentPageIndex == 1) { showIosHomePage(animated = true); return }
         val next = currentPageIndex + delta
         if (next > pages.lastIndex) return
@@ -948,11 +967,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateIslandVisibility() {
         val island = findViewById<View?>(R.id.dynamicIsland) ?: return
-        island.isVisible = prefs.islandEnabled && (prefs.islandAlways || island.alpha > 0f || islandState != "idle")
-        if (prefs.islandEnabled && prefs.islandAlways && islandState == "idle") {
-            showIslandState("idle")
-        }
-        updateIslandLayout()
+        island.isVisible = false
     }
 
     private fun updateIslandLayout() {
@@ -1504,7 +1519,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.quickWallpaper).setOnClickListener { quickPanel.isVisible = false; openWallpaperPicker() }
         findViewById<View>(R.id.quickSettings).setOnClickListener { quickPanel.isVisible = false; showSettingsMain(); settingsOverlay.isVisible = true }
         findViewById<View>(R.id.quickIcons).setOnClickListener { quickPanel.isVisible = false; showIconShapePicker() }
-        findViewById<View>(R.id.quickWidgets).setOnClickListener { quickPanel.isVisible = false; android.widget.Toast.makeText(this, "Виджеты скоро будут добавлены", android.widget.Toast.LENGTH_SHORT).show() }
+        findViewById<View>(R.id.quickWidgets).setOnClickListener { quickPanel.isVisible = false; requestAddWidget() }
         settingsOverlay.setOnClickListener { settingsOverlay.isVisible = false }
         findViewById<View>(R.id.settingsMain).setOnClickListener { }
         findViewById<View>(R.id.settingsDetail).setOnClickListener { }
@@ -2607,10 +2622,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showDrawerSettingsDialog() {
+        val iosOpen = if (prefs.iosLibraryOpenMode == "swipe_up") "Снизу вверх" else "Справа (страница)"
         val opts = arrayOf(
             if (prefs.drawerIpadMode) "Режим iPad: вкл" else "Режим iPad: выкл",
             "Вид меню: ${when (prefs.drawerLayout) { "list" -> "Список"; "ios" -> "iOS библиотека"; else -> "Сетка" }}",
-            "Стиль открытия: ${if (prefs.drawerStyle == "button") "Кнопка" else "Свайп"}"
+            "Стиль открытия: ${if (prefs.drawerStyle == "button") "Кнопка" else "Свайп"}",
+            "iOS библиотека: $iosOpen"
         )
         AlertDialog.Builder(this).setTitle("Настройки меню приложений")
             .setItems(opts) { _, which ->
@@ -2618,6 +2635,11 @@ class MainActivity : AppCompatActivity() {
                     0 -> { prefs.drawerIpadMode = !prefs.drawerIpadMode; renderDock() }
                     1 -> showDrawerLayoutPicker()
                     2 -> showDrawerStylePicker()
+                    3 -> {
+                        val modes = arrayOf("Справа (страница)", "Снизу вверх (свайп)")
+                        val vals = arrayOf("page", "swipe_up")
+                        AlertDialog.Builder(this).setTitle("Открытие iOS библиотеки").setItems(modes) { _, w -> prefs.iosLibraryOpenMode = vals[w]; applyDrawerLayout(); renderDock() }.show()
+                    }
                 }
             }.show()
     }
@@ -2627,7 +2649,7 @@ class MainActivity : AppCompatActivity() {
         val cols = prefs.drawerGridCols.coerceIn(3,6)
         drawerRecycler.layoutManager = if (prefs.drawerLayout == "list") LinearLayoutManager(this) else GridLayoutManager(this, cols)
         drawerRecycler.adapter = drawerAdapter
-        val iosDrawer = prefs.drawerStyle == "ios" && prefs.drawerLayout != "ios"
+        val iosDrawer = (prefs.drawerStyle == "ios" && prefs.drawerLayout != "ios") || ((prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios") && prefs.iosLibraryOpenMode == "swipe_up")
         findViewById<View?>(R.id.iosLibraryContainer)?.isVisible = iosDrawer && (drawerSearch.text?.isBlank() != false)
         findViewById<View?>(R.id.drawerListContainer)?.isVisible = !iosDrawer || (drawerSearch.text?.isNotBlank() == true)
         if (iosDrawer) buildIosLibrary()
@@ -2884,7 +2906,11 @@ class MainActivity : AppCompatActivity() {
                 val dy = e2.y - e1.y
                 val dx = e2.x - e1.x
                 if (abs(dy) > abs(dx) && dy < -120 && abs(velocityY) > 200) {
-                    if (!appDrawer.isVisible && !settingsOverlay.isVisible && prefs.drawerStyle != "button" && prefs.drawerStyle != "ios" && prefs.drawerLayout != "ios") { openDrawer(); return true }
+                    if (!appDrawer.isVisible && !settingsOverlay.isVisible) {
+                        val iosMode = (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")
+                        if (iosMode && prefs.iosLibraryOpenMode == "swipe_up") { openDrawer(); return true }
+                        if (prefs.drawerStyle != "button" && !iosMode) { openDrawer(); return true }
+                    }
                 }
                 if (abs(dy) > abs(dx) && dy > 120 && abs(velocityY) > 200) {
                     if (appDrawer.isVisible) {
@@ -2917,8 +2943,20 @@ class MainActivity : AppCompatActivity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 7771) {
-            android.widget.Toast.makeText(this, if (resultCode == RESULT_OK) "Виджет выбран (MVP: добавление на рабочий стол пока ограничено)" else "Выбор виджета отменён", android.widget.Toast.LENGTH_SHORT).show()
+        if (requestCode == REQ_PICK_WIDGET) {
+            if (resultCode == RESULT_OK) {
+                val widgetId = data?.getIntExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId) ?: pendingWidgetId
+                configureOrAddWidget(widgetId, data)
+            } else {
+                try { if (pendingWidgetId != -1) appWidgetHost?.deleteAppWidgetId(pendingWidgetId) } catch (_: Exception) {}
+            }
+        } else if (requestCode == REQ_CREATE_WIDGET) {
+            if (resultCode == RESULT_OK) {
+                val widgetId = data?.getIntExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId) ?: pendingWidgetId
+                addWidgetView(widgetId)
+            } else {
+                try { if (pendingWidgetId != -1) appWidgetHost?.deleteAppWidgetId(pendingWidgetId) } catch (_: Exception) {}
+            }
         }
     }
 
@@ -2927,7 +2965,7 @@ class MainActivity : AppCompatActivity() {
             if (pageDragActive) snapPageDrag(0f)
             return
         }
-        val iosMode = (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")
+        val iosMode = (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios") && prefs.iosLibraryOpenMode == "page"
         val targetView: View = if (iosPageVisible) findViewById(R.id.iosHomeLibrary) else gridRecycler
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -2971,7 +3009,7 @@ class MainActivity : AppCompatActivity() {
     private fun snapPageDrag(dx: Float) {
         val w = findViewById<FrameLayout>(R.id.workspaceContainer).width.toFloat().coerceAtLeast(1f)
         val threshold = w * 0.2f
-        val iosMode = (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")
+        val iosMode = (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios") && prefs.iosLibraryOpenMode == "page"
         if (iosPageVisible) {
             if (dx > threshold) hideIosHomePage(true) else findViewById<View>(R.id.iosHomeLibrary).animate().translationX(0f).alpha(1f).setDuration(150).start()
             pageDragDx = 0f
@@ -3212,8 +3250,9 @@ class MainActivity : AppCompatActivity() {
         appDrawer.setBackgroundColor(Color.argb(dim, 0, 0, 0))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && prefs.drawerBlur > 0) {
             val r = (prefs.drawerBlur.coerceIn(0,100) / 100f * 30f).coerceAtLeast(0.1f)
-            homeContent.setRenderEffect(RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP))
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) homeContent.setRenderEffect(null)
+            val eff = RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP)
+            homeContent.setRenderEffect(eff); wallpaperBlurView?.setRenderEffect(eff)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { homeContent.setRenderEffect(null); wallpaperBlurView?.setRenderEffect(null) }
         appDrawer.setRenderEffect(null)
         appDrawer.alpha = 1f
         appDrawer.translationY = appDrawer.height.toFloat().takeIf { it > 0 } ?: 1400f
@@ -3227,7 +3266,7 @@ class MainActivity : AppCompatActivity() {
             appDrawer.isVisible = false
             appDrawer.translationY = 0f
             iosFolderOpen = null; iosJiggleMode = false
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { appDrawer.setRenderEffect(null); homeContent.setRenderEffect(null) }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { appDrawer.setRenderEffect(null); homeContent.setRenderEffect(null); wallpaperBlurView?.setRenderEffect(null) }
             if (::drawerSearch.isInitialized) drawerSearch.setText("")
             drawerAdapter.submit(allApps)
         }.start()
@@ -3723,14 +3762,50 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestAddWidget() {
         try {
-            val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(this)
-            val host = android.appwidget.AppWidgetHost(this, 7771)
+            val host = appWidgetHost ?: return
             val id = host.allocateAppWidgetId()
+            pendingWidgetId = id
             val pick = Intent(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_PICK)
             pick.putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-            startActivityForResult(pick, 7771)
+            startActivityForResult(pick, REQ_PICK_WIDGET)
         } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "Виджеты не поддерживаются в этом контексте: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(this, "Не удалось открыть виджеты: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun configureOrAddWidget(widgetId: Int, data: Intent?) {
+        try {
+            val mgr = android.appwidget.AppWidgetManager.getInstance(this)
+            val info = mgr.getAppWidgetInfo(widgetId) ?: return
+            if (info.configure != null) {
+                pendingWidgetId = widgetId
+                val i = Intent(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_CONFIGURE)
+                i.component = info.configure
+                i.putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                startActivityForResult(i, REQ_CREATE_WIDGET)
+            } else {
+                addWidgetView(widgetId)
+            }
+        } catch (_: Exception) { addWidgetView(widgetId) }
+    }
+
+    private fun addWidgetView(widgetId: Int) {
+        try {
+            val host = appWidgetHost ?: return
+            val mgr = android.appwidget.AppWidgetManager.getInstance(this)
+            val info = mgr.getAppWidgetInfo(widgetId) ?: return
+            val view = host.createView(this, widgetId, info)
+            view.setAppWidget(widgetId, info)
+            val container = findViewById<LinearLayout?>(R.id.widgetContainer) ?: return
+            container.isVisible = true
+            val h = if (info.minHeight > 0) info.minHeight else 180
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (h * resources.displayMetrics.density).toInt().coerceAtLeast((120*resources.displayMetrics.density).toInt()))
+            lp.bottomMargin = (8 * resources.displayMetrics.density).toInt()
+            view.layoutParams = lp
+            container.addView(view)
+            android.widget.Toast.makeText(this, "Виджет добавлен", android.widget.Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(this, "Ошибка виджета: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -4046,13 +4121,21 @@ class MainActivity : AppCompatActivity() {
         resize.setOnClickListener { showFolderTypePicker(id) }
         overlay.isVisible = true
         overlay.alpha = 0f
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val r = (prefs.drawerBlur.coerceIn(0,100) / 100f * 25f).coerceAtLeast(0.1f)
+            val eff = RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP)
+            homeContent.setRenderEffect(eff); wallpaperBlurView?.setRenderEffect(eff)
+        }
+        card.scaleX = 0.92f; card.scaleY = 0.92f
         overlay.animate().alpha(1f).setDuration(180).start()
+        card.animate().scaleX(1f).scaleY(1f).setDuration(260).setInterpolator(DecelerateInterpolator(1.8f)).start()
         overlay.setOnClickListener { closeFolderOverlay() }
         card.setOnClickListener { }
     }
 
     private fun closeFolderOverlay() {
         val overlay = findViewById<FrameLayout>(R.id.folderOverlay)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { homeContent.setRenderEffect(null); wallpaperBlurView?.setRenderEffect(null) }
         overlay.animate().alpha(0f).setDuration(150).withEndAction { overlay.isVisible = false; overlay.alpha = 1f }.start()
     }
 
@@ -4316,7 +4399,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (prefs.blurEnabled && !prefs.powerSaving && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            homeContent.setRenderEffect(RenderEffect.createBlurEffect(30f,30f, Shader.TileMode.CLAMP))
+            val be = RenderEffect.createBlurEffect(30f,30f, Shader.TileMode.CLAMP); homeContent.setRenderEffect(be); wallpaperBlurView?.setRenderEffect(be)
             if (appDrawer.isVisible) appDrawer.alpha = 0.7f
         }
         return true
@@ -5047,6 +5130,8 @@ class MainActivity : AppCompatActivity() {
             closeTargetView = null
             bounceTargetIcon(lastLaunchKey, arriveRotX, arriveRotY, arriveRz)
             if (target != null && target.alpha == 0f) target.alpha = 1f
+            val reopenFolder = lastLaunchKey?.takeIf { isFolderKey(it) }?.let { folderIdFromKey(it) }
+            if (reopenFolder != null) root.postDelayed({ try { if (!settingsOverlay.isVisible && !appDrawer.isVisible) openFolder(reopenFolder) } catch (_: Exception) {} }, 450)
         }
 
         fun morphToIcon() {
