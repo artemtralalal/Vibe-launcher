@@ -12,7 +12,9 @@ class DrawerAdapter(
     private val onLongPress: (AppEntry, View) -> Boolean,
     private val shape: () -> String = { "circle" },
     private val cornerRadii: () -> FloatArray? = { null },
-    private val iconScale: () -> Int = { 100 }
+    private val iconScale: () -> Int = { 100 },
+    private val iconTintMode: () -> String = { "default" },
+    private val iconTintColor: () -> Int = { 0xFFFFFFFF.toInt() }
 ) : RecyclerView.Adapter<DrawerAdapter.VH>() {
 
     private val items = mutableListOf<AppEntry>()
@@ -38,6 +40,7 @@ class DrawerAdapter(
         val lp = holder.icon.layoutParams
         if (lp.width != sz || lp.height != sz) { lp.width = sz; lp.height = sz; holder.icon.layoutParams = lp }
         holder.icon.setImageDrawable(item.icon)
+        AppGridAdapter.applyIconTint(holder.icon, iconTintMode(), iconTintColor())
         holder.label.text = item.label
         AppGridAdapter.applyShape(holder.icon, shape(), cornerRadii())
         holder.itemView.setOnClickListener { onClick(item, holder.icon) }
