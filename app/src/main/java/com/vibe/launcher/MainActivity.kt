@@ -2967,7 +2967,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showIosCategoryFolder(name: String, apps: List<AppEntry>) {
         val d = resources.displayMetrics.density
-        val scroll = ScrollView(this)
+        val scroll = android.widget.ScrollView(this)
         val cont = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding((16*d).toInt(),(16*d).toInt(),(16*d).toInt(),(16*d).toInt()) }
         val title = TextView(this).apply { text = name; setTextColor(Color.WHITE); textSize = 22f; setTypeface(typeface, android.graphics.Typeface.BOLD) }
         cont.addView(title)
