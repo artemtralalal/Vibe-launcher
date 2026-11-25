@@ -956,6 +956,7 @@
             <TextView android:id="@+id/folderTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Папка" android:textColor="@color/white" android:textSize="18sp" android:textStyle="bold" android:gravity="center"/>
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/folderRecycler" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:overScrollMode="never"/>
             <LinearLayout android:id="@+id/folderPageIndicator" android:layout_width="match_parent" android:layout_height="16dp" android:gravity="center" android:orientation="horizontal" android:layout_marginTop="8dp"/>
+            <TextView android:id="@+id/folderResizeHandle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="end" android:padding="8dp" android:text="⇲ Размер" android:textColor="#CCFFFFFF" android:textSize="13sp"/>
         </LinearLayout>
     </FrameLayout>
 
