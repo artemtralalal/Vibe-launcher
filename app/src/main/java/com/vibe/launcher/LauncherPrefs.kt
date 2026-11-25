@@ -64,6 +64,12 @@ class LauncherPrefs(context: Context) {
     var gridSideMargin: Int
         get() = prefs.getInt("grid_side_margin", 16)
         set(v) = prefs.edit().putInt("grid_side_margin", v.coerceIn(0, 64)).apply()
+    var gridTopPadding: Int
+        get() = prefs.getInt("grid_top_pad", 0)
+        set(v) = prefs.edit().putInt("grid_top_pad", v.coerceIn(0,200)).apply()
+    var gridBottomPadding: Int
+        get() = prefs.getInt("grid_bottom_pad", 0)
+        set(v) = prefs.edit().putInt("grid_bottom_pad", v.coerceIn(0,200)).apply()
     var iconScale: Int
         get() = prefs.getInt("icon_scale", 100)
         set(v) = prefs.edit().putInt("icon_scale", v.coerceIn(60, 140)).apply()
@@ -349,6 +355,12 @@ class LauncherPrefs(context: Context) {
     var virtualStatusHeight: Int
         get() = prefs.getInt("vsb_height", 28)
         set(v) = prefs.edit().putInt("vsb_height", v.coerceIn(20,60)).apply()
+    var virtualStatusOffsetX: Int
+        get() = prefs.getInt("vsb_ox", 0)
+        set(v) = prefs.edit().putInt("vsb_ox", v.coerceIn(-200,200)).apply()
+    var virtualStatusOffsetY: Int
+        get() = prefs.getInt("vsb_oy", 0)
+        set(v) = prefs.edit().putInt("vsb_oy", v.coerceIn(-200,200)).apply()
     var virtualStatusBalance: String
         get() = prefs.getString("vsb_balance", "") ?: ""
         set(v) = prefs.edit().putString("vsb_balance", v).apply()
