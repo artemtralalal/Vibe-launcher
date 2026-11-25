@@ -70,6 +70,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var gridAdapter: AppGridAdapter
     private lateinit var drawerAdapter: DrawerAdapter
+    private var iosFolderOpen: String? = null
+    private var iosJiggleMode = false
     private lateinit var iconPackManager: IconPackManager
 
     private val allApps = mutableListOf<AppEntry>()
@@ -2904,7 +2906,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     quickPanel.isVisible -> quickPanel.isVisible = false
                     settingsButton.isVisible -> settingsButton.isVisible = false
-                    appDrawer.isVisible -> closeDrawer()
+                    appDrawer.isVisible -> { if (iosFolderOpen != null) { iosFolderOpen = null; buildIosLibrary() } else closeDrawer() }
                     else -> {}
                 }
             }
@@ -2924,6 +2926,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildIosLibrary() {
         val grid = findViewById<LinearLayout?>(R.id.iosLibraryGrid) ?: return
+        if (iosFolderOpen != null) {
+            val name = iosFolderOpen!!
+            val apps = allApps.filter { drawerCategoryFor(it) == name }
+            showIosCategoryFolder(name, apps)
+            return
+        }
         grid.removeAllViews()
         val cats = linkedMapOf("Музыка" to mutableListOf<AppEntry>(), "Видео" to mutableListOf(), "Игры" to mutableListOf(), "Соцсети" to mutableListOf(), "Другое" to mutableListOf())
         allApps.forEach { cats[drawerCategoryFor(it)]?.add(it) }
@@ -2955,7 +2963,9 @@ class MainActivity : AppCompatActivity() {
                         mini.addView(iv)
                     }
                     card.addView(title); card.addView(mini)
-                    card.setOnClickListener { showIosCategoryFolder(name, apps) }
+                    card.setOnClickListener { if (!iosJiggleMode) showIosCategoryFolder(name, apps) }
+                    card.setOnLongClickListener { iosJiggleMode = !iosJiggleMode; buildIosLibrary(); true }
+                    if (iosJiggleMode) startJiggle(card) else card.clearAnimation()
                 } else {
                     card.alpha = 0f
                 }
@@ -2966,22 +2976,44 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showIosCategoryFolder(name: String, apps: List<AppEntry>) {
+        val grid = findViewById<LinearLayout?>(R.id.iosLibraryGrid) ?: return
+        iosFolderOpen = name
+        grid.removeAllViews()
         val d = resources.displayMetrics.density
-        val scroll = android.widget.ScrollView(this)
-        val cont = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding((16*d).toInt(),(16*d).toInt(),(16*d).toInt(),(16*d).toInt()) }
-        val title = TextView(this).apply { text = name; setTextColor(Color.WHITE); textSize = 22f; setTypeface(typeface, android.graphics.Typeface.BOLD) }
-        cont.addView(title)
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
+        val back = TextView(this).apply { text = "‹ Назад"; setTextColor(Color.WHITE); textSize = 16f; setPadding(0,0,(16*d).toInt(),0); setOnClickListener { iosFolderOpen = null; buildIosLibrary() } }
+        val title = TextView(this).apply { text = name; setTextColor(Color.WHITE); textSize = 22f; setTypeface(typeface, android.graphics.Typeface.BOLD); layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
+        val more = TextView(this).apply { text = "⋯"; setTextColor(Color.WHITE); textSize = 22f; setPadding((12*d).toInt(),0,0,0); setOnClickListener { showIosFolderMenu(name) } }
+        header.addView(back); header.addView(title); header.addView(more)
+        grid.addView(header)
         val g = android.widget.GridLayout(this).apply { columnCount = prefs.drawerGridCols.coerceIn(3,6) }
         apps.forEach { app ->
             val item = layoutInflater.inflate(R.layout.item_app, g, false)
             val icon = item.findViewById<ImageView>(R.id.appIcon)
             val label = item.findViewById<TextView>(R.id.appLabel)
             icon.setImageDrawable(app.icon); label.text = app.label; label.isVisible = prefs.showLabels
-            item.setOnClickListener { launchApp(app, icon, fromDrawer = true) }
+            item.setOnClickListener { if (!iosJiggleMode) launchApp(app, icon, fromDrawer = true) }
+            item.setOnLongClickListener { iosJiggleMode = !iosJiggleMode; buildIosLibrary(); if (iosFolderOpen!=null) showIosCategoryFolder(name, apps); true }
+            if (iosJiggleMode) startJiggle(item) else item.clearAnimation()
             g.addView(item)
         }
-        cont.addView(g); scroll.addView(cont)
-        AlertDialog.Builder(this).setView(scroll).setNegativeButton("Закрыть", null).show()
+        grid.addView(g)
+    }
+
+    private fun showIosFolderMenu(name: String) {
+        val opts = arrayOf(if (iosJiggleMode) "Завершить перемещение" else "Переместить", "Уменьшенная папка", "Закрыть")
+        AlertDialog.Builder(this).setTitle(name).setItems(opts) { _, w ->
+            when (w) {
+                0 -> { iosJiggleMode = !iosJiggleMode; buildIosLibrary() }
+                1 -> { android.widget.Toast.makeText(this, "Папка уменьшена (MVP)", android.widget.Toast.LENGTH_SHORT).show() }
+            }
+        }.show()
+    }
+
+    private fun startJiggle(v: View) {
+        val a = android.view.animation.RotateAnimation(-1.5f, 1.5f, android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f, android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f)
+        a.duration = 120; a.repeatMode = android.view.animation.Animation.REVERSE; a.repeatCount = android.view.animation.Animation.INFINITE
+        v.startAnimation(a)
     }
 
     private fun openDrawer() {
@@ -3004,6 +3036,7 @@ class MainActivity : AppCompatActivity() {
         appDrawer.animate().translationY(h).setDuration(220).withEndAction {
             appDrawer.isVisible = false
             appDrawer.translationY = 0f
+            iosFolderOpen = null; iosJiggleMode = false
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) appDrawer.setRenderEffect(null)
             if (::drawerSearch.isInitialized) drawerSearch.setText("")
             drawerAdapter.submit(allApps)
