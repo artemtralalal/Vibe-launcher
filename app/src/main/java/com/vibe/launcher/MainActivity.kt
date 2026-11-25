@@ -344,8 +344,13 @@ class MainActivity : AppCompatActivity() {
             normalizePages()
         }
 
-        homeContent.setPadding(sideMargin, (24 * d).toInt(), sideMargin, (20 * d).toInt())
-        gridRecycler.setPadding((gridPad * d).toInt(), 0, (gridPad * d).toInt(), (8 * d).toInt())
+        val insetL = (prefs.screenInsetLeft * d).toInt()
+        val insetT = (prefs.screenInsetTop * d).toInt()
+        val insetR = (prefs.screenInsetRight * d).toInt()
+        val insetB = (prefs.screenInsetBottom * d).toInt()
+        val vsbExtra = if (prefs.virtualStatusBar) ((prefs.virtualStatusHeight.coerceIn(20,60) + 4) * d).toInt() else 0
+        homeContent.setPadding(sideMargin + insetL, (24 * d).toInt() + insetT + vsbExtra, sideMargin + insetR, (20 * d).toInt() + insetB)
+        gridRecycler.setPadding((gridPad * d).toInt(), (prefs.gridTopPadding * d).toInt(), (gridPad * d).toInt(), ((8 + prefs.gridBottomPadding) * d).toInt())
         val lm = gridRecycler.layoutManager
         if (lm is GridLayoutManager) {
             if (lm.spanCount != cols) gridRecycler.layoutManager = GridLayoutManager(this, cols)
@@ -672,12 +677,14 @@ class MainActivity : AppCompatActivity() {
             val isIosDot = showIos && i == count
             val active = if (isIosDot) iosPageVisible else (!iosPageVisible && i == currentPageIndex)
             val dot = View(this)
-            val size = (if (active) 8 else 6) * d
-            val lp = LinearLayout.LayoutParams(size.toInt(), size.toInt())
+            val w = if (isIosDot) (14 * d).toInt() else ((if (active) 8 else 6) * d).toInt()
+            val h = ((if (active) 8 else 6) * d).toInt()
+            val lp = LinearLayout.LayoutParams(w, h)
             lp.marginStart = (3 * d).toInt(); lp.marginEnd = (3 * d).toInt()
             dot.layoutParams = lp
             val bg = android.graphics.drawable.GradientDrawable()
-            bg.shape = android.graphics.drawable.GradientDrawable.OVAL
+            bg.shape = if (isIosDot) android.graphics.drawable.GradientDrawable.RECTANGLE else android.graphics.drawable.GradientDrawable.OVAL
+            if (isIosDot) bg.cornerRadius = h / 2f
             bg.setColor(if (active) prefs.accentColor else 0x66FFFFFF)
             dot.background = bg
             dot.setOnClickListener { if (isIosDot) showIosHomePage(true) else { if (iosPageVisible) hideIosHomePage(false); currentPageIndex = i; renderCurrentPage(); persistLayout() } }
@@ -1358,6 +1365,8 @@ class MainActivity : AppCompatActivity() {
         bindSeek(findViewById(R.id.landColsSeek), prefs.landscapeGridCols - 4, 0, 4) { prefs.landscapeGridCols = it + 4; applyOrientationLayout(); renderCurrentPage() }
         bindSeek(findViewById(R.id.landPadSeek), prefs.landscapeGridPadding, 0, 40) { prefs.landscapeGridPadding = it; applyOrientationLayout() }
         bindSeek(findViewById(R.id.landScaleSeek), prefs.landscapeIconScale - 60, 0, 60) { prefs.landscapeIconScale = it + 60; applyOrientationLayout() }
+        bindSeek(findViewById(R.id.gridTopPadSeek), prefs.gridTopPadding, 0, 200) { prefs.gridTopPadding = it; applyOrientationLayout() }
+        bindSeek(findViewById(R.id.gridBottomPadSeek), prefs.gridBottomPadding, 0, 200) { prefs.gridBottomPadding = it; applyOrientationLayout() }
         val screenScaleLabel = findViewById<TextView>(R.id.screenScaleLabel)
         fun updScreenScale() { screenScaleLabel.text = "${prefs.screenScale}%" }
         updScreenScale()
@@ -1396,7 +1405,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<SwitchMaterial?>(R.id.virtualStatusSwitch)?.apply { isChecked = prefs.virtualStatusBar; setOnCheckedChangeListener { _, c -> prefs.virtualStatusBar = c; updateVirtualStatusBar() } }
         findViewById<SwitchMaterial?>(R.id.vsbClockCenterSwitch)?.apply { isChecked = prefs.virtualStatusClockCenter; setOnCheckedChangeListener { _, c -> prefs.virtualStatusClockCenter = c; updateVirtualStatusBar() } }
         findViewById<SwitchMaterial?>(R.id.vsbBatteryPctSwitch)?.apply { isChecked = prefs.virtualStatusBatteryPercent; setOnCheckedChangeListener { _, c -> prefs.virtualStatusBatteryPercent = c; updateVirtualStatusBar() } }
-        bindSeek(findViewById(R.id.vsbHeightSeek), (prefs.virtualStatusHeight - 20).coerceIn(0,40), 0, 40) { prefs.virtualStatusHeight = it + 20; updateVirtualStatusBar() }
+        bindSeek(findViewById(R.id.vsbHeightSeek), (prefs.virtualStatusHeight - 20).coerceIn(0,40), 0, 40) { prefs.virtualStatusHeight = it + 20; updateVirtualStatusBar(); applyScreenInsets() }
+        bindSeek(findViewById(R.id.vsbOffsetXSeek), (prefs.virtualStatusOffsetX + 200).coerceIn(0,400), 0, 400) { prefs.virtualStatusOffsetX = it - 200; updateVirtualStatusBar() }
+        bindSeek(findViewById(R.id.vsbOffsetYSeek), (prefs.virtualStatusOffsetY + 200).coerceIn(0,400), 0, 400) { prefs.virtualStatusOffsetY = it - 200; updateVirtualStatusBar(); applyScreenInsets() }
 
         // Dock category
         val dockStyleLabel2 = findViewById<TextView>(R.id.dockStyleLabel)
@@ -1554,10 +1565,22 @@ class MainActivity : AppCompatActivity() {
         try {
             val d = resources.displayMetrics.density
             val l = (prefs.screenInsetLeft * d).toInt()
-            val t = (prefs.screenInsetTop * d).toInt()
+            val tBase = (prefs.screenInsetTop * d).toInt()
             val r = (prefs.screenInsetRight * d).toInt()
             val b = (prefs.screenInsetBottom * d).toInt()
-            homeContent.setPadding(l, t, r, b)
+            fun bar(v: View?, size: Int, horizontal: Boolean) {
+                if (v == null) return
+                val lp = v.layoutParams
+                if (horizontal) { lp.height = size; lp.width = FrameLayout.LayoutParams.MATCH_PARENT } else { lp.width = size; lp.height = FrameLayout.LayoutParams.MATCH_PARENT }
+                v.layoutParams = lp
+                v.isVisible = size > 0
+            }
+            bar(findViewById(R.id.insetBarTop), tBase, true)
+            bar(findViewById(R.id.insetBarBottom), b, true)
+            bar(findViewById(R.id.insetBarLeft), l, false)
+            bar(findViewById(R.id.insetBarRight), r, false)
+            updateVirtualStatusBar()
+            applyOrientationLayout()
         } catch (_: Exception) {}
     }
 
@@ -1610,8 +1633,12 @@ class MainActivity : AppCompatActivity() {
         try {
             val bar = findViewById<View?>(R.id.virtualStatusBar) ?: return
             bar.isVisible = prefs.virtualStatusBar
-            val lp = bar.layoutParams
-            lp.height = (prefs.virtualStatusHeight.coerceIn(20,60) * resources.displayMetrics.density).toInt()
+            val d = resources.displayMetrics.density
+            val lp = bar.layoutParams as FrameLayout.LayoutParams
+            lp.height = (prefs.virtualStatusHeight.coerceIn(20,60) * d).toInt()
+            lp.topMargin = (prefs.screenInsetTop * d).toInt() + (prefs.virtualStatusOffsetY * d).toInt()
+            lp.marginStart = (prefs.screenInsetLeft * d).toInt() + (prefs.virtualStatusOffsetX * d).toInt()
+            lp.marginEnd = (prefs.screenInsetRight * d).toInt() - (prefs.virtualStatusOffsetX * d).toInt()
             bar.layoutParams = lp
             val clock = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
             val left = findViewById<TextView?>(R.id.vsbLeft)
@@ -2882,6 +2909,8 @@ class MainActivity : AppCompatActivity() {
             if (pageDragActive) snapPageDrag(0f)
             return
         }
+        val iosMode = (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")
+        val targetView: View = if (iosPageVisible) findViewById(R.id.iosHomeLibrary) else gridRecycler
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 pageDragActive = false
@@ -2895,20 +2924,19 @@ class MainActivity : AppCompatActivity() {
                 val dy = ev.y - pageDragStartY
                 if (!pageDragActive) {
                     if (abs(dx) > 24 * resources.displayMetrics.density && abs(dx) > abs(dy) * 1.2f) {
-                        // don't start page drag if touch started on icon
                         if (!isPointOnAppIcon(ev.rawX - dx, ev.rawY - dy)) pageDragActive = true
                     }
                 }
                 if (pageDragActive) {
                     pageDragDx = dx
-                    val canLeft = currentPageIndex > 0
-                    val canRight = currentPageIndex < pages.lastIndex
+                    val canLeft = if (iosPageVisible) true else currentPageIndex > 0
+                    val canRight = if (iosPageVisible) false else (currentPageIndex < pages.lastIndex || (iosMode && currentPageIndex == pages.lastIndex))
                     val resisted = when {
                         dx > 0 && !canLeft -> dx * 0.2f
                         dx < 0 && !canRight -> dx * 0.2f
                         else -> dx
                     }
-                    gridRecycler.translationX = resisted
+                    targetView.translationX = resisted
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -2923,10 +2951,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun snapPageDrag(dx: Float) {
-        val threshold = gridRecycler.width * 0.2f
+        val w = findViewById<FrameLayout>(R.id.workspaceContainer).width.toFloat().coerceAtLeast(1f)
+        val threshold = w * 0.2f
+        val iosMode = (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios")
+        if (iosPageVisible) {
+            if (dx > threshold) hideIosHomePage(true) else findViewById<View>(R.id.iosHomeLibrary).animate().translationX(0f).alpha(1f).setDuration(150).start()
+            pageDragDx = 0f
+            return
+        }
         val goNext = dx < -threshold && currentPageIndex < pages.lastIndex
+        val goToIos = dx < -threshold && iosMode && currentPageIndex == pages.lastIndex
         val goPrev = dx > threshold && currentPageIndex > 0
         when {
+            goToIos -> showIosHomePage(true)
             goNext -> switchPageAnimated(1)
             goPrev -> switchPageAnimated(-1)
             else -> gridRecycler.animate().translationX(0f).alpha(1f).setDuration(150).start()
@@ -3821,7 +3858,7 @@ class MainActivity : AppCompatActivity() {
             dockBar.addView(ph, 0)
         }
         val drawerBtn = findViewById<ImageButton>(R.id.drawerBtn)
-        drawerBtn.isVisible = prefs.drawerStyle == "button" && !ipad
+        drawerBtn.isVisible = prefs.drawerStyle == "button" && prefs.drawerLayout != "ios" && !ipad
         drawerBtn.setColorFilter(prefs.accentColor)
         drawerBtn.setOnClickListener { if (appDrawer.isVisible) closeDrawer() else openDrawer() }
     }
