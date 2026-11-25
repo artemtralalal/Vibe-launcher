@@ -282,6 +282,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        try { unregisterReceiver(packageReceiver) } catch (_: Exception) {}
         try { unregisterReceiver(unlockReceiver) } catch (_: Exception) {}
         try { unregisterReceiver(screenOffReceiver) } catch (_: Exception) {}
         try { unregisterReceiver(volumeReceiver) } catch (_: Exception) {}
@@ -3759,14 +3760,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun handlePackageChange(pkg: String, action: String) {
         try { loadApps() } catch (_: Exception) {}
-    }
-
-    override fun onDestroy() {
-        try { unregisterReceiver(packageReceiver) } catch (_: Exception) {}
-        try { unregisterReceiver(unlockReceiver) } catch (_: Exception) {}
-        try { unregisterReceiver(screenOffReceiver) } catch (_: Exception) {}
-        try { unregisterReceiver(volumeReceiver) } catch (_: Exception) {}
-        super.onDestroy()
     }
 
     private fun loadApps() {
