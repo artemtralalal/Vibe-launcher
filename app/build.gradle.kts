@@ -11,8 +11,8 @@ android {
         applicationId = "com.vibe.launcher"
         minSdk = 26
         targetSdk = 35
-        versionCode = 69
-        versionName = "1.40-beta"
+        versionCode = 70
+        versionName = "1.41-beta"
     }
 
     buildTypes {
