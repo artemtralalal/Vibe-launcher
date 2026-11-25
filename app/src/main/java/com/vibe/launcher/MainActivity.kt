@@ -4738,7 +4738,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showDragGrid() {
         try {
-            val ws = findViewById<View>(R.id.workspaceContainer)
+            val ws = findViewById<ViewGroup>(R.id.workspaceContainer)
             if (dragGridOverlay == null) {
                 dragGridOverlay = DragGridOverlay(this).apply {
                     layoutParams = android.widget.FrameLayout.LayoutParams(android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT)
