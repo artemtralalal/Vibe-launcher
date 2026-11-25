@@ -774,8 +774,12 @@
                     <LinearLayout android:id="@+id/catAbout" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
                         <LinearLayout android:id="@+id/aboutCardBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/bg_settings_panel" android:orientation="vertical" android:padding="16dp">
                             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Vibe Launcher" android:textColor="@color/white" android:textSize="20sp" android:textStyle="bold"/>
-                            <TextView android:id="@+id/aboutCardVersion" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1.9.3-beta" android:textColor="#CCFFFFFF" android:layout_marginTop="4dp"/>
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Нажмите, чтобы открыть подробности" android:textColor="#99FFFFFF" android:layout_marginTop="8dp" android:textSize="12sp"/>
+                            <TextView android:id="@+id/aboutCardVersion" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Версия" android:textColor="#CCFFFFFF" android:layout_marginTop="4dp"/>
+                            <TextView android:id="@+id/aboutCardBuild" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Сборка" android:textColor="#99FFFFFF" android:layout_marginTop="4dp" android:textSize="12sp"/>
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/bg_settings_panel" android:orientation="vertical" android:padding="16dp" android:layout_marginTop="10dp">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Что в этом обновлении" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold"/>
+                            <TextView android:id="@+id/aboutChangelog" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#CCFFFFFF" android:layout_marginTop="8dp" android:textSize="13sp"/>
                         </LinearLayout>
                     </LinearLayout>
 
