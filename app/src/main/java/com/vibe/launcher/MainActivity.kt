@@ -848,7 +848,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val iosMode = (prefs.drawerStyle == "ios" || prefs.drawerLayout == "ios") && prefs.iosLibraryOpenMode == "page"
-        if (delta > 0 && iosMode && currentPageIndex == 1) { showIosHomePage(animated = true); return }
+        if (delta > 0 && iosMode && currentPageIndex == pages.lastIndex) { showIosHomePage(animated = true); return }
         val next = currentPageIndex + delta
         if (next > pages.lastIndex) return
         if (next < 0) return
@@ -2897,15 +2897,14 @@ class MainActivity : AppCompatActivity() {
     private fun updateAboutInfo() {
         try {
             findViewById<TextView?>(R.id.aboutCardVersion)?.text = "Версия ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.55-beta"
+            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.56-beta"
             findViewById<TextView?>(R.id.aboutChangelog)?.text = """
-                • Исправлены красные сборки GitHub Actions (ViewGroup/import, prefs, layout id).
-                • Авторасстановка при первом запуске: выбор приложений галочками.
-                • iOS-библиотека: открытие справа (страница) или свайпом снизу — выбор в настройках.
-                • Папки: страницы, blur обоев, bounce, закрытие тапом вне, возврат в папку после закрытия приложения.
-                • Виджеты: реальный AppWidgetHost MVP, восстановление после перезапуска, удаление по долгому тапу.
-                • Blur обоев действует в папках/меню/ключевых анимациях.
-                • Dynamic Island и предпросмотр новых анимаций скрыты; старый tilt усилен.
+                • Исправлен drag-and-drop иконок на рабочем столе: слушатель сетки подключён, overlay больше не ломает layout.
+                • При установке приложения на рабочий стол добавляется только это приложение (без массового добавления всех иконок).
+                • iOS-библиотека открывается с последней страницы, даже если страница одна.
+                • Папки: страницы, blur обоев, bounce, закрытие тапом вне, возврат в папку.
+                • Виджеты: AppWidgetHost MVP, восстановление после перезапуска.
+                • Экран «О лаунчере» показывает версию/сборку для проверки обновления.
             """.trimIndent()
         } catch (_: Exception) { }
     }
@@ -3038,7 +3037,7 @@ class MainActivity : AppCompatActivity() {
             pageDragDx = 0f
             return
         }
-        val goToIos = dx < -threshold && iosMode && currentPageIndex == 1
+        val goToIos = dx < -threshold && iosMode && currentPageIndex == pages.lastIndex
         val goNext = dx < -threshold && currentPageIndex < pages.lastIndex && !goToIos
         val goPrev = dx > threshold && currentPageIndex > 0
         when {
@@ -3899,10 +3898,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handlePackageChange(pkg: String, action: String) {
-        try { loadApps(addMissingToHome = action == Intent.ACTION_PACKAGE_ADDED) } catch (_: Exception) {}
+        try { loadApps(addMissingToHome = action == Intent.ACTION_PACKAGE_ADDED, addedPackage = if (action == Intent.ACTION_PACKAGE_ADDED) pkg else null) } catch (_: Exception) {}
     }
 
-    private fun loadApps(addMissingToHome: Boolean = false) {
+    private fun loadApps(addMissingToHome: Boolean = false, addedPackage: String? = null) {
         val pack = prefs.iconPackPackage
         Thread {
             try {
@@ -3953,8 +3952,8 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                             if (pages.isEmpty()) pages.add(newPage())
-                            if (addMissingToHome) {
-                                val missing = apps.filter { it.key !in used }
+                            if (addMissingToHome && !addedPackage.isNullOrBlank()) {
+                                val missing = apps.filter { it.key !in used && it.packageName == addedPackage }
                                 for (app in missing) {
                                     var placed = false
                                     for (p in pages) {
@@ -4757,20 +4756,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun showDragGrid() {
         try {
-            val ws = findViewById<ViewGroup>(R.id.workspaceContainer)
+            val host = (gridRecycler.parent as? ViewGroup) ?: findViewById<ViewGroup>(R.id.workspaceContainer)
             if (dragGridOverlay == null) {
                 dragGridOverlay = DragGridOverlay(this).apply {
-                    layoutParams = android.widget.FrameLayout.LayoutParams(android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT)
+                    layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
                     isClickable = false; isFocusable = false
                 }
-                ws.addView(dragGridOverlay)
+                host.addView(dragGridOverlay)
+            } else if (dragGridOverlay?.parent !== host) {
+                (dragGridOverlay?.parent as? ViewGroup)?.removeView(dragGridOverlay)
+                host.addView(dragGridOverlay)
             }
             val cols = (gridRecycler.layoutManager as? GridLayoutManager)?.spanCount ?: 4
             dragGridOverlay?.cols = cols
             dragGridOverlay?.rows = ((pageSize + cols - 1) / cols).coerceAtLeast(1)
             dragGridOverlay?.visibility = View.VISIBLE
             dragGridOverlay?.bringToFront()
-            // keep grid above overlay
             gridRecycler.bringToFront()
             findViewById<View>(R.id.pageEdgeLeft).bringToFront()
             findViewById<View>(R.id.pageEdgeRight).bringToFront()
