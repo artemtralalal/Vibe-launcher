@@ -1385,6 +1385,9 @@ class MainActivity : AppCompatActivity() {
         updateCornerPreview()
         updateUnlockLabel()
         findViewById<Button>(R.id.unlockAnimBtn).setOnClickListener { showUnlockAnimPicker() }
+        findViewById<SeekBar?>(R.id.iosOldTopScaleSeek)?.let { bindSeek(it, prefs.iosOldTopScale, 120, 400) { v -> prefs.iosOldTopScale = v; updateUnlockLabel() } }
+        findViewById<SeekBar?>(R.id.iosOldBottomScaleSeek)?.let { bindSeek(it, prefs.iosOldBottomScale, 100, 180) { v -> prefs.iosOldBottomScale = v; updateUnlockLabel() } }
+        findViewById<SeekBar?>(R.id.iosOldSpeedSeek)?.let { bindSeek(it, prefs.iosOldSpeed, 40, 220) { v -> prefs.iosOldSpeed = v; updateUnlockLabel() } }
         updateDrawerStyleLabel()
         findViewById<Button>(R.id.drawerStyleBtn).setOnClickListener { showDrawerStylePicker() }
         updateDrawerLayoutLabel()
@@ -2580,6 +2583,11 @@ class MainActivity : AppCompatActivity() {
             "miui13" -> "MIUI 13"; "oukitel" -> "Oukitel / Чистый Android"; "none" -> "Нет"; else -> prefs.unlockAnim
         }
         findViewById<TextView>(R.id.unlockAnimLabel).text = "Анимация разблокировки: $label"
+        val showOld = prefs.unlockAnim == "ios_old"
+        findViewById<View?>(R.id.iosOldAnimSettings)?.isVisible = showOld
+        findViewById<TextView?>(R.id.iosOldTopScaleLabel)?.text = "Масштаб верхних 3 рядов: ${prefs.iosOldTopScale}%"
+        findViewById<TextView?>(R.id.iosOldBottomScaleLabel)?.text = "Масштаб нижних рядов: ${prefs.iosOldBottomScale}%"
+        findViewById<TextView?>(R.id.iosOldSpeedLabel)?.text = "Скорость анимации: ${prefs.iosOldSpeed}%"
     }
 
     private fun showUnlockAnimPicker() {
@@ -2899,7 +2907,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateAboutInfo() {
         try {
             findViewById<TextView?>(R.id.aboutCardVersion)?.text = "Версия ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.61-beta"
+            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.62-beta"
             findViewById<TextView?>(R.id.aboutChangelog)?.text = """
                 • Новые анимации разблокировки: iPhone (старая iOS) — ряды прилетают сверху вниз с масштабом; iPhone (iOS 26) — иконки прилетают слева/справа/снизу.
                 • Исправлен drag-and-drop иконок на рабочем столе.
@@ -3568,23 +3576,26 @@ class MainActivity : AppCompatActivity() {
                         val row = if (idx < gridChildCount) idx / cols else (gridChildCount / cols) + 2
                         val isDock = idx >= gridChildCount
                         val d = resources.displayMetrics.density
+                        val speedF = (100f / prefs.iosOldSpeed.coerceIn(40, 220)).coerceIn(0.45f, 2.5f)
+                        val topScale = (prefs.iosOldTopScale.coerceIn(120, 400) / 100f)
+                        val bottomScale = (prefs.iosOldBottomScale.coerceIn(100, 180) / 100f)
                         if (isDock) {
                             v.alpha = 0f; v.scaleX = 1f; v.scaleY = 1f; v.translationY = 64f * d
                             v.animate().alpha(1f).translationY(0f)
-                                .setStartDelay(520L)
-                                .setDuration(420)
+                                .setStartDelay((520L * speedF).toLong())
+                                .setDuration((420L * speedF).toLong().coerceAtLeast(180L))
                                 .setInterpolator(DecelerateInterpolator(2.0f)).start()
                         } else if (row <= 2) {
-                            v.alpha = 0f; v.scaleX = 1.55f; v.scaleY = 1.55f; v.translationY = 36f * d
+                            v.alpha = 0f; v.scaleX = topScale; v.scaleY = topScale; v.translationY = 36f * d
                             v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
-                                .setStartDelay((row * 140L))
-                                .setDuration(620)
+                                .setStartDelay((row * 140L * speedF).toLong())
+                                .setDuration((620L * speedF).toLong().coerceAtLeast(220L))
                                 .setInterpolator(DecelerateInterpolator(2.4f)).start()
                         } else {
-                            v.alpha = 0f; v.scaleX = 1.12f; v.scaleY = 1.12f; v.translationY = 44f * d
+                            v.alpha = 0f; v.scaleX = bottomScale; v.scaleY = bottomScale; v.translationY = 44f * d
                             v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
-                                .setStartDelay((row * 110L))
-                                .setDuration(520)
+                                .setStartDelay((row * 110L * speedF).toLong())
+                                .setDuration((520L * speedF).toLong().coerceAtLeast(200L))
                                 .setInterpolator(DecelerateInterpolator(2.0f)).start()
                         }
                     }
