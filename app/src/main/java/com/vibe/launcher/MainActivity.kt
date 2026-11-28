@@ -2899,7 +2899,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateAboutInfo() {
         try {
             findViewById<TextView?>(R.id.aboutCardVersion)?.text = "Версия ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.57-beta"
+            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.58-beta"
             findViewById<TextView?>(R.id.aboutChangelog)?.text = """
                 • Новые анимации разблокировки: iPhone (старая iOS) — ряды прилетают сверху вниз с масштабом; iPhone (iOS 26) — иконки прилетают слева/справа/снизу.
                 • Исправлен drag-and-drop иконок на рабочем столе.
@@ -3547,13 +3547,20 @@ class MainActivity : AppCompatActivity() {
                         val row = if (idx < gridChildCount) idx / cols else (gridChildCount / cols) + 1
                         val col = if (idx < gridChildCount) idx % cols else idx - gridChildCount
                         val firstRows = row <= 1
-                        val startScale = if (firstRows) 1.35f else 1.18f
-                        val startY = if (firstRows) -18f * resources.displayMetrics.density else 10f * resources.displayMetrics.density
-                        v.alpha = 0f; v.scaleX = startScale; v.scaleY = startScale; v.translationY = startY
-                        v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
-                            .setStartDelay((row * 90L + col * 18L).coerceAtMost(520L))
-                            .setDuration(if (firstRows) 520 else 420)
-                            .setInterpolator(DecelerateInterpolator(2.2f)).start()
+                        val d = resources.displayMetrics.density
+                        if (firstRows) {
+                            v.alpha = 0f; v.scaleX = 1.28f; v.scaleY = 1.28f; v.translationY = 28f * d
+                            v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+                                .setStartDelay((row * 70L + col * 16L).coerceAtMost(320L))
+                                .setDuration(460)
+                                .setInterpolator(DecelerateInterpolator(2.1f)).start()
+                        } else {
+                            v.alpha = 0f; v.scaleX = 1f; v.scaleY = 1f; v.translationY = 70f * d
+                            v.animate().alpha(1f).translationY(0f)
+                                .setStartDelay((row * 70L + col * 14L).coerceAtMost(520L))
+                                .setDuration(380)
+                                .setInterpolator(DecelerateInterpolator(1.8f)).start()
+                        }
                     }
                     "ios26" -> {
                         val row = if (idx < gridChildCount) idx / cols else (gridChildCount / cols) + 1
