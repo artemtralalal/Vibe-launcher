@@ -393,9 +393,9 @@ class MainActivity : AppCompatActivity() {
         gridRecycler.setPadding((gridPad * d).toInt(), (prefs.gridTopPadding * d).toInt(), (gridPad * d).toInt(), ((8 + prefs.gridBottomPadding) * d).toInt())
         val lm = gridRecycler.layoutManager
         if (lm is GridLayoutManager) {
-            if (lm.spanCount != cols) gridRecycler.layoutManager = GridLayoutManager(this, cols)
+            if (lm.spanCount != cols) gridRecycler.layoutManager = object : GridLayoutManager(this, cols) { override fun canScrollVertically() = false; override fun canScrollHorizontally() = false }
         } else {
-            gridRecycler.layoutManager = GridLayoutManager(this, cols)
+            gridRecycler.layoutManager = object : GridLayoutManager(this, cols) { override fun canScrollVertically() = false; override fun canScrollHorizontally() = false }
         }
         gridRecycler.scaleX = iconScale
         gridRecycler.scaleY = iconScale
@@ -518,7 +518,7 @@ class MainActivity : AppCompatActivity() {
             tiltEnabled = { prefs.tiltAnimation },
             tiltIntensity = { prefs.tiltIntensity }
         )
-        gridRecycler.layoutManager = GridLayoutManager(this, prefs.portraitGridCols.coerceIn(3, 7))
+        gridRecycler.layoutManager = object : GridLayoutManager(this, prefs.portraitGridCols.coerceIn(3, 7)) { override fun canScrollVertically() = false; override fun canScrollHorizontally() = false }
         gridRecycler.adapter = gridAdapter
         gridRecycler.clipChildren = false
         gridRecycler.clipToPadding = false
@@ -2899,7 +2899,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateAboutInfo() {
         try {
             findViewById<TextView?>(R.id.aboutCardVersion)?.text = "Версия ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.60-beta"
+            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.61-beta"
             findViewById<TextView?>(R.id.aboutChangelog)?.text = """
                 • Новые анимации разблокировки: iPhone (старая iOS) — ряды прилетают сверху вниз с масштабом; iPhone (iOS 26) — иконки прилетают слева/справа/снизу.
                 • Исправлен drag-and-drop иконок на рабочем столе.
@@ -3053,13 +3053,20 @@ class MainActivity : AppCompatActivity() {
         val loc = IntArray(2)
         for (i in 0 until gridRecycler.childCount) {
             val child = gridRecycler.getChildAt(i) ?: continue
-            child.getLocationOnScreen(loc)
-            if (rawX >= loc[0] && rawX <= loc[0] + child.width && rawY >= loc[1] && rawY <= loc[1] + child.height) return true
+            val pos = gridRecycler.getChildAdapterPosition(child)
+            val hasApp = pos in 0 until pageSize && gridAdapter.getSlot(pos) != null
+            if (!hasApp) continue
+            val icon = child.findViewById<View?>(R.id.appIcon) ?: child
+            icon.getLocationOnScreen(loc)
+            if (rawX >= loc[0] && rawX <= loc[0] + icon.width && rawY >= loc[1] && rawY <= loc[1] + icon.height) return true
         }
         for (i in 0 until dockBar.childCount) {
             val child = dockBar.getChildAt(i) ?: continue
-            child.getLocationOnScreen(loc)
-            if (rawX >= loc[0] && rawX <= loc[0] + child.width && rawY >= loc[1] && rawY <= loc[1] + child.height) return true
+            val hasDockApp = dockApps.getOrNull(i) != null
+            if (!hasDockApp) continue
+            val icon = child.findViewById<View?>(R.id.appIcon) ?: child
+            icon.getLocationOnScreen(loc)
+            if (rawX >= loc[0] && rawX <= loc[0] + icon.width && rawY >= loc[1] && rawY <= loc[1] + icon.height) return true
         }
         return false
     }
