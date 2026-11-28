@@ -2899,7 +2899,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateAboutInfo() {
         try {
             findViewById<TextView?>(R.id.aboutCardVersion)?.text = "Версия ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.58-beta"
+            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.59-beta"
             findViewById<TextView?>(R.id.aboutChangelog)?.text = """
                 • Новые анимации разблокировки: iPhone (старая iOS) — ряды прилетают сверху вниз с масштабом; iPhone (iOS 26) — иконки прилетают слева/справа/снизу.
                 • Исправлен drag-and-drop иконок на рабочем столе.
@@ -3544,39 +3544,51 @@ class MainActivity : AppCompatActivity() {
                             .setDuration(360).setInterpolator(DecelerateInterpolator(2f)).start()
                     }
                     "ios_old" -> {
-                        val row = if (idx < gridChildCount) idx / cols else (gridChildCount / cols) + 1
+                        val row = if (idx < gridChildCount) idx / cols else (gridChildCount / cols) + 2
                         val col = if (idx < gridChildCount) idx % cols else idx - gridChildCount
-                        val firstRows = row <= 1
+                        val isDock = idx >= gridChildCount
                         val d = resources.displayMetrics.density
-                        if (firstRows) {
-                            v.alpha = 0f; v.scaleX = 1.28f; v.scaleY = 1.28f; v.translationY = 28f * d
-                            v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
-                                .setStartDelay((row * 70L + col * 16L).coerceAtMost(320L))
-                                .setDuration(460)
-                                .setInterpolator(DecelerateInterpolator(2.1f)).start()
-                        } else {
-                            v.alpha = 0f; v.scaleX = 1f; v.scaleY = 1f; v.translationY = 70f * d
+                        if (isDock) {
+                            v.alpha = 0f; v.scaleX = 1f; v.scaleY = 1f; v.translationY = 56f * d
                             v.animate().alpha(1f).translationY(0f)
-                                .setStartDelay((row * 70L + col * 14L).coerceAtMost(520L))
-                                .setDuration(380)
-                                .setInterpolator(DecelerateInterpolator(1.8f)).start()
+                                .setStartDelay(260L + col * 30L)
+                                .setDuration(340)
+                                .setInterpolator(DecelerateInterpolator(1.9f)).start()
+                        } else if (row <= 2) {
+                            v.alpha = 0f; v.scaleX = 1.34f; v.scaleY = 1.34f; v.translationY = 22f * d
+                            v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+                                .setStartDelay((row * 65L + col * 14L).coerceAtMost(320L))
+                                .setDuration(480)
+                                .setInterpolator(DecelerateInterpolator(2.2f)).start()
+                        } else {
+                            v.alpha = 0f; v.scaleX = 1.08f; v.scaleY = 1.08f; v.translationY = 52f * d
+                            v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+                                .setStartDelay((row * 60L + col * 12L).coerceAtMost(520L))
+                                .setDuration(400)
+                                .setInterpolator(DecelerateInterpolator(1.9f)).start()
                         }
                     }
                     "ios26" -> {
-                        val row = if (idx < gridChildCount) idx / cols else (gridChildCount / cols) + 1
+                        val row = if (idx < gridChildCount) idx / cols else (gridChildCount / cols) + 2
                         val col = if (idx < gridChildCount) idx % cols else idx - gridChildCount
-                        val dir = (row + col) % 3
+                        val isDock = idx >= gridChildCount
                         val d = resources.displayMetrics.density
-                        v.alpha = 0f; v.scaleX = 0.92f; v.scaleY = 0.92f
-                        when (dir) {
-                            0 -> { v.translationX = -90f * d; v.translationY = 20f * d }
-                            1 -> { v.translationX = 90f * d; v.translationY = 20f * d }
-                            else -> { v.translationX = 0f; v.translationY = 110f * d }
+                        if (isDock) {
+                            v.alpha = 0f; v.scaleX = 1f; v.scaleY = 1f; v.translationY = 48f * d
+                            v.animate().alpha(1f).translationY(0f)
+                                .setStartDelay(220L + col * 35L)
+                                .setDuration(320)
+                                .setInterpolator(DecelerateInterpolator(1.8f)).start()
+                        } else {
+                            val dir = (col + row) % 3
+                            val fromX = when (dir) { 0 -> -44f * d; 1 -> 44f * d; else -> 0f }
+                            val fromY = when (dir) { 2 -> 56f * d; else -> 18f * d }
+                            v.alpha = 0f; v.scaleX = 0.96f; v.scaleY = 0.96f; v.translationX = fromX; v.translationY = fromY
+                            v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationX(0f).translationY(0f)
+                                .setStartDelay((row * 45L + col * 22L).coerceAtMost(360L))
+                                .setDuration(420)
+                                .setInterpolator(DecelerateInterpolator(2.0f)).start()
                         }
-                        v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationX(0f).translationY(0f)
-                            .setStartDelay((row * 55L + col * 28L).coerceAtMost(420L))
-                            .setDuration(460)
-                            .setInterpolator(DecelerateInterpolator(1.9f)).start()
                     }
                     "poco" -> {
                         val loc = IntArray(2); v.getLocationOnScreen(loc)
