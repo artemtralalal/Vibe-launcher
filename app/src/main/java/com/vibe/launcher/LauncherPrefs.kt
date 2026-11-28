@@ -468,6 +468,15 @@ class LauncherPrefs(context: Context) {
     var unlockAnim: String
         get() = prefs.getString("unlock_anim", "pixel") ?: "pixel"
         set(v) = prefs.edit().putString("unlock_anim", v).apply()
+    var iosOldTopScale: Int
+        get() = prefs.getInt("ios_old_top_scale", 300)
+        set(v) = prefs.edit().putInt("ios_old_top_scale", v.coerceIn(120, 400)).apply()
+    var iosOldBottomScale: Int
+        get() = prefs.getInt("ios_old_bottom_scale", 112)
+        set(v) = prefs.edit().putInt("ios_old_bottom_scale", v.coerceIn(100, 180)).apply()
+    var iosOldSpeed: Int
+        get() = prefs.getInt("ios_old_speed", 100)
+        set(v) = prefs.edit().putInt("ios_old_speed", v.coerceIn(40, 220)).apply()
 
     var layoutInitialized: Boolean
         get() = prefs.getBoolean("layout_initialized", false)
