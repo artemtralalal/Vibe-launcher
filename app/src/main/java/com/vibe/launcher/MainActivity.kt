@@ -2899,7 +2899,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateAboutInfo() {
         try {
             findViewById<TextView?>(R.id.aboutCardVersion)?.text = "Версия ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.59-beta"
+            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.60-beta"
             findViewById<TextView?>(R.id.aboutChangelog)?.text = """
                 • Новые анимации разблокировки: iPhone (старая iOS) — ряды прилетают сверху вниз с масштабом; iPhone (iOS 26) — иконки прилетают слева/справа/снизу.
                 • Исправлен drag-and-drop иконок на рабочем столе.
@@ -3533,6 +3533,20 @@ class MainActivity : AppCompatActivity() {
 
             val gridChildCount = gridRecycler.childCount
             val cols = (gridRecycler.layoutManager as? GridLayoutManager)?.spanCount?.coerceAtLeast(1) ?: 4
+            if ((anim == "ios_old" || anim == "ios26") && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val blurStart = 18f
+                val be = RenderEffect.createBlurEffect(blurStart, blurStart, Shader.TileMode.CLAMP)
+                homeContent.setRenderEffect(be); wallpaperBlurView?.setRenderEffect(be)
+                android.animation.ValueAnimator.ofFloat(blurStart, 0.1f).apply {
+                    duration = 650; startDelay = 120
+                    addUpdateListener { va ->
+                        val r = (va.animatedValue as Float).coerceAtLeast(0.1f)
+                        val b = RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP)
+                        homeContent.setRenderEffect(b); wallpaperBlurView?.setRenderEffect(b)
+                    }
+                    addListener(object: android.animation.AnimatorListenerAdapter() { override fun onAnimationEnd(animation: android.animation.Animator) { homeContent.setRenderEffect(null); wallpaperBlurView?.setRenderEffect(null) } })
+                }.start()
+            }
             views.forEachIndexed { idx, v ->
                 v.animate().cancel()
                 v.translationX = 0f
@@ -3545,27 +3559,26 @@ class MainActivity : AppCompatActivity() {
                     }
                     "ios_old" -> {
                         val row = if (idx < gridChildCount) idx / cols else (gridChildCount / cols) + 2
-                        val col = if (idx < gridChildCount) idx % cols else idx - gridChildCount
                         val isDock = idx >= gridChildCount
                         val d = resources.displayMetrics.density
                         if (isDock) {
-                            v.alpha = 0f; v.scaleX = 1f; v.scaleY = 1f; v.translationY = 56f * d
+                            v.alpha = 0f; v.scaleX = 1f; v.scaleY = 1f; v.translationY = 64f * d
                             v.animate().alpha(1f).translationY(0f)
-                                .setStartDelay(260L + col * 30L)
-                                .setDuration(340)
-                                .setInterpolator(DecelerateInterpolator(1.9f)).start()
+                                .setStartDelay(520L)
+                                .setDuration(420)
+                                .setInterpolator(DecelerateInterpolator(2.0f)).start()
                         } else if (row <= 2) {
-                            v.alpha = 0f; v.scaleX = 1.34f; v.scaleY = 1.34f; v.translationY = 22f * d
+                            v.alpha = 0f; v.scaleX = 1.55f; v.scaleY = 1.55f; v.translationY = 36f * d
                             v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
-                                .setStartDelay((row * 65L + col * 14L).coerceAtMost(320L))
-                                .setDuration(480)
-                                .setInterpolator(DecelerateInterpolator(2.2f)).start()
+                                .setStartDelay((row * 140L))
+                                .setDuration(620)
+                                .setInterpolator(DecelerateInterpolator(2.4f)).start()
                         } else {
-                            v.alpha = 0f; v.scaleX = 1.08f; v.scaleY = 1.08f; v.translationY = 52f * d
+                            v.alpha = 0f; v.scaleX = 1.12f; v.scaleY = 1.12f; v.translationY = 44f * d
                             v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
-                                .setStartDelay((row * 60L + col * 12L).coerceAtMost(520L))
-                                .setDuration(400)
-                                .setInterpolator(DecelerateInterpolator(1.9f)).start()
+                                .setStartDelay((row * 110L))
+                                .setDuration(520)
+                                .setInterpolator(DecelerateInterpolator(2.0f)).start()
                         }
                     }
                     "ios26" -> {
@@ -3574,20 +3587,20 @@ class MainActivity : AppCompatActivity() {
                         val isDock = idx >= gridChildCount
                         val d = resources.displayMetrics.density
                         if (isDock) {
-                            v.alpha = 0f; v.scaleX = 1f; v.scaleY = 1f; v.translationY = 48f * d
+                            v.alpha = 0f; v.scaleX = 1f; v.scaleY = 1f; v.translationY = 52f * d
                             v.animate().alpha(1f).translationY(0f)
-                                .setStartDelay(220L + col * 35L)
-                                .setDuration(320)
-                                .setInterpolator(DecelerateInterpolator(1.8f)).start()
+                                .setStartDelay(380L)
+                                .setDuration(360)
+                                .setInterpolator(DecelerateInterpolator(1.9f)).start()
                         } else {
-                            val dir = (col + row) % 3
-                            val fromX = when (dir) { 0 -> -44f * d; 1 -> 44f * d; else -> 0f }
-                            val fromY = when (dir) { 2 -> 56f * d; else -> 18f * d }
-                            v.alpha = 0f; v.scaleX = 0.96f; v.scaleY = 0.96f; v.translationX = fromX; v.translationY = fromY
-                            v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationX(0f).translationY(0f)
-                                .setStartDelay((row * 45L + col * 22L).coerceAtMost(360L))
-                                .setDuration(420)
-                                .setInterpolator(DecelerateInterpolator(2.0f)).start()
+                            val fromBottom = (row + col) % 2 == 0
+                            v.alpha = 0f; v.scaleX = 1.04f; v.scaleY = 1.04f
+                            v.translationX = 0f
+                            v.translationY = if (fromBottom) 72f * d else 36f * d
+                            v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+                                .setStartDelay((row * 55L))
+                                .setDuration(460)
+                                .setInterpolator(DecelerateInterpolator(2.1f)).start()
                         }
                     }
                     "poco" -> {
