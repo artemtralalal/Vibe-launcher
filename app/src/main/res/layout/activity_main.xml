@@ -611,6 +611,14 @@
 
                         <TextView android:id="@+id/unlockAnimLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Анимация разблокировки: Pixel" android:textColor="@color/white" />
                         <Button android:id="@+id/unlockAnimBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Анимация разблокировки" />
+                        <LinearLayout android:id="@+id/iosOldAnimSettings" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone" android:paddingTop="8dp">
+                            <TextView android:id="@+id/iosOldTopScaleLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Масштаб верхних 3 рядов" android:textColor="#CCFFFFFF" android:textSize="12sp"/>
+                            <SeekBar android:id="@+id/iosOldTopScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="250"/>
+                            <TextView android:id="@+id/iosOldBottomScaleLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Масштаб нижних рядов" android:textColor="#CCFFFFFF" android:textSize="12sp"/>
+                            <SeekBar android:id="@+id/iosOldBottomScaleSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="150"/>
+                            <TextView android:id="@+id/iosOldSpeedLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Скорость анимации" android:textColor="#CCFFFFFF" android:textSize="12sp"/>
+                            <SeekBar android:id="@+id/iosOldSpeedSeek" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="200"/>
+                        </LinearLayout>
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Анимация блокировки/выключения экрана" android:textColor="@color/white" />
                         <Button android:id="@+id/lockAnimBtnAnim" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Выбрать анимацию блокировки" />
                     </LinearLayout>
