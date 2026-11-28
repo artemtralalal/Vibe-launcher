@@ -2574,6 +2574,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateUnlockLabel() {
         val label = when (prefs.unlockAnim) {
             "pixel" -> "Pixel"; "poco" -> "POCO/Xiaomi"; "ios" -> "iPhone"
+            "ios_old" -> "iPhone (старая iOS)"; "ios26" -> "iPhone (iOS 26)"
             "ripple" -> "Ripple (отпечаток)"; "wave" -> "Волна"; "fire" -> "Огонь"; "ice" -> "Лёд"
             "samsung" -> "Samsung One UI"; "oneplus" -> "OnePlus"; "nothing" -> "Nothing"; "hyperos" -> "HyperOS"
             "miui13" -> "MIUI 13"; "oukitel" -> "Oukitel / Чистый Android"; "none" -> "Нет"; else -> prefs.unlockAnim
@@ -2584,6 +2585,7 @@ class MainActivity : AppCompatActivity() {
     private fun showUnlockAnimPicker() {
         val opts = listOf(
             "pixel" to "Pixel", "poco" to "POCO/Xiaomi", "ios" to "iPhone",
+            "ios_old" to "iPhone (старая iOS)", "ios26" to "iPhone (iOS 26)",
             "ripple" to "Ripple (отпечаток)", "wave" to "Волна", "fire" to "Огонь", "ice" to "Лёд",
             "samsung" to "Samsung One UI", "oneplus" to "OnePlus", "nothing" to "Nothing", "hyperos" to "HyperOS",
             "miui13" to "MIUI 13", "oukitel" to "Oukitel / Чистый Android", "none" to "Нет"
@@ -2897,14 +2899,12 @@ class MainActivity : AppCompatActivity() {
     private fun updateAboutInfo() {
         try {
             findViewById<TextView?>(R.id.aboutCardVersion)?.text = "Версия ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.56-beta"
+            findViewById<TextView?>(R.id.aboutCardBuild)?.text = "Пакет: ${BuildConfig.APPLICATION_ID} • Сборка проверена: 1.57-beta"
             findViewById<TextView?>(R.id.aboutChangelog)?.text = """
-                • Исправлен drag-and-drop иконок на рабочем столе: слушатель сетки подключён, overlay больше не ломает layout.
-                • При установке приложения на рабочий стол добавляется только это приложение (без массового добавления всех иконок).
+                • Новые анимации разблокировки: iPhone (старая iOS) — ряды прилетают сверху вниз с масштабом; iPhone (iOS 26) — иконки прилетают слева/справа/снизу.
+                • Исправлен drag-and-drop иконок на рабочем столе.
+                • При установке приложения добавляется только оно, без массового добавления всех иконок.
                 • iOS-библиотека открывается с последней страницы, даже если страница одна.
-                • Папки: страницы, blur обоев, bounce, закрытие тапом вне, возврат в папку.
-                • Виджеты: AppWidgetHost MVP, восстановление после перезапуска.
-                • Экран «О лаунчере» показывает версию/сборку для проверки обновления.
             """.trimIndent()
         } catch (_: Exception) { }
     }
@@ -3531,6 +3531,8 @@ class MainActivity : AppCompatActivity() {
                 }.start()
             }
 
+            val gridChildCount = gridRecycler.childCount
+            val cols = (gridRecycler.layoutManager as? GridLayoutManager)?.spanCount?.coerceAtLeast(1) ?: 4
             views.forEachIndexed { idx, v ->
                 v.animate().cancel()
                 v.translationX = 0f
@@ -3540,6 +3542,34 @@ class MainActivity : AppCompatActivity() {
                         v.animate().alpha(1f).scaleX(1f).scaleY(1f)
                             .setStartDelay((idx * 20L).coerceAtMost(220L))
                             .setDuration(360).setInterpolator(DecelerateInterpolator(2f)).start()
+                    }
+                    "ios_old" -> {
+                        val row = if (idx < gridChildCount) idx / cols else (gridChildCount / cols) + 1
+                        val col = if (idx < gridChildCount) idx % cols else idx - gridChildCount
+                        val firstRows = row <= 1
+                        val startScale = if (firstRows) 1.35f else 1.18f
+                        val startY = if (firstRows) -18f * resources.displayMetrics.density else 10f * resources.displayMetrics.density
+                        v.alpha = 0f; v.scaleX = startScale; v.scaleY = startScale; v.translationY = startY
+                        v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
+                            .setStartDelay((row * 90L + col * 18L).coerceAtMost(520L))
+                            .setDuration(if (firstRows) 520 else 420)
+                            .setInterpolator(DecelerateInterpolator(2.2f)).start()
+                    }
+                    "ios26" -> {
+                        val row = if (idx < gridChildCount) idx / cols else (gridChildCount / cols) + 1
+                        val col = if (idx < gridChildCount) idx % cols else idx - gridChildCount
+                        val dir = (row + col) % 3
+                        val d = resources.displayMetrics.density
+                        v.alpha = 0f; v.scaleX = 0.92f; v.scaleY = 0.92f
+                        when (dir) {
+                            0 -> { v.translationX = -90f * d; v.translationY = 20f * d }
+                            1 -> { v.translationX = 90f * d; v.translationY = 20f * d }
+                            else -> { v.translationX = 0f; v.translationY = 110f * d }
+                        }
+                        v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationX(0f).translationY(0f)
+                            .setStartDelay((row * 55L + col * 28L).coerceAtMost(420L))
+                            .setDuration(460)
+                            .setInterpolator(DecelerateInterpolator(1.9f)).start()
                     }
                     "poco" -> {
                         val loc = IntArray(2); v.getLocationOnScreen(loc)
